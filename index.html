@@ -31,8 +31,10 @@
   <body>
     <canvas id='output'></canvas>
     <script type="module">
-      import {mat4, vec3} from './js/gl-matrix/src/gl-matrix.js';
+      import {mat4, vec3} from './js/third-party/gl-matrix/src/gl-matrix.js';
       import { Cube } from './js/cube.js';
+
+      import { Gltf2Loader } from './js/mini-gltf2.js';
 
       import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
 
@@ -111,17 +113,13 @@
 
           vertexStage: {
             module: device.createShaderModule({
-              code: glslang.compileGLSL(vertexShaderGLSL, 'vertex'),
-              source: vertexShaderGLSL,
-              transform: source => glslang.compileGLSL(source, 'vertex'),
+              code: glslang.compileGLSL(vertexShaderGLSL, 'vertex')
             }),
             entryPoint: 'main'
           },
           fragmentStage: {
             module: device.createShaderModule({
-              code: glslang.compileGLSL(fragmentShaderGLSL, 'fragment'),
-              source: fragmentShaderGLSL,
-              transform: source => glslang.compileGLSL(source, 'fragment'),
+              code: glslang.compileGLSL(fragmentShaderGLSL, 'fragment')
             }),
             entryPoint: 'main'
           },
@@ -248,6 +246,11 @@
       }
 
       initWebGPU(outputCanvas);
+
+      let gltfLoader = new Gltf2Loader();
+      gltfLoader.loadFromUrl('./media/models/sponza/sponza.gltf').then((gltf) => {
+        console.log('glTF:', gltf);
+      });
     </script>
   </body>
 </html>
