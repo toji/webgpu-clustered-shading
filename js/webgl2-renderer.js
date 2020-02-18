@@ -18,19 +18,18 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from './renderer.js';
+import { GltfRenderer } from './gltf-renderer.js';
 
 export class WebGL2Renderer extends GltfRenderer {
   constructor() {
     super();
 
     const gl = this.gl = this.canvas.getContext('webgl2');
-    gl.clearColor(0.0, 0.0, 0.5, 1.0);
+    gl.clearColor(0.0, 0.5, 0.0, 1.0);
   }
 
   onFrame(timestamp) {
     const gl = this.gl;
-
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 }

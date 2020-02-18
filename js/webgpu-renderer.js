@@ -28,7 +28,9 @@ export class WebGPURenderer extends GltfRenderer {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
+  }
 
+  async init() {
     this.adapter = await navigator.gpu.requestAdapter();
     this.device = await this.adapter.requestDevice();
     this.swapChainFormat = await this.context.getSwapChainPreferredFormat(this.device);
@@ -36,29 +38,57 @@ export class WebGPURenderer extends GltfRenderer {
       device: this.device,
       format: this.swapChainFormat
     });
+
+    this.colorAttachment = {
+      // attachment is acquired and set in onResize.
+      attachment: undefined,
+      // attachment is acquired and set in onFrame.
+      resolveTarget: undefined,
+      loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
+    };
+
+    this.depthAttachment = {
+      // attachment is acquired and set in onResize.
+      attachment: undefined,
+      depthLoadValue: 1.0,
+      depthStoreOp: 'store',
+      stencilLoadValue: 0,
+      stencilStoreOp: 'store',
+    };
+
+    this.renderPassDescriptor = {
+      colorAttachments: [this.colorAttachment],
+      depthStencilAttachment: this.depthAttachment
+    };
   }
 
   onResize(width, height) {
-    super.onResize(width, height);
+    if (!this.device) return;
 
-    this.msaaColorTexture = device.createTexture({
+    const msaaColorTexture = this.device.createTexture({
       size: { width, height, depth: 1 },
-      SAMPLE_COUNT,
+      sampleCount: SAMPLE_COUNT,
       format: this.swapChainFormat,
       usage: GPUTextureUsage.OUTPUT_ATTACHMENT,
     });
-    //renderPassDescriptor.colorAttachments[0].attachment = this.msaaColorTexture.createView();
+    this.colorAttachment.attachment = msaaColorTexture.createView();
 
-    this.depthTexture = device.createTexture({
+    const depthTexture = this.device.createTexture({
       size: { width, height, depth: 1 },
-      SAMPLE_COUNT,
+      sampleCount: SAMPLE_COUNT,
       format: DEPTH_FORMAT,
       usage: GPUTextureUsage.OUTPUT_ATTACHMENT
     });
-    renderPassDescriptor.depthStencilAttachment.attachment = depthTexture.createView();
+    this.depthAttachment.attachment = depthTexture.createView();
   }
 
   onFrame(timestamp) {
+    const commandEncoder = this.device.createCommandEncoder({});
 
+    this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
+    const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
+
+    passEncoder.endPass();
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
   }
 }

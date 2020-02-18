@@ -7,17 +7,18 @@
     <meta name='mobile-web-app-capable' content='yes'>
     <meta name='apple-mobile-web-app-capable' content='yes'>
 
-    <title>WebGPU test</title>
+    <title>glTF2 API Test</title>
 
     <style>
       html, body {
         height: 100%;
         margin: 0;
-        background-color: #000066;
+        background-color: #000000;
       }
 
       canvas {
         position: absolute;
+        z-index: 0;
         height: 100%;
         width: 100%;
         left: 0;
@@ -26,228 +27,61 @@
         bottom: 0;
         margin: 0;
       }
+
+      select {
+        position: absolute;
+        z-index: 1;
+        top: 1em;
+        right: 1em;
+      }
     </style>
   </head>
   <body>
-    <canvas id='output'></canvas>
+    <select id='api'>
+      <option value=''>- Choose an API -</option>
+      <option value='webgl'>WebGL</option>
+      <option value='webgl2'>WebGL 2.0</option>
+      <option value='webgpu'>WebGPU</option>
+    </select>
     <script type="module">
-      import {mat4, vec3} from './js/third-party/gl-matrix/src/gl-matrix.js';
-      import { Cube } from './js/cube.js';
-
       import { Gltf2Loader } from './js/mini-gltf2.js';
 
-      import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
+      import { WebGLRenderer } from './js/webgl-renderer.js';
+      import { WebGL2Renderer } from './js/webgl2-renderer.js';
+      import { WebGPURenderer } from './js/webgpu-renderer.js';
 
-      const outputCanvas = document.getElementById('output');
-      const context = outputCanvas.getContext('gpupresent');
+      let renderer = null;
 
-      let colorFormat = "bgra8unorm";
-      const depthFormat = "depth24plus";
-      const sampleCount = 4;
-
-      const uniformBufferSize = 4 * 16; // 4x4 matrix
-
-      const vertexShaderGLSL = `#version 450
-        layout(set = 0, binding = 0) uniform Uniforms {
-          mat4 modelViewProjectionMatrix;
-        } uniforms;
-
-        layout(location = 0) in vec4 position;
-        layout(location = 1) in vec4 color;
-
-        layout(location = 0) out vec4 fragColor;
-
-        void main() {
-          gl_Position = uniforms.modelViewProjectionMatrix * position;
-          fragColor = color;
-        }`;
-
-      const fragmentShaderGLSL = `#version 450
-        layout(location = 0) in vec4 fragColor;
-        layout(location = 0) out vec4 outColor;
-
-        void main() {
-          outColor = fragColor;
-        }`;
-
-      let adapter;
-      let device;
-      let glslang;
-      let swapChain;
-      let vertexBuffer;
-      let colorTexture;
-      let depthTexture;
-      let pipeline;
-      let renderPassDescriptor;
-      let uniformBuffer;
-      let uniformBindGroup;
-
-      let viewMatrix = mat4.create();
-      let projectionMatrix = mat4.create();
-      let modelViewProjectionMatrix = mat4.create();
-
-      async function initWebGPU(canvas) {
-        adapter = await navigator.gpu.requestAdapter();
-        device = await adapter.requestDevice();
-        glslang = await glslangModule();
-        colorFormat = await context.getSwapChainPreferredFormat(device);
-        swapChain = context.configureSwapChain({ device, format: colorFormat });
-
-        vertexBuffer = device.createBuffer({
-          size: Cube.vertexArray.byteLength,
-          usage: GPUBufferUsage.VERTEX | GPUBufferUsage.COPY_DST
-        });
-        vertexBuffer.setSubData(0, Cube.vertexArray);
-
-        const uniformsBindGroupLayout = device.createBindGroupLayout({
-          bindings: [{
-            binding: 0,
-            visibility: 1,
-            type: 'uniform-buffer'
-          }]
-        });
-
-        const pipelineLayout = device.createPipelineLayout({ bindGroupLayouts: [uniformsBindGroupLayout] });
-        pipeline = device.createRenderPipeline({
-          layout: pipelineLayout,
-
-          vertexStage: {
-            module: device.createShaderModule({
-              code: glslang.compileGLSL(vertexShaderGLSL, 'vertex')
-            }),
-            entryPoint: 'main'
-          },
-          fragmentStage: {
-            module: device.createShaderModule({
-              code: glslang.compileGLSL(fragmentShaderGLSL, 'fragment')
-            }),
-            entryPoint: 'main'
-          },
-
-          primitiveTopology: 'triangle-list',
-          vertexState: {
-            vertexBuffers: [Cube.layout],
-          },
-
-          rasterizationState: {
-            cullMode: 'back',
-          },
-
-          colorStates: [{
-            format: colorFormat,
-          }],
-          depthStencilState: {
-            depthWriteEnabled: true,
-            depthCompare: 'less',
-            format: depthFormat,
-          },
-          sampleCount,
-        });
-
-        renderPassDescriptor = {
-          colorAttachments: [{
-            // attachment is acquired and set in render loop.
-            attachment: undefined,
-            resolveTarget: undefined,
-
-            loadValue: { r: 0.0, g: 0.5, b: 0.0, a: 1.0 },
-          }],
-          depthStencilAttachment: {
-            // attachment is acquired and set in render loop.
-            attachment: undefined,
-
-            depthLoadValue: 1.0,
-            depthStoreOp: 'store',
-            stencilLoadValue: 0,
-            stencilStoreOp: 'store',
-          }
-        };
-
-        uniformBuffer = device.createBuffer({
-          size: uniformBufferSize,
-          usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-        });
-
-        uniformBindGroup = device.createBindGroup({
-          layout: uniformsBindGroupLayout,
-          bindings: [{
-            binding: 0,
-            resource: {
-              buffer: uniformBuffer,
-            },
-          }],
-        });
-
-        function onResize() {
-          canvas.width = canvas.offsetWidth * window.devicePixelRatio;
-          canvas.height = canvas.offsetHeight * window.devicePixelRatio;
-
-          colorTexture = device.createTexture({
-            size: {
-              width: canvas.width,
-              height: canvas.height,
-              depth: 1,
-            },
-            sampleCount,
-            format: colorFormat,
-            usage: GPUTextureUsage.OUTPUT_ATTACHMENT,
-          });
-          renderPassDescriptor.colorAttachments[0].attachment = colorTexture.createView();
-
-          depthTexture = device.createTexture({
-            size: {
-              width: canvas.width,
-              height: canvas.height,
-              depth: 1
-            },
-            sampleCount,
-            format: depthFormat,
-            usage: GPUTextureUsage.OUTPUT_ATTACHMENT
-          });
-          renderPassDescriptor.depthStencilAttachment.attachment = depthTexture.createView();
-
-          const aspect = Math.abs(canvas.width / canvas.height);
-          mat4.perspective(projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
+      const apiSelect = document.getElementById('api');
+      apiSelect.addEventListener('change', async () => {
+        if (renderer) {
+          renderer.stop();
+          document.body.removeChild(renderer.canvas);
         }
-        window.addEventListener('resize', onResize);
-        onResize();
 
-        window.requestAnimationFrame(onFrame);
-      }
+        switch(apiSelect.value) {
+          case 'webgl':
+            renderer = new WebGLRenderer();
+            break;
+          case 'webgl2':
+            renderer = new WebGL2Renderer();
+            break;
+          case 'webgpu':
+            renderer = new WebGPURenderer();
+            break;
+          default:
+            renderer = null;
+            break;
+        }
 
-      function getTransformationMatrix() {
-        mat4.identity(viewMatrix);
-        mat4.translate(viewMatrix, viewMatrix, vec3.fromValues(0, 0, -5));
-        let now = Date.now() / 1000;
-        mat4.rotate(viewMatrix, viewMatrix, 1, vec3.fromValues(Math.sin(now), Math.cos(now), 0));
+        if (renderer) {
+          await renderer.init();
+          document.body.appendChild(renderer.canvas);
+          renderer.start();
+        }
+      });
 
-        mat4.multiply(modelViewProjectionMatrix, projectionMatrix, viewMatrix);
-
-        return modelViewProjectionMatrix;
-      }
-
-      function onFrame() {
-        window.requestAnimationFrame(onFrame);
-
-        uniformBuffer.setSubData(0, getTransformationMatrix());
-
-        const commandEncoder = device.createCommandEncoder({});
-
-        renderPassDescriptor.colorAttachments[0].resolveTarget = swapChain.getCurrentTexture().createView();
-        const passEncoder = commandEncoder.beginRenderPass(renderPassDescriptor);
-
-        passEncoder.setPipeline(pipeline);
-        passEncoder.setBindGroup(0, uniformBindGroup);
-        passEncoder.setVertexBuffer(0, vertexBuffer);
-        passEncoder.draw(Cube.vertexCount, 1, 0, 0);
-        passEncoder.endPass();
-
-        device.defaultQueue.submit([commandEncoder.finish()]);
-      }
-
-      initWebGPU(outputCanvas);
-
-      let gltfLoader = new Gltf2Loader();
+      const gltfLoader = new Gltf2Loader();
       gltfLoader.loadFromUrl('./media/models/sponza/sponza.gltf').then((gltf) => {
         console.log('glTF:', gltf);
       });

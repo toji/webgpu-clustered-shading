@@ -23,28 +23,44 @@ import { mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
 export class GltfRenderer {
   constructor() {
     this.canvas = document.createElement('canvas');
-    window.addEventListener('resize', () => {
-      this.onResize(
-        this.canvas.clientWidth * devicePixelRatio,
-        this.canvas.clientHeight * devicePixelRatio
-      );
-    });
-
     this.projectionMatrix = mat4.create();
 
+    this.rafId = 0;
+
     this.frameCallback = (timestamp) => {
-      requestAnimationFrame(this.frameCallback);
+      this.rafId = requestAnimationFrame(this.frameCallback);
       this.onFrame(timestamp);
+    };
+
+    this.resizeCallback = () => {
+      this.canvas.width = this.canvas.clientWidth * devicePixelRatio;
+      this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
+
+      const aspect = this.canvas.width / this.canvas.height;
+      mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
+
+      this.onResize(this.canvas.width, this.canvas.height);
+    };
+    window.addEventListener('resize', this.resizeCallback);
+  }
+
+  async init() {
+    // Override with renderer-specific initialization logic here.
+  }
+
+  start() {
+    this.resizeCallback();
+    this.rafId = requestAnimationFrame(this.frameCallback);
+  }
+
+  stop() {
+    if (this.rafId) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = 0;
     }
   }
 
   onResize(width, height) {
-    this.canvas.width = width;
-    this.canvas.height = height;
-
-    const aspect = width / height;
-    mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
-
     // Override with renderer-specific resize logic here.
   }
 
@@ -52,7 +68,5 @@ export class GltfRenderer {
     // Override with renderer-specific frame logic here.
   }
 
-  start() {
-    requestAnimationFrame(this.frameCallback);
-  }
+
 }

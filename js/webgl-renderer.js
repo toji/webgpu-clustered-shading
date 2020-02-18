@@ -20,17 +20,16 @@
 
 import { GltfRenderer } from './gltf-renderer.js';
 
-export class WebGL2Renderer extends GltfRenderer {
+export class WebGLRenderer extends GltfRenderer {
   constructor() {
     super();
 
     const gl = this.gl = this.canvas.getContext('webgl');
-    gl.clearColor(0.0, 0.0, 0.5, 1.0);
+    gl.clearColor(0.5, 0.0, 0.0, 1.0);
   }
 
   onFrame(timestamp) {
     const gl = this.gl;
-
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
   }
 }
