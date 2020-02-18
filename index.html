@@ -44,6 +44,8 @@
       <option value='webgpu'>WebGPU</option>
     </select>
     <script type="module">
+      import Stats from './js/third-party/stats.module.js';
+
       import { Gltf2Loader } from './js/mini-gltf2.js';
 
       import { WebGLRenderer } from './js/webgl-renderer.js';
@@ -51,6 +53,8 @@
       import { WebGPURenderer } from './js/webgpu-renderer.js';
 
       let renderer = null;
+      let stats = new Stats();
+      document.body.appendChild(stats.dom);
 
       const apiSelect = document.getElementById('api');
       apiSelect.addEventListener('change', async () => {
@@ -76,6 +80,7 @@
 
         if (renderer) {
           await renderer.init();
+          renderer.setStats(stats);
           document.body.appendChild(renderer.canvas);
           renderer.start();
         }

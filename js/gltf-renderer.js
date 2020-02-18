@@ -30,6 +30,9 @@ export class GltfRenderer {
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
       this.onFrame(timestamp);
+      if (this.stats) {
+        this.stats.update();
+      }
     };
 
     this.resizeCallback = () => {
@@ -41,7 +44,10 @@ export class GltfRenderer {
 
       this.onResize(this.canvas.width, this.canvas.height);
     };
-    window.addEventListener('resize', this.resizeCallback);
+  }
+
+  setStats(stats) {
+    this.stats = stats;
   }
 
   async init() {
@@ -49,6 +55,7 @@ export class GltfRenderer {
   }
 
   start() {
+    window.addEventListener('resize', this.resizeCallback);
     this.resizeCallback();
     this.rafId = requestAnimationFrame(this.frameCallback);
   }
@@ -58,6 +65,7 @@ export class GltfRenderer {
       cancelAnimationFrame(this.rafId);
       this.rafId = 0;
     }
+    window.removeEventListener('resize', this.resizeCallback);
   }
 
   onResize(width, height) {
