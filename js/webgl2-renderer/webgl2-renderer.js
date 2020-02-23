@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from './gltf-renderer.js';
+import { GltfRenderer } from '../gltf-renderer.js';
 
 export class WebGL2Renderer extends GltfRenderer {
   constructor() {

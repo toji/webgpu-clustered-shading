@@ -218,6 +218,7 @@ export class Gltf2Loader {
     }
 
     function getTexture(textureInfo) {
+      //return null;
       if (!textureInfo) {
         return null;
       }
@@ -231,7 +232,7 @@ export class Gltf2Loader {
         let glMaterial = new Material();
         let pbr = material.pbrMetallicRoughness || {};
 
-        glMaterial.baseColorFactor = vec4.create(pbr.baseColorFactor || DEFAULT_BASE_COLOR_FACTOR);
+        glMaterial.baseColorFactor = vec4.clone(pbr.baseColorFactor || DEFAULT_BASE_COLOR_FACTOR);
         glMaterial.baseColorTexture = getTexture(pbr.baseColorTexture);
         glMaterial.metallicRoughnessFactor = vec2.create([
           pbr.metallicFactor || 1.0,

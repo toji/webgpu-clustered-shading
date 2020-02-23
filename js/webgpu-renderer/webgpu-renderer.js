@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from './gltf-renderer.js';
+import { GltfRenderer } from '../gltf-renderer.js';
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";

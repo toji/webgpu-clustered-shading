@@ -47,13 +47,16 @@
       import Stats from './js/third-party/stats.module.js';
 
       import { Gltf2Loader } from './js/mini-gltf2.js';
+      import { FlyingCamera } from './js/camera.js';
 
-      import { WebGLRenderer } from './js/webgl-renderer.js';
-      import { WebGL2Renderer } from './js/webgl2-renderer.js';
-      import { WebGPURenderer } from './js/webgpu-renderer.js';
+      import { WebGLRenderer } from './js/webgl-renderer/webgl-renderer.js';
+      import { WebGL2Renderer } from './js/webgl2-renderer/webgl2-renderer.js';
+      import { WebGPURenderer } from './js/webgpu-renderer/webgpu-renderer.js';
 
       let renderer = null;
+      let camera = new FlyingCamera();
       let stats = new Stats();
+      let gltf = null;
       document.body.appendChild(stats.dom);
 
       const apiSelect = document.getElementById('api');
@@ -61,6 +64,7 @@
         if (renderer) {
           renderer.stop();
           document.body.removeChild(renderer.canvas);
+          camera.element = null;
         }
 
         switch(apiSelect.value) {
@@ -79,17 +83,35 @@
         }
 
         if (renderer) {
-          await renderer.init();
-          renderer.setStats(stats);
-          document.body.appendChild(renderer.canvas);
-          renderer.start();
+          try {
+            await renderer.init();
+            renderer.setStats(stats);
+            if (gltf) {
+              renderer.setGltf(gltf);
+            }
+            renderer.camera = camera;
+            document.body.appendChild(renderer.canvas);
+            camera.element = renderer.canvas;
+
+            renderer.start();
+          } catch (err) {
+            console.error('renderer init failed', err);
+            renderer.stop();
+            renderer = null;
+          }
         }
       });
 
-      const gltfLoader = new Gltf2Loader();
-      gltfLoader.loadFromUrl('./media/models/sponza/sponza.gltf').then((gltf) => {
+      async function initGltf() {
+        const gltfLoader = new Gltf2Loader();
+        gltf = await gltfLoader.loadFromUrl('./media/models/sponza/Sponza.gltf');
         console.log('glTF:', gltf);
-      });
+        if (renderer) {
+          renderer.setGltf(gltf);
+        }
+      }
+      initGltf();
+
     </script>
   </body>
 </html>

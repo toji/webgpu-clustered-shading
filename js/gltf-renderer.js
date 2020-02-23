@@ -25,6 +25,7 @@ export class GltfRenderer {
     this.canvas = document.createElement('canvas');
     this.projectionMatrix = mat4.create();
 
+    this.camera = null;
     this.rafId = 0;
 
     this.frameCallback = (timestamp) => {
@@ -46,12 +47,20 @@ export class GltfRenderer {
     };
   }
 
+  async init() {
+    // Override with renderer-specific initialization logic.
+  }
+
   setStats(stats) {
     this.stats = stats;
   }
 
-  async init() {
-    // Override with renderer-specific initialization logic here.
+  setGltf(gltf) {
+    // Override with renderer-specific mesh loading logic.
+  }
+
+  setViewMatrix(viewMatrix) {
+    mat4.copy(this.viewMatrix, viewMatrix);
   }
 
   start() {
@@ -69,11 +78,11 @@ export class GltfRenderer {
   }
 
   onResize(width, height) {
-    // Override with renderer-specific resize logic here.
+    // Override with renderer-specific resize logic.
   }
 
   onFrame(timestamp) {
-    // Override with renderer-specific frame logic here.
+    // Override with renderer-specific frame logic.
   }
 
 
