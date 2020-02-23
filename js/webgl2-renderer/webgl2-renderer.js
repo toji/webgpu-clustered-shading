@@ -48,7 +48,7 @@ export class WebGL2Renderer extends GltfRenderer {
     this.programs = new Map();
 
     this.lightDirection = new Float32Array([-0.5, -1.0, -0.25]);
-    this.lightColor = new Float32Array([1.5, 1.5, 1.5]);
+    this.lightColor = new Float32Array([0.6, 0.6, 0.5]);
   }
 
   init() {
@@ -88,7 +88,7 @@ export class WebGL2Renderer extends GltfRenderer {
     const gl = this.gl;
     const glBuffer = gl.createBuffer();
     bufferView.renderData.glBuffer = glBuffer;
-    
+
     const bufferData = await bufferView.dataView;
     gl.bindBuffer(target, glBuffer);
     gl.bufferData(target, bufferData, gl.STATIC_DRAW);
@@ -174,7 +174,7 @@ export class WebGL2Renderer extends GltfRenderer {
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     // Loop through the render tree to bind and render every primitive instance
-    
+
     // Opaque primitives first
     for (let program of this.programs.values()) {
       if (program.opaqueMaterials.size) {

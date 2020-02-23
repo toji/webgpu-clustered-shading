@@ -179,7 +179,7 @@ void main() {
   metallic *= metallicRoughness.b;
   roughness *= metallicRoughness.g;
 #endif
-  
+
   vec3 l = normalize(vLight);
   vec3 v = normalize(vView);
   vec3 h = normalize(l+v);
@@ -211,7 +211,7 @@ void main() {
   float occlusion = texture2D(occlusionTex, vTex).r;
   color = mix(color, color * occlusion, occlusionStrength);
 #endif
-  
+
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
   emissive *= texture2D(emissiveTex, vTex).rgb;

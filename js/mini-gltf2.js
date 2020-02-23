@@ -234,7 +234,7 @@ export class Gltf2Loader {
 
         glMaterial.baseColorFactor = vec4.clone(pbr.baseColorFactor || DEFAULT_BASE_COLOR_FACTOR);
         glMaterial.baseColorTexture = getTexture(pbr.baseColorTexture);
-        glMaterial.metallicRoughnessFactor = vec2.create([
+        glMaterial.metallicRoughnessFactor = vec2.clone([
           pbr.metallicFactor || 1.0,
           pbr.roughnessFactor || 1.0,
         ]);
@@ -436,8 +436,8 @@ class Primitive {
 
 class Sampler {
   constructor(magFilter, minFilter, wrapS, wrapT) {
-    this.magFilter = magFilter || 9729; // gl.LINEAR;
-    this.minFilter = minFilter || 9729; // gl.LINEAR;
+    this.magFilter = magFilter;
+    this.minFilter = minFilter;
     this.wrapS = wrapS || 10497; // gl.REPEAT;
     this.wrapT = wrapT || 10497; // gl.REPEAT;
 
