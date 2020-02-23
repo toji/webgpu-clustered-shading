@@ -25,17 +25,6 @@ function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
 }
 
-class RenderTreePrimitive {
-  constructor(primitive) {
-    this.primitive = primitive;
-    this.instances = [];
-  }
-
-  addInstance(worldMatrix) {
-    this.instances.push(worldMatrix);
-  }
-}
-
 export class WebGL2Renderer extends GltfRenderer {
   constructor() {
     super();
@@ -71,8 +60,12 @@ export class WebGL2Renderer extends GltfRenderer {
       }
     }
 
-    for (let texture of gltf.textures) {
-      resourcePromises.push(this.initTexture(texture));
+    for (let image of gltf.images) {
+      resourcePromises.push(this.initImage(image));
+    }
+
+    for (let sampler of gltf.samplers) {
+      this.initSampler(sampler);
     }
 
     for (let primitive of gltf.primitives) {
@@ -94,29 +87,30 @@ export class WebGL2Renderer extends GltfRenderer {
     gl.bufferData(target, bufferData, gl.STATIC_DRAW);
   }
 
-  async initTexture(texture) {
+  async initImage(image) {
     const gl = this.gl;
     const glTexture = gl.createTexture();
-    texture.renderData.glTexture = glTexture;
+    image.glTexture = glTexture;
 
-    const imgBitmap = await createImageBitmap(texture.image);
+    const imgBitmap = await createImageBitmap(image);
     gl.bindTexture(gl.TEXTURE_2D, glTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgBitmap);
+    gl.generateMipmap(gl.TEXTURE_2D);
+  }
 
-    const sampler = texture.sampler;
-    const mipmap = isPowerOfTwo(imgBitmap.width) && isPowerOfTwo(imgBitmap.height);
-    if (mipmap) {
-      gl.generateMipmap(gl.TEXTURE_2D);
-    }
+  initSampler(sampler) {
+    const gl = this.gl;
+    const glSampler = gl.createSampler();
+    sampler.renderData.glSampler = glSampler;
 
-    const minFilter = sampler.minFilter || (mipmap ? gl.LINEAR_MIPMAP_LINEAR : gl.LINEAR);
-    const wrapS = sampler.wrapS || (mipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
-    const wrapT = sampler.wrapT || (mipmap ? gl.REPEAT : gl.CLAMP_TO_EDGE);
+    const minFilter = sampler.minFilter || gl.LINEAR_MIPMAP_LINEAR;
+    const wrapS = sampler.wrapS || gl.REPEAT;
+    const wrapT = sampler.wrapT || gl.REPEAT;
 
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, sampler.magFilter || gl.LINEAR);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, minFilter);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, wrapS);
-    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, wrapT);
+    gl.samplerParameteri(glSampler, gl.TEXTURE_MAG_FILTER, sampler.magFilter || gl.LINEAR);
+    gl.samplerParameteri(glSampler, gl.TEXTURE_MIN_FILTER, minFilter);
+    gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_S, wrapS);
+    gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_T, wrapT);
   }
 
   initPrimitive(primitive) {

@@ -243,7 +243,7 @@ export class Gltf2Loader {
         glMaterial.occlusionTexture = getTexture(material.occlusionTexture);
         glMaterial.occlusionStrength = (material.occlusionTexture && material.occlusionTexture.strength) ?
                                         material.occlusionTexture.strength : 1.0;
-        glMaterial.emissiveFactor = material.emissiveFactor || DEFAULT_EMISSIVE_FACTOR;
+        glMaterial.emissiveFactor = vec3.clone(material.emissiveFactor || DEFAULT_EMISSIVE_FACTOR);
         glMaterial.emissiveTexture = getTexture(material.emissiveTexture);
 
         switch (material.alphaMode) {

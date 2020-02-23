@@ -179,7 +179,7 @@ void main() {
   metallic *= metallicRoughness.b;
   roughness *= metallicRoughness.g;
 #endif
-  
+
   vec3 l = normalize(vLight);
   vec3 v = normalize(vView);
   vec3 h = normalize(l+v);
@@ -211,7 +211,7 @@ void main() {
   float occlusion = texture2D(occlusionTex, vTex).r;
   color = mix(color, color * occlusion, occlusionStrength);
 #endif
-  
+
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
   emissive *= texture2D(emissiveTex, vTex).rgb;
@@ -244,21 +244,24 @@ export class PBRShaderProgram extends ShaderProgram {
     if (uniform.baseColorTex) {
       gl.uniform1i(uniform.baseColorTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.baseColorTexture.renderData.glTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.baseColorTexture.image.glTexture);
+      gl.bindSampler(samplerIndex, material.baseColorTexture.sampler.renderData.glSampler);
       samplerIndex++;
     }
 
     if (uniform.normalTex) {
       gl.uniform1i(uniform.normalTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.normalTexture.renderData.glTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.normalTexture.image.glTexture);
+      gl.bindSampler(samplerIndex, material.normalTexture.sampler.renderData.glSampler);
       samplerIndex++;
     }
 
     if (uniform.metallicRoughnessTex) {
       gl.uniform1i(uniform.metallicRoughnessTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.metallicRoughnessTexture.renderData.glTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.metallicRoughnessTexture.image.glTexture);
+      gl.bindSampler(samplerIndex, material.metallicRoughnessTexture.sampler.renderData.glSampler);
       samplerIndex++;
     }
 
@@ -267,14 +270,16 @@ export class PBRShaderProgram extends ShaderProgram {
 
       gl.uniform1i(uniform.occlusionTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.renderData.glTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.image.glTexture);
+      gl.bindSampler(samplerIndex, material.occlusionTexture.sampler.renderData.glSampler);
       samplerIndex++;
     }
 
     if (uniform.emissiveTex) {
       gl.uniform1i(uniform.emissiveTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.emissiveTexture.renderData.glTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.emissiveTexture.image.glTexture);
+      gl.bindSampler(samplerIndex, material.emissiveTexture.sampler.renderData.glSampler);
       samplerIndex++;
     }
   }

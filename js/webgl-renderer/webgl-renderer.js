@@ -25,17 +25,6 @@ function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
 }
 
-class RenderTreePrimitive {
-  constructor(primitive) {
-    this.primitive = primitive;
-    this.instances = [];
-  }
-
-  addInstance(worldMatrix) {
-    this.instances.push(worldMatrix);
-  }
-}
-
 export class WebGLRenderer extends GltfRenderer {
   constructor() {
     super();

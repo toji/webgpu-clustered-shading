@@ -23,6 +23,9 @@ import { GltfRenderer } from '../gltf-renderer.js';
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 
+// Only used for comparing values from glTF, which uses WebGL enums natively.
+const GL = WebGLRenderingContext;
+
 export class WebGPURenderer extends GltfRenderer {
   constructor() {
     super();
@@ -80,6 +83,144 @@ export class WebGPURenderer extends GltfRenderer {
       usage: GPUTextureUsage.OUTPUT_ATTACHMENT
     });
     this.depthAttachment.attachment = depthTexture.createView();
+  }
+
+  setGltf(gltf) {
+    const gl = this.gl;
+    const resourcePromises = [];
+
+    for (let bufferView of gltf.bufferViews) {
+      resourcePromises.push(this.initBufferView(bufferView));
+    }
+
+    /*for (let image of gltf.images) {
+      resourcePromises.push(this.initImage(image));
+    }*/
+
+    for (let sampler of gltf.samplers) {
+      this.initSampler(sampler);
+    }
+
+    for (let primitive of gltf.primitives) {
+      this.initPrimitive(primitive);
+    }
+
+    this.initNode(gltf.scene);
+
+    return Promise.all(resourcePromises);
+  }
+
+  async initBufferView(bufferView) {
+    let usage = 0;
+    if (bufferView.usage.indexOf('vertex') != -1) {
+      usage |= GPUBufferUsage.VERTEX;
+    }
+    if (bufferView.usage.indexOf('index') != -1) {
+      usage |= GPUBufferUsage.INDEX;
+    }
+
+    if (!usage) {
+      return;
+    }
+
+    const gpuBuffer = this.device.createBuffer({
+      size: bufferView.byteLength,
+      usage: usage | GPUBufferUsage.COPY_DST
+    });
+    bufferView.renderData.gpuBuffer = gpuBuffer;
+
+    const bufferData = await bufferView.dataView;
+    gpuBuffer.setSubData(0, bufferData);
+  }
+
+  initSampler(sampler) {
+    const samplerDescriptor = {};
+
+    switch (sampler.minFilter) {
+      case GL.LINEAR:
+      case GL.LINEAR_MIPMAP_NEAREST:
+        samplerDescriptor.minFilter = "linear";
+        break;
+      case GL.NEAREST_MIPMAP_LINEAR:
+        samplerDescriptor.mipmapFilter = "linear";
+        break;
+      case GL.LINEAR_MIPMAP_LINEAR:
+        samplerDescriptor.minFilter = "linear";
+        samplerDescriptor.mipmapFilter = "linear";
+        break;
+    }
+
+    if (sampler.magFilter == GL.LINEAR) {
+      samplerDescriptor.magFilter = "linear";
+    }
+
+    switch (sampler.wrapS) {
+      case GL.REPEAT:
+        samplerDescriptor.addressModeU = "repeat";
+        break;
+      case GL.MIRRORED_REPEAT:
+        samplerDescriptor.addressModeU = "mirror-repeat";
+        break;
+    }
+
+    switch (sampler.wrapT) {
+      case GL.REPEAT:
+        samplerDescriptor.addressModeV = "repeat";
+        break;
+      case GL.MIRRORED_REPEAT:
+        samplerDescriptor.addressModeV = "mirror-repeat";
+        break;
+    }
+
+    sampler.renderData.gpuSampler = this.device.createSampler(samplerDescriptor);
+  }
+
+  initPrimitive(primitive) {
+    const material = primitive.material;
+
+    primitive.renderData.instances = [];
+
+    /*let key = '';
+    for (let define in defines) {
+      key += `${define}=${defines[define]},`;
+    }*/
+
+    /*let program = this.programs.get(key);
+    if (!program) {
+      program = new PBRShaderProgram(this.gl, defines);
+      this.programs.set(key, program);
+    }
+
+    const glVertexArray = gl.createVertexArray();
+    gl.bindVertexArray(glVertexArray);
+    program.bindPrimitive(primitive); // Populates the vertex buffer bindings for the VertexArray
+    primitive.renderData.glVertexArray = glVertexArray;
+
+    let primitiveList;
+    if (material.blend) {
+      primitiveList = program.blendedMaterials.get(material);
+      if (!primitiveList) {
+        primitiveList = [];
+        program.blendedMaterials.set(material, primitiveList);
+      }
+    } else {
+      primitiveList = program.opaqueMaterials.get(material);
+      if (!primitiveList) {
+        primitiveList = [];
+        program.opaqueMaterials.set(material, primitiveList);
+      }
+    }
+    primitiveList.push(primitive);*/
+  }
+
+  initNode(node) {
+    for (let primitive of node.primitives) {
+      primitive.renderData.instances.push(node.worldMatrix);
+    }
+
+    for (let childNode of node.children) {
+      this.initNode(childNode);
+    }
   }
 
   onFrame(timestamp) {
