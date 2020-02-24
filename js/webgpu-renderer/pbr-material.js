@@ -26,31 +26,33 @@ const PBR_VERTEX_SOURCE = `#version 450
   layout(set = 0, binding = 0) uniform FrameUniforms {
     mat4 projectionMatrix;
     mat4 viewMatrix;
-    vec3 lightDirection;
     vec3 cameraPosition;
-  } frameUniforms;
+    vec3 lightDirection;
+    vec3 lightColor;
+  };
 
-  layout(set = 2, binding = 0) uniform ModelUniforms {
+  layout(set = 2, binding = 0) uniform PrimitiveUniforms {
     mat4 modelMatrix;
-  } modelUniforms;
+  };
 
-  layout(location = 0) in vec4 position;
+  layout(location = 0) in vec3 position;
   layout(location = 1) in vec3 normal;
-  layout(location = 2) in vec2 texcoord_0;
+  layout(location = 3) in vec2 texcoord_0;
 
   layout(location = 0) out vec3 vLight; // Vector from vertex to light.
-  layout(location = 1) out vec3 vView; // Vector from vertex to camera.
-  layout(location = 2) out vec2 vTex;
-  layout(location = 3) out vec3 vNorm;
+  layout(location = 1) out vec3 vLightColor;
+  layout(location = 2) out vec3 vView; // Vector from vertex to camera.
+  layout(location = 3) out vec2 vTex;
+  layout(location = 4) out vec3 vNorm;
 
   void main() {
-    vec3 n = normalize(vec3(modelUniforms.modelMatrix * vec4(normal, 0.0)));
+    vec3 n = normalize(vec3(modelMatrix * vec4(normal, 0.0)));
     vNorm = n;
 
-    vec4 mPos = modelUniforms.modelMatrix * vec4(position, 1.0);
-    vLight = -frameUniforms.lightDirection;
-    vView = frameUniforms.cameraPosition - mPos.xyz;
-    gl_Position = frameUniforms.projectionMatrix * frameUniforms.viewMatrix * mPos;
+    vec4 mPos = modelMatrix * vec4(position, 1.0);
+    vLight = -lightDirection;
+    vView = cameraPosition - mPos.xyz;
+    gl_Position = projectionMatrix * viewMatrix * mPos;
   }`;
 
 const EPIC_PBR_FUNCTIONS = `
@@ -82,26 +84,29 @@ const PBR_FRAGMENT_SOURCE = `#version 450
     vec4 baseColorFactor;
     vec2 metallicRoughnessFactor;
     vec3 emissiveFactor;
-  } materialUniforms;
+  };
 
   layout(location = 0) in vec3 vLight; // Vector from vertex to light.
-  layout(location = 1) in vec3 vView; // Vector from vertex to camera.
-  layout(location = 2) in vec2 vTex;
-  layout(location = 3) in vec3 vNorm;
+  layout(location = 1) in vec3 vLightColor;
+  layout(location = 2) in vec3 vView; // Vector from vertex to camera.
+  layout(location = 3) in vec2 vTex;
+  layout(location = 4) in vec3 vNorm;
 
   layout(location = 0) out vec4 outColor;
 
   const vec3 dielectricSpec = vec3(0.04);
   const vec3 black = vec3(0.0);
 
+  #define M_PI 3.14159265
+
   ${EPIC_PBR_FUNCTIONS}
 
   void main() {
-    vec4 baseColor = materialUniforms.baseColorFactor;
+    vec4 baseColor = baseColorFactor;
     vec3 n = normalize(vNorm);
 
-    float metallic = materialUniforms.metallicRoughnessFactor.x;
-    float roughness = materialUniforms.metallicRoughnessFactor.y;
+    float metallic = metallicRoughnessFactor.x;
+    float roughness = metallicRoughnessFactor.y;
 
     vec3 l = normalize(vLight);
     vec3 v = normalize(vView);
@@ -125,7 +130,7 @@ const PBR_FRAGMENT_SOURCE = `#version 450
     float halfLambert = dot(n, l) * 0.5 + 0.5;
     halfLambert *= halfLambert;
 
-    vec3 color = (halfLambert * LIGHT_COLOR * lambertDiffuse(cDiff)) + specular;
+    vec3 color = (halfLambert * vLightColor * lambertDiffuse(cDiff)) + specular;
 
     vec3 emissive = emissiveFactor;
     color += emissive;

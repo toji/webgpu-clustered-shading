@@ -61,9 +61,10 @@
 
       const apiSelect = document.getElementById('api');
       apiSelect.addEventListener('change', async () => {
+        let prevCanvas;
         if (renderer) {
+          prevCanvas = renderer.canvas;
           renderer.stop();
-          document.body.removeChild(renderer.canvas);
           camera.element = null;
         }
 
@@ -79,6 +80,9 @@
             break;
           default:
             renderer = null;
+            if (prevCanvas) {
+              document.body.removeChild(prevCanvas);
+            }
             break;
         }
 
@@ -90,6 +94,9 @@
               renderer.setGltf(gltf);
             }
             renderer.camera = camera;
+            if (prevCanvas) {
+              document.body.removeChild(prevCanvas);
+            }
             document.body.appendChild(renderer.canvas);
             camera.element = renderer.canvas;
 

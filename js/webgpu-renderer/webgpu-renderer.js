@@ -19,16 +19,18 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
+import { PBRShaderModule } from './pbr-material.js';
+import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
-const SAMPLE_COUNT = 4;
+const SAMPLE_COUNT = 1;
 const DEPTH_FORMAT = "depth24plus";
 
 const ATTRIB_MAP = {
-  POSITION: 1,
-  NORMAL: 2,
-  TANGENT: 3,
-  TEXCOORD_0: 4,
-  COLOR_0: 5,
+  POSITION: 0,
+  NORMAL: 1,
+  TANGENT: 2,
+  TEXCOORD_0: 3,
+  COLOR_0: 4,
 };
 
 // Only used for comparing values from glTF, which uses WebGL enums natively.
@@ -39,6 +41,20 @@ export class WebGPURenderer extends GltfRenderer {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
+
+    this.frameUniforms = new Float32Array(16 + 16 + 4 + 4 + 4);
+
+    this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
+    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
+    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
+    this.lightDirection = new Float32Array(this.frameUniforms.buffer, 36 * 4, 3);
+    this.lightColor = new Float32Array(this.frameUniforms.buffer, 40 * 4, 3);
+
+    vec3.set(this.lightDirection, -0.5, -1.0, -0.25);
+    vec3.set(this.lightColor, 0.6, 0.6, 0.5);
+
+    this.pipelines = new Map(); // Map<String -> GPURenderPipeline>
+    this.pipelineMaterials = new WeakMap(); // WeakMap<GPURenderPipeline, Map<Material, Primitive[]>>
   }
 
   async init() {
@@ -71,6 +87,57 @@ export class WebGPURenderer extends GltfRenderer {
       colorAttachments: [this.colorAttachment],
       depthStencilAttachment: this.depthAttachment
     };
+
+    this.frameUniformsBindGroupLayout = this.device.createBindGroupLayout({
+      bindings: [{
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        type: 'uniform-buffer'
+      }]
+    });
+
+    this.materialUniformsBindGroupLayout = this.device.createBindGroupLayout({
+      bindings: [{
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'uniform-buffer'
+      }]
+    });
+
+    this.primitiveUniformsBindGroupLayout = this.device.createBindGroupLayout({
+      bindings: [{
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        type: 'uniform-buffer'
+      }]
+    });
+
+    this.pipelineLayout = this.device.createPipelineLayout({
+      bindGroupLayouts: [
+        this.frameUniformsBindGroupLayout, // set 0
+        this.materialUniformsBindGroupLayout, // set 1
+        this.primitiveUniformsBindGroupLayout // set 2
+      ]
+    });
+
+    this.frameUniformsBuffer = this.device.createBuffer({
+      size: this.frameUniforms.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.frameUniformBindGroup = this.device.createBindGroup({
+      layout: this.frameUniformsBindGroupLayout,
+      bindings: [{
+        binding: 0, // FrameUniforms
+        resource: {
+          buffer: this.frameUniformsBuffer,
+        },
+      }],
+    });
+
+    // TODO: Will probably need to be per-material later
+    await PBRShaderModule.initGlslang();
+    this.pbrShaderModule = new PBRShaderModule(this.device);
   }
 
   onResize(width, height) {
@@ -109,11 +176,15 @@ export class WebGPURenderer extends GltfRenderer {
       this.initSampler(sampler);
     }
 
-    for (let primitive of gltf.primitives) {
-      this.initPrimitive(primitive);
+    for (let material of gltf.materials) {
+      this.initMaterial(material);
     }
 
     this.initNode(gltf.scene);
+
+    for (let primitive of gltf.primitives) {
+      this.initPrimitive(primitive);
+    }
 
     return Promise.all(resourcePromises);
   }
@@ -183,10 +254,38 @@ export class WebGPURenderer extends GltfRenderer {
     sampler.renderData.gpuSampler = this.device.createSampler(samplerDescriptor);
   }
 
+  initMaterial(material) {
+    // Can reuse these for every PBR material
+    const materialUniforms = new Float32Array(4 + 4 + 4);
+    const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
+    const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
+    const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
+
+    vec4.copy(baseColorFactor, material.baseColorFactor);
+    vec2.copy(metallicRoughnessFactor, material.metallicRoughnessFactor);
+    vec3.copy(emissiveFactor, material.emissiveFactor);
+
+    const materialUniformsBuffer = this.device.createBuffer({
+      size: materialUniforms.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+    materialUniformsBuffer.setSubData(0, materialUniforms);
+
+    const materialBindGroup = this.device.createBindGroup({
+      layout: this.materialUniformsBindGroupLayout,
+      bindings: [{
+        binding: 0,
+        resource: {
+          buffer: materialUniformsBuffer,
+        },
+      }],
+    });
+
+    material.renderData.gpuBindGroup = materialBindGroup;
+  }
+
   initPrimitive(primitive) {
     const material = primitive.material;
-
-    primitive.renderData.instances = [];
 
     const vertexBuffers = [];
     for (let [bufferView, attributes] of primitive.attributeBuffers) {
@@ -246,41 +345,126 @@ export class WebGPURenderer extends GltfRenderer {
       primitive.renderData.gpuVertexState.indexFormat = 'uint16';
     }
 
-    /*let key = '';
-    for (let define in defines) {
-      key += `${define}=${defines[define]},`;
-    }*/
+    if (primitive.renderData.instances.length) {
+      const primitiveUniformsBuffer = this.device.createBuffer({
+        size: 16 * 4,
+        usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+      });
+      // TODO: Support multiple instances
+      primitiveUniformsBuffer.setSubData(0, primitive.renderData.instances[0]);
 
-    /*let program = this.programs.get(key);
-    if (!program) {
-      program = new PBRShaderProgram(this.gl, defines);
-      this.programs.set(key, program);
+      const primitiveBindGroup = this.device.createBindGroup({
+        layout: this.primitiveUniformsBindGroupLayout,
+        bindings: [{
+          binding: 0,
+          resource: {
+            buffer: primitiveUniformsBuffer,
+          },
+        }],
+      });
+
+      primitive.renderData.gpuBindGroup = primitiveBindGroup;
+
+      // TODO: This needs some SERIOUS de-duping
+      this.createPipeline(primitive);
+    }
+  }
+
+  createPipeline(primitive) {
+    const material = primitive.material;
+
+    let primitiveTopology;
+    switch (primitive.mode) {
+      case GL.TRIANGLES:
+        primitiveTopology = 'triangle-list';
+        break;
+      case GL.TRIANGLE_STRIP:
+        primitiveTopology = 'triangle-strip';
+        break;
+      case GL.LINES:
+        primitiveTopology = 'line-list';
+        break;
+      case GL.LINE_STRIP:
+        primitiveTopology = 'line-strip';
+        break;
+      case GL.POINTS:
+        primitiveTopology = 'point-list';
+        break;
+      default:
+        // LINE_LOOP and TRIANGLE_FAN are straight up unsupported.
+        return;
+    }
+    const cullMode = material.cullFace ? 'back' : 'none';
+
+    const vertexState = primitive.renderData.gpuVertexState;
+
+    // Generate a key that describes this pipeline's layout/state
+    let pipelineKey = `${primitiveTopology}|${cullMode}|`;
+    let i = 0;
+    for (let vertexBuffer of vertexState.vertexBuffers) {
+      pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
+      for (let attribute of vertexBuffer.attributes) {
+        pipelineKey += `:${attribute.shaderLocation},${attribute.offset},${attribute.format}`;
+      }
+      pipelineKey += '|'
+      i++;
     }
 
-    const glVertexArray = gl.createVertexArray();
-    gl.bindVertexArray(glVertexArray);
-    program.bindPrimitive(primitive); // Populates the vertex buffer bindings for the VertexArray
-    primitive.renderData.glVertexArray = glVertexArray;
-
-    let primitiveList;
-    if (material.blend) {
-      primitiveList = program.blendedMaterials.get(material);
-      if (!primitiveList) {
-        primitiveList = [];
-        program.blendedMaterials.set(material, primitiveList);
-      }
-    } else {
-      primitiveList = program.opaqueMaterials.get(material);
-      if (!primitiveList) {
-        primitiveList = [];
-        program.opaqueMaterials.set(material, primitiveList);
-      }
+    if (vertexState.indexFormat) {
+      pipelineKey += `${vertexState.indexFormat}`;
     }
-    primitiveList.push(primitive);*/
+
+    let pipeline = this.pipelines.get(pipelineKey);
+
+    if (!pipeline) {
+      pipeline = this.device.createRenderPipeline({
+        vertexStage: this.pbrShaderModule.vertexStage,
+        fragmentStage: this.pbrShaderModule.fragmentStage,
+
+        primitiveTopology,
+
+        vertexState,
+
+        rasterizationState: {
+          cullMode,
+        },
+
+        // Everything below here is (currently) identical for each pipeline
+        layout: this.pipelineLayout,
+        colorStates: [{
+          format: this.swapChainFormat,
+          // TODO: Bend mode goes here
+        }],
+        depthStencilState: {
+          depthWriteEnabled: true,
+          depthCompare: 'less',
+          format: DEPTH_FORMAT,
+        },
+        SAMPLE_COUNT,
+      });
+      this.pipelines.set(pipelineKey, pipeline);
+      this.pipelineMaterials.set(pipeline, new Map());
+    }
+
+    let pipelineMaterialPrimitives = this.pipelineMaterials.get(pipeline);
+
+    let materialPrimitives = pipelineMaterialPrimitives.get(primitive.material);
+    if (!materialPrimitives) {
+      materialPrimitives = [];
+      pipelineMaterialPrimitives.set(primitive.material, materialPrimitives);
+    }
+
+    materialPrimitives.push(primitive);
+
+    //primitive.renderData.gpuPipeline = pipeline;
+    //this.pipelinePrimitives.get(pipeline).push(primitive);
   }
 
   initNode(node) {
     for (let primitive of node.primitives) {
+      if (!primitive.renderData.instances) {
+        primitive.renderData.instances = [];
+      }
       primitive.renderData.instances.push(node.worldMatrix);
     }
 
@@ -290,10 +474,43 @@ export class WebGPURenderer extends GltfRenderer {
   }
 
   onFrame(timestamp) {
-    const commandEncoder = this.device.createCommandEncoder({});
+    // Update the FrameUniforms buffer with the values that are used by every
+    // program and don't change for the duration of the frame.
+    mat4.copy(this.viewMatrix, this.camera.viewMatrix);
+    vec3.copy(this.cameraPosition, this.camera.position);
+    this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
 
-    this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
+    this.colorAttachment.attachment = this.swapChain.getCurrentTexture().createView();
+
+    const commandEncoder = this.device.createCommandEncoder({});
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
+
+    passEncoder.setBindGroup(0, this.frameUniformBindGroup);
+
+    for (let pipeline of this.pipelines.values()) {
+      passEncoder.setPipeline(pipeline);
+      const materialPrimitives = this.pipelineMaterials.get(pipeline);
+      for (let [material, primitives] of materialPrimitives) {
+        passEncoder.setBindGroup(1, material.renderData.gpuBindGroup);
+
+        for (let primitive of primitives) {
+          passEncoder.setBindGroup(2, primitive.renderData.gpuBindGroup);
+
+          let i = 0;
+          for (let bufferView of primitive.attributeBuffers.keys()) {
+            passEncoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
+            i++;
+          }
+
+          if (primitive.indices) {
+            passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer, primitive.indices.byteOffset);
+            passEncoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
+          } else {
+            passEncoder.draw(primitive.elementCount, 1, 0, 0);
+          }
+        }
+      }
+    }
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
