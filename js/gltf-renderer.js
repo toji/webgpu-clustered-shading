@@ -30,9 +30,14 @@ export class GltfRenderer {
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
-      this.onFrame(timestamp);
       if (this.stats) {
-        this.stats.update();
+        this.stats.begin();
+      }
+
+      this.onFrame(timestamp);
+
+      if (this.stats) {
+        this.stats.end();
       }
     };
 

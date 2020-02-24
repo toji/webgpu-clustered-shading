@@ -39,7 +39,7 @@ var Stats = function () {
 	//
 
 	var beginTime = ( performance || Date ).now(), prevTime = beginTime, frames = 0;
-
+	var frameTime = 0;
 	var fpsPanel = addPanel( new Stats.Panel( 'FPS', '#0ff', '#002' ) );
 	var msPanel = addPanel( new Stats.Panel( 'MS', '#0f0', '#020' ) );
 
@@ -49,7 +49,7 @@ var Stats = function () {
 
 	}
 
-	showPanel( 0 );
+	showPanel( 1 );
 
 	return {
 
@@ -72,12 +72,14 @@ var Stats = function () {
 
 			var time = ( performance || Date ).now();
 
-			msPanel.update( time - beginTime, 200 );
+			frameTime += time - beginTime;
 
 			if ( time >= prevTime + 1000 ) {
 
+				msPanel.update( frameTime / frames, 3 );
 				fpsPanel.update( ( frames * 1000 ) / ( time - prevTime ), 100 );
 
+				frameTime = 0;
 				prevTime = time;
 				frames = 0;
 
@@ -152,7 +154,7 @@ Stats.Panel = function ( name, fg, bg ) {
 			context.globalAlpha = 1;
 			context.fillRect( 0, 0, WIDTH, GRAPH_Y );
 			context.fillStyle = fg;
-			context.fillText( round( value ) + ' ' + name + ' (' + round( min ) + '-' + round( max ) + ')', TEXT_X, TEXT_Y );
+			context.fillText( value.toFixed(2) + ' ' + name + ' (' + round( min ) + '-' + round( max ) + ')', TEXT_X, TEXT_Y );
 
 			context.drawImage( canvas, GRAPH_X + PR, GRAPH_Y, GRAPH_WIDTH - PR, GRAPH_HEIGHT, GRAPH_X, GRAPH_Y, GRAPH_WIDTH - PR, GRAPH_HEIGHT );
 

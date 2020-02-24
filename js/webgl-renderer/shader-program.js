@@ -19,12 +19,13 @@
 // SOFTWARE.
 
 export class ShaderProgram {
-  constructor(gl, vertSrc, fragSrc, attribMap, defines, version = '') {
+  constructor(gl, vertSrc, fragSrc, attribMap, defines, uniformBlockMap, version = '') {
     this.gl = gl;
     this.program = gl.createProgram();
     this.attrib = null;
     this.uniform = null;
     this.defines = {};
+    this.uniformBlockMap = uniformBlockMap;
 
     this._firstUse = true;
     this._nextUseCallbacks = [];
@@ -99,6 +100,16 @@ export class ShaderProgram {
           let uniformInfo = gl.getActiveUniform(this.program, i);
           uniformName = uniformInfo.name.replace('[0]', '');
           this.uniform[uniformName] = gl.getUniformLocation(this.program, uniformName);
+        }
+
+        if (this.uniformBlockMap) {
+          for (let uniformBlockName in this.uniformBlockMap) {
+            let uniformBlockBinding = this.uniformBlockMap[uniformBlockName];
+            let uniformBlockIndex = gl.getUniformBlockIndex(this.program, uniformBlockName);
+            if (uniformBlockIndex != gl.INVALID_INDEX) {
+              gl.uniformBlockBinding(this.program, uniformBlockIndex, uniformBlockBinding);
+            }
+          }
         }
       }
       gl.deleteShader(this._vertShader);

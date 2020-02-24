@@ -28,16 +28,33 @@ export const ATTRIB_MAP = {
   COLOR_0: 5,
 };
 
+export const UNIFORM_BLOCKS = {
+  FrameUniforms: 0,
+  MaterialUniforms: 1
+}
+
 const PBR_VERTEX_SOURCE = `
 layout(location = ${ATTRIB_MAP.POSITION}) in vec3 POSITION;
 layout(location = ${ATTRIB_MAP.NORMAL}) in vec3 NORMAL;
 layout(location = ${ATTRIB_MAP.TEXCOORD_0}) in vec2 TEXCOORD_0;
 
-uniform mat4 PROJECTION_MATRIX, VIEW_MATRIX, MODEL_MATRIX;
-uniform vec3 CAMERA_POSITION;
-uniform vec3 LIGHT_DIRECTION;
+uniform mat4 MODEL_MATRIX;
+/*uniform mat4 projectionMatrix, viewMatrix;
+uniform vec3 cameraPosition;
+uniform vec3 lightDirection;
+uniform vec3 lightColor;*/
+
+layout(std140) uniform FrameUniforms
+{
+  mat4 projectionMatrix;
+  mat4 viewMatrix;
+  vec3 cameraPosition;
+  vec3 lightDirection;
+  vec3 lightColor;
+};
 
 out vec3 vLight; // Vector from vertex to light.
+out vec3 vLightColor; // Light color.
 out vec3 vView; // Vector from vertex to camera.
 out vec2 vTex;
 
@@ -69,9 +86,10 @@ void main() {
 
   vTex = TEXCOORD_0;
   vec4 mPos = MODEL_MATRIX * vec4(POSITION, 1.0);
-  vLight = -LIGHT_DIRECTION;
-  vView = CAMERA_POSITION - mPos.xyz;
-  gl_Position = PROJECTION_MATRIX * VIEW_MATRIX * mPos;
+  vLight = -lightDirection;
+  vLightColor = lightColor;
+  vView = cameraPosition - mPos.xyz;
+  gl_Position = projectionMatrix * viewMatrix * mPos;
 }`;
 
 // These equations are borrowed with love from this docs from Epic because I
@@ -114,6 +132,7 @@ uniform sampler2D baseColorTex;
 #endif
 
 in vec3 vLight;
+in vec3 vLightColor;
 in vec3 vView;
 in vec2 vTex;
 
@@ -142,8 +161,6 @@ uniform float occlusionStrength;
 uniform sampler2D emissiveTex;
 #endif
 uniform vec3 emissiveFactor;
-
-uniform vec3 LIGHT_COLOR;
 
 const vec3 dielectricSpec = vec3(0.04);
 const vec3 black = vec3(0.0);
@@ -207,7 +224,7 @@ void main() {
   float halfLambert = dot(n, l) * 0.5 + 0.5;
   halfLambert *= halfLambert;
 
-  vec3 color = (halfLambert * LIGHT_COLOR * lambertDiffuse(cDiff)) + specular;
+  vec3 color = (halfLambert * vLightColor * lambertDiffuse(cDiff)) + specular;
 
 #ifdef USE_OCCLUSION
   float occlusion = texture(occlusionTex, vTex).r;
@@ -228,7 +245,7 @@ void main() {
 
 export class PBRShaderProgram extends ShaderProgram {
   constructor(gl, defines) {
-    super(gl, PBR_VERTEX_SOURCE, PBR_FRAGMENT_SOURCE, null, defines, '300 es');
+    super(gl, PBR_VERTEX_SOURCE, PBR_FRAGMENT_SOURCE, null, defines, UNIFORM_BLOCKS, '300 es');
 
     this.opaqueMaterials = new Map(); // Material -> Primitives
     this.blendedMaterials = new Map(); // Material -> Primitives
