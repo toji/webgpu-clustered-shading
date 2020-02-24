@@ -50,6 +50,7 @@ const PBR_VERTEX_SOURCE = `#version 450
     vNorm = n;
 
     vec4 mPos = modelMatrix * vec4(position, 1.0);
+    vTex = texcoord_0;
     vLight = -lightDirection;
     vView = cameraPosition - mPos.xyz;
     gl_Position = projectionMatrix * viewMatrix * mPos;
@@ -86,6 +87,9 @@ const PBR_FRAGMENT_SOURCE = `#version 450
     vec3 emissiveFactor;
   };
 
+  layout(set = 1, binding = 1) uniform texture2D baseColorTex;
+  layout(set = 1, binding = 2) uniform sampler baseColorSampler;
+
   layout(location = 0) in vec3 vLight; // Vector from vertex to light.
   layout(location = 1) in vec3 vLightColor;
   layout(location = 2) in vec3 vView; // Vector from vertex to camera.
@@ -102,7 +106,7 @@ const PBR_FRAGMENT_SOURCE = `#version 450
   ${EPIC_PBR_FUNCTIONS}
 
   void main() {
-    vec4 baseColor = baseColorFactor;
+    vec4 baseColor = texture(sampler2D(baseColorTex, baseColorSampler), vTex) * baseColorFactor;
     vec3 n = normalize(vNorm);
 
     float metallic = metallicRoughnessFactor.x;

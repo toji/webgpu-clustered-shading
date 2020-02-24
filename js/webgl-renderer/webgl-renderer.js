@@ -88,6 +88,7 @@ export class WebGLRenderer extends GltfRenderer {
     const glTexture = gl.createTexture();
     texture.renderData.glTexture = glTexture;
 
+    //await texture.image.decode();
     const imgBitmap = await createImageBitmap(texture.image);
     gl.bindTexture(gl.TEXTURE_2D, glTexture);
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgBitmap);

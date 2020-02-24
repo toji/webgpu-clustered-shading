@@ -101,6 +101,16 @@ export class WebGPURenderer extends GltfRenderer {
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
         type: 'uniform-buffer'
+      },
+      {
+        binding: 1,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampled-texture'
+      },
+      {
+        binding: 2,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampler'
       }]
     });
 
@@ -160,7 +170,7 @@ export class WebGPURenderer extends GltfRenderer {
     this.depthAttachment.attachment = depthTexture.createView();
   }
 
-  setGltf(gltf) {
+  async setGltf(gltf) {
     const gl = this.gl;
     const resourcePromises = [];
 
@@ -168,25 +178,25 @@ export class WebGPURenderer extends GltfRenderer {
       resourcePromises.push(this.initBufferView(bufferView));
     }
 
-    /*for (let image of gltf.images) {
+    for (let image of gltf.images) {
       resourcePromises.push(this.initImage(image));
-    }*/
+    }
 
     for (let sampler of gltf.samplers) {
       this.initSampler(sampler);
     }
 
+    this.initNode(gltf.scene);
+
+    await Promise.all(resourcePromises);
+
     for (let material of gltf.materials) {
       this.initMaterial(material);
     }
 
-    this.initNode(gltf.scene);
-
     for (let primitive of gltf.primitives) {
       this.initPrimitive(primitive);
     }
-
-    return Promise.all(resourcePromises);
   }
 
   async initBufferView(bufferView) {
@@ -210,6 +220,28 @@ export class WebGPURenderer extends GltfRenderer {
 
     const bufferData = await bufferView.dataView;
     gpuBuffer.setSubData(0, bufferData);
+  }
+
+  async initImage(image) {
+    //await image.decode();
+    const imageBitmap = await createImageBitmap(image);
+
+    const textureSize = {
+      width: imageBitmap.width,
+      height: imageBitmap.height,
+      depth: 1,
+    };
+
+    const texture = this.device.createTexture({
+      size: textureSize,
+      format: "rgba8unorm",
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
+    });
+    this.device.defaultQueue.copyImageBitmapToTexture({ imageBitmap }, { texture }, textureSize);
+
+    // TODO: Generate mipmaps
+
+    image.gpuTexture = texture;
   }
 
   initSampler(sampler) {
@@ -278,6 +310,14 @@ export class WebGPURenderer extends GltfRenderer {
         resource: {
           buffer: materialUniformsBuffer,
         },
+      },
+      {
+        binding: 1,
+        resource: material.baseColorTexture.image.gpuTexture.createView(),
+      },
+      {
+        binding: 2,
+        resource: material.baseColorTexture.sampler.renderData.gpuSampler,
       }],
     });
 
@@ -455,9 +495,6 @@ export class WebGPURenderer extends GltfRenderer {
     }
 
     materialPrimitives.push(primitive);
-
-    //primitive.renderData.gpuPipeline = pipeline;
-    //this.pipelinePrimitives.get(pipeline).push(primitive);
   }
 
   initNode(node) {
