@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram } from './pbr-material.js';
+import { PBRShaderProgram, ATTRIB_MAP } from './pbr-material.js';
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -53,9 +53,9 @@ export class WebGLRenderer extends GltfRenderer {
     const resourcePromises = [];
 
     for (let bufferView of gltf.bufferViews) {
-      if (bufferView.usage.indexOf('vertex') != -1) {
+      if (bufferView.usage.has('vertex')) {
         resourcePromises.push(this.initGLBuffer(bufferView, gl.ARRAY_BUFFER));
-      } else if (bufferView.usage.indexOf('index') != -1) {
+      } else if (bufferView.usage.has('index')) {
         resourcePromises.push(this.initGLBuffer(bufferView, gl.ELEMENT_ARRAY_BUFFER));
       }
     }
@@ -175,6 +175,33 @@ export class WebGLRenderer extends GltfRenderer {
     }
   }
 
+  bindPrimitive(primitive) {
+    const gl = this.gl;
+
+    for (let [bufferView, attributes] of primitive.attributeBuffers) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufferView.renderData.glBuffer);
+
+      for (let attribName in attributes) {
+        const attribute = attributes[attribName];
+        const attribIndex = ATTRIB_MAP[attribName];
+        gl.enableVertexAttribArray(attribIndex);
+        gl.vertexAttribPointer(
+          attribIndex, attribute.componentCount, attribute.componentType,
+          attribute.normalized, bufferView.byteStride, attribute.byteOffset);
+      }
+    }
+
+    if (primitive.indices) {
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.indices.bufferView.renderData.glBuffer);
+    }
+
+    for (let attribName in ATTRIB_MAP) {
+      if(!primitive.enabledAttributes.has(attribName)) {
+        gl.disableVertexAttribArray(ATTRIB_MAP[attribName]);
+      }
+    }
+  }
+
   drawRenderTree(program, materialList) {
     const gl = this.gl;
 
@@ -197,7 +224,7 @@ export class WebGLRenderer extends GltfRenderer {
       }
 
       for (let primitive of primitives) {
-        program.bindPrimitive(primitive);
+        this.bindPrimitive(primitive);
 
         for (let worldMatrix of primitive.renderData.instances) {
           gl.uniformMatrix4fv(program.uniform.MODEL_MATRIX, false, worldMatrix);

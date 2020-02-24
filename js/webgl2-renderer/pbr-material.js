@@ -25,32 +25,32 @@ export const ATTRIB_MAP = {
   NORMAL: 2,
   TANGENT: 3,
   TEXCOORD_0: 4,
-  TEXCOORD_1: 5,
-  COLOR_0: 6,
+  COLOR_0: 5,
 };
 
 const PBR_VERTEX_SOURCE = `
-attribute vec3 POSITION, NORMAL;
-attribute vec2 TEXCOORD_0, TEXCOORD_1;
+layout(location = ${ATTRIB_MAP.POSITION}) in vec3 POSITION;
+layout(location = ${ATTRIB_MAP.NORMAL}) in vec3 NORMAL;
+layout(location = ${ATTRIB_MAP.TEXCOORD_0}) in vec2 TEXCOORD_0;
 
 uniform mat4 PROJECTION_MATRIX, VIEW_MATRIX, MODEL_MATRIX;
 uniform vec3 CAMERA_POSITION;
 uniform vec3 LIGHT_DIRECTION;
 
-varying vec3 vLight; // Vector from vertex to light.
-varying vec3 vView; // Vector from vertex to camera.
-varying vec2 vTex;
+out vec3 vLight; // Vector from vertex to light.
+out vec3 vView; // Vector from vertex to camera.
+out vec2 vTex;
 
 #ifdef USE_NORMAL_MAP
-attribute vec4 TANGENT;
-varying mat3 vTBN;
+layout(location = ${ATTRIB_MAP.TANGENT}) in vec4 TANGENT;
+out mat3 vTBN;
 #else
-varying vec3 vNorm;
+out vec3 vNorm;
 #endif
 
 #ifdef USE_VERTEX_COLOR
-attribute vec4 COLOR_0;
-varying vec4 vCol;
+layout(location = ${ATTRIB_MAP.COLOR_0}) in vec4 COLOR_0;
+out vec4 vCol;
 #endif
 
 void main() {
@@ -106,24 +106,26 @@ precision highp float;
 
 #define M_PI 3.14159265
 
+out vec4 outputColor;
+
 uniform vec4 baseColorFactor;
 #ifdef USE_BASE_COLOR_MAP
 uniform sampler2D baseColorTex;
 #endif
 
-varying vec3 vLight;
-varying vec3 vView;
-varying vec2 vTex;
+in vec3 vLight;
+in vec3 vView;
+in vec2 vTex;
 
 #ifdef USE_VERTEX_COLOR
-varying vec4 vCol;
+in vec4 vCol;
 #endif
 
 #ifdef USE_NORMAL_MAP
 uniform sampler2D normalTex;
-varying mat3 vTBN;
+in mat3 vTBN;
 #else
-varying vec3 vNorm;
+in vec3 vNorm;
 #endif
 
 #ifdef USE_METAL_ROUGH_MAP
@@ -150,7 +152,7 @@ ${EPIC_PBR_FUNCTIONS}
 
 void main() {
 #ifdef USE_BASE_COLOR_MAP
-  vec4 baseColor = texture2D(baseColorTex, vTex) * baseColorFactor;
+  vec4 baseColor = texture(baseColorTex, vTex) * baseColorFactor;
 #else
   vec4 baseColor = baseColorFactor;
 #endif
@@ -160,7 +162,7 @@ void main() {
 #endif
 
 #ifdef USE_NORMAL_MAP
-  vec3 n = texture2D(normalTex, vTex).rgb;
+  vec3 n = texture(normalTex, vTex).rgb;
   n = normalize(vTBN * (2.0 * n - 1.0));
 #else
   vec3 n = normalize(vNorm);
@@ -175,7 +177,7 @@ void main() {
   float roughness = metallicRoughnessFactor.y;
 
 #ifdef USE_METAL_ROUGH_MAP
-  vec4 metallicRoughness = texture2D(metallicRoughnessTex, vTex);
+  vec4 metallicRoughness = texture(metallicRoughnessTex, vTex);
   metallic *= metallicRoughness.b;
   roughness *= metallicRoughness.g;
 #endif
@@ -208,25 +210,25 @@ void main() {
   vec3 color = (halfLambert * LIGHT_COLOR * lambertDiffuse(cDiff)) + specular;
 
 #ifdef USE_OCCLUSION
-  float occlusion = texture2D(occlusionTex, vTex).r;
+  float occlusion = texture(occlusionTex, vTex).r;
   color = mix(color, color * occlusion, occlusionStrength);
 #endif
 
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
-  emissive *= texture2D(emissiveTex, vTex).rgb;
+  emissive *= texture(emissiveTex, vTex).rgb;
 #endif
   color += emissive;
 
   // gamma correction
   color = pow(color, vec3(1.0/2.2));
 
-  gl_FragColor = vec4(color, baseColor.a);
+  outputColor = vec4(color, baseColor.a);
 }`;
 
 export class PBRShaderProgram extends ShaderProgram {
   constructor(gl, defines) {
-    super(gl, PBR_VERTEX_SOURCE, PBR_FRAGMENT_SOURCE, ATTRIB_MAP, defines);
+    super(gl, PBR_VERTEX_SOURCE, PBR_FRAGMENT_SOURCE, null, defines, '300 es');
 
     this.opaqueMaterials = new Map(); // Material -> Primitives
     this.blendedMaterials = new Map(); // Material -> Primitives
@@ -284,44 +286,21 @@ export class PBRShaderProgram extends ShaderProgram {
     }
   }
 
-  bindPrimitive(primitive) {
-    const gl = this.gl;
-
-    for (let attribName in ATTRIB_MAP) {
-      const attrib = ATTRIB_MAP[attribName];
-      const attribute = primitive.attributes[attribName];
-      if (attribute) {
-        gl.enableVertexAttribArray(attrib);
-        // TODO: Could reduce bind count for interleaved buffers.
-        gl.bindBuffer(gl.ARRAY_BUFFER, attribute.bufferView.renderData.glBuffer);
-        gl.vertexAttribPointer(
-          attrib, attribute.componentCount, attribute.componentType,
-          attribute.normalized, attribute.byteStride, attribute.byteOffset);
-      } else {
-        gl.disableVertexAttribArray(attrib);
-      }
-    }
-
-    if (primitive.indices) {
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.indices.bufferView.renderData.glBuffer);
-    }
-  }
-
   static getProgramDefines(primitive) {
-    const attributes = primitive.attributes;
+    const attributes = primitive.enabledAttributes;
     const material = primitive.material;
     const programDefines = {};
 
-    if ('COLOR_0' in attributes) {
+    if (attributes.has('COLOR_0')) {
       programDefines['USE_VERTEX_COLOR'] = 1;
     }
 
-    if ('TEXCOORD_0' in attributes) {
+    if (attributes.has('TEXCOORD_0')) {
       if (material.baseColorTexture) {
         programDefines['USE_BASE_COLOR_MAP'] = 1;
       }
 
-      if (material.normalTexture && ('TANGENT' in attributes)) {
+      if (material.normalTexture && (attributes.has('TANGENT'))) {
         programDefines['USE_NORMAL_MAP'] = 1;
       }
 
@@ -339,7 +318,7 @@ export class PBRShaderProgram extends ShaderProgram {
     }
 
     if ((!material.metallicRoughnessTexture ||
-         !('TEXCOORD_0' in attributes)) &&
+         !(attributes.has('TEXCOORD_0'))) &&
          material.metallicRoughnessFactor[1] == 1.0) {
       programDefines['FULLY_ROUGH'] = 1;
     }

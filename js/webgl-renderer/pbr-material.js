@@ -25,13 +25,12 @@ export const ATTRIB_MAP = {
   NORMAL: 2,
   TANGENT: 3,
   TEXCOORD_0: 4,
-  TEXCOORD_1: 5,
-  COLOR_0: 6,
+  COLOR_0: 5,
 };
 
 const PBR_VERTEX_SOURCE = `
 attribute vec3 POSITION, NORMAL;
-attribute vec2 TEXCOORD_0, TEXCOORD_1;
+attribute vec2 TEXCOORD_0;
 
 uniform mat4 PROJECTION_MATRIX, VIEW_MATRIX, MODEL_MATRIX;
 uniform vec3 CAMERA_POSITION;
@@ -279,44 +278,21 @@ export class PBRShaderProgram extends ShaderProgram {
     }
   }
 
-  bindPrimitive(primitive) {
-    const gl = this.gl;
-
-    for (let attribName in ATTRIB_MAP) {
-      const attrib = ATTRIB_MAP[attribName];
-      const attribute = primitive.attributes[attribName];
-      if (attribute) {
-        gl.enableVertexAttribArray(attrib);
-        // TODO: Could reduce bind count for interleaved buffers.
-        gl.bindBuffer(gl.ARRAY_BUFFER, attribute.bufferView.renderData.glBuffer);
-        gl.vertexAttribPointer(
-          attrib, attribute.componentCount, attribute.componentType,
-          attribute.normalized, attribute.byteStride, attribute.byteOffset);
-      } else {
-        gl.disableVertexAttribArray(attrib);
-      }
-    }
-
-    if (primitive.indices) {
-      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.indices.bufferView.renderData.glBuffer);
-    }
-  }
-
   static getProgramDefines(primitive) {
-    const attributes = primitive.attributes;
+    const attributes = primitive.enabledAttributes;
     const material = primitive.material;
     const programDefines = {};
 
-    if ('COLOR_0' in attributes) {
+    if (attributes.has('COLOR_0')) {
       programDefines['USE_VERTEX_COLOR'] = 1;
     }
 
-    if ('TEXCOORD_0' in attributes) {
+    if (attributes.has('TEXCOORD_0')) {
       if (material.baseColorTexture) {
         programDefines['USE_BASE_COLOR_MAP'] = 1;
       }
 
-      if (material.normalTexture && ('TANGENT' in attributes)) {
+      if (material.normalTexture && (attributes.has('TANGENT'))) {
         programDefines['USE_NORMAL_MAP'] = 1;
       }
 
@@ -334,7 +310,7 @@ export class PBRShaderProgram extends ShaderProgram {
     }
 
     if ((!material.metallicRoughnessTexture ||
-         !('TEXCOORD_0' in attributes)) &&
+         !(attributes.has('TEXCOORD_0'))) &&
          material.metallicRoughnessFactor[1] == 1.0) {
       programDefines['FULLY_ROUGH'] = 1;
     }

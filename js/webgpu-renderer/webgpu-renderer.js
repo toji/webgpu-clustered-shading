@@ -23,6 +23,14 @@ import { GltfRenderer } from '../gltf-renderer.js';
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 
+const ATTRIB_MAP = {
+  POSITION: 1,
+  NORMAL: 2,
+  TANGENT: 3,
+  TEXCOORD_0: 4,
+  COLOR_0: 5,
+};
+
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
 
@@ -112,10 +120,10 @@ export class WebGPURenderer extends GltfRenderer {
 
   async initBufferView(bufferView) {
     let usage = 0;
-    if (bufferView.usage.indexOf('vertex') != -1) {
+    if (bufferView.usage.has('vertex')) {
       usage |= GPUBufferUsage.VERTEX;
     }
-    if (bufferView.usage.indexOf('index') != -1) {
+    if (bufferView.usage.has('index')) {
       usage |= GPUBufferUsage.INDEX;
     }
 
@@ -179,6 +187,64 @@ export class WebGPURenderer extends GltfRenderer {
     const material = primitive.material;
 
     primitive.renderData.instances = [];
+
+    const vertexBuffers = [];
+    for (let [bufferView, attributes] of primitive.attributeBuffers) {
+      let arrayStride = bufferView.byteStride;
+
+      const attributeLayouts = [];
+      for (let attribName in attributes) {
+        const attribute = attributes[attribName];
+
+        const count = attribute.componentCount > 1 ? `${attribute.componentCount}` : '';
+        const norm = attribute.normalized ? 'norm' : '';
+
+        let format;
+        switch(attribute.componentType) {
+          case GL.BYTE:
+            format = `char${count}${norm}`;
+            break;
+          case GL.UNSIGNED_BYTE:
+            format = `uchar${count}${norm}`;
+            break;
+          case GL.SHORT:
+            format = `short${count}${norm}`;
+            break;
+          case GL.UNSIGNED_SHORT:
+            format = `ushort${count}${norm}`;
+            break;
+          case GL.UNSIGNED_INT:
+            format = `uint${count}`;
+            break;
+          case GL.FLOAT:
+            format = `float${count}`;
+            break;
+        }
+
+        attributeLayouts.push({
+          shaderLocation: ATTRIB_MAP[attribName],
+          offset: attribute.byteOffset,
+          format
+        });
+
+        if (!bufferView.byteStride) {
+          arrayStride += attribute.packedByteStride;
+        }
+      }
+
+      vertexBuffers.push({
+        arrayStride,
+        attributes: attributeLayouts,
+      });
+    }
+
+    primitive.renderData.gpuVertexState = {
+      vertexBuffers
+    };
+
+    if (primitive.indices && primitive.indices.type == GL.UNSIGNED_SHORT) {
+      primitive.renderData.gpuVertexState.indexFormat = 'uint16';
+    }
 
     /*let key = '';
     for (let define in defines) {

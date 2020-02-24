@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 export class ShaderProgram {
-  constructor(gl, vertSrc, fragSrc, attribMap, defines) {
+  constructor(gl, vertSrc, fragSrc, attribMap, defines, version = '') {
     this.gl = gl;
     this.program = gl.createProgram();
     this.attrib = null;
@@ -30,6 +30,9 @@ export class ShaderProgram {
     this._nextUseCallbacks = [];
 
     let definesString = '';
+    if (version) {
+      definesString += `#version ${version}\n`;
+    }
     if (defines) {
       for (let define in defines) {
         this.defines[define] = defines[define];

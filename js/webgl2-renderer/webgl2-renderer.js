@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram } from './pbr-material.js';
+import { PBRShaderProgram, ATTRIB_MAP } from './pbr-material.js';
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -53,9 +53,9 @@ export class WebGL2Renderer extends GltfRenderer {
     const resourcePromises = [];
 
     for (let bufferView of gltf.bufferViews) {
-      if (bufferView.usage.indexOf('vertex') != -1) {
+      if (bufferView.usage.has('vertex')) {
         resourcePromises.push(this.initGLBuffer(bufferView, gl.ARRAY_BUFFER));
-      } else if (bufferView.usage.indexOf('index') != -1) {
+      } else if (bufferView.usage.has('index')) {
         resourcePromises.push(this.initGLBuffer(bufferView, gl.ELEMENT_ARRAY_BUFFER));
       }
     }
@@ -133,7 +133,8 @@ export class WebGL2Renderer extends GltfRenderer {
 
     const glVertexArray = gl.createVertexArray();
     gl.bindVertexArray(glVertexArray);
-    program.bindPrimitive(primitive); // Populates the vertex buffer bindings for the VertexArray
+    this.bindPrimitive(primitive); // Populates the vertex buffer bindings for the VertexArray
+    gl.bindVertexArray(null);
     primitive.renderData.glVertexArray = glVertexArray;
 
     let primitiveList;
@@ -160,6 +161,27 @@ export class WebGL2Renderer extends GltfRenderer {
 
     for (let childNode of node.children) {
       this.initNode(childNode);
+    }
+  }
+
+  bindPrimitive(primitive) {
+    const gl = this.gl;
+
+    for (let [bufferView, attributes] of primitive.attributeBuffers) {
+      gl.bindBuffer(gl.ARRAY_BUFFER, bufferView.renderData.glBuffer);
+
+      for (let attribName in attributes) {
+        const attribute = attributes[attribName];
+        const attribIndex = ATTRIB_MAP[attribName];
+        gl.enableVertexAttribArray(attribIndex);
+        gl.vertexAttribPointer(
+          attribIndex, attribute.componentCount, attribute.componentType,
+          attribute.normalized, bufferView.byteStride, attribute.byteOffset);
+      }
+    }
+
+    if (primitive.indices) {
+      gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, primitive.indices.bufferView.renderData.glBuffer);
     }
   }
 
@@ -223,5 +245,6 @@ export class WebGL2Renderer extends GltfRenderer {
         }
       }
     }
+    gl.bindVertexArray(null);
   }
 }

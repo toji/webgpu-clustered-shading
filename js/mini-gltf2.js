@@ -178,7 +178,7 @@ export class Gltf2Loader {
           }
         } else {
           let bufferView = gltf.bufferViews[image.bufferView];
-          bufferView.usage.push('image');
+          bufferView.usage.add('image');
           bufferView.dataView().then((dataView) => {
             imgElement.src = URL.createObjectURL(new Blob([dataView], {type: image.mimeType}));
           });
@@ -288,13 +288,21 @@ export class Gltf2Loader {
 
         let elementCount = 0;
 
-        let attributes = {};
+        let attributeBuffers = new Map();
         for (let name in primitive.attributes) {
           let accessor = accessors[primitive.attributes[name]];
           elementCount = accessor.count;
 
-          attributes[name] = new PrimitiveAttribute(
-            gltf.bufferViews[accessor.bufferView],
+          const bufferView = gltf.bufferViews[accessor.bufferView];
+          bufferView.usage.add('vertex');
+
+          let attributeMap = attributeBuffers.get(bufferView);
+          if (!attributeMap) {
+            attributeMap = {};
+            attributeBuffers.set(bufferView, attributeMap);
+          }
+
+          attributeMap[name] = new PrimitiveAttribute(
             getComponentCount(accessor.type),
             accessor.componentType,
             accessor.byteOffset,
@@ -307,15 +315,18 @@ export class Gltf2Loader {
           let accessor = accessors[primitive.indices];
           elementCount = accessor.count;
 
+          const bufferView = gltf.bufferViews[accessor.bufferView];
+          bufferView.usage.add('index');
+
           indices = new PrimitiveIndices(
-            gltf.bufferViews[accessor.bufferView],
+            bufferView,
             accessor.byteOffset,
             accessor.componentType
           );
         }
 
         primitives.push(new Primitive(
-          attributes,
+          attributeBuffers,
           indices,
           elementCount,
           primitive.mode,
@@ -394,20 +405,15 @@ class Node {
 }
 
 class PrimitiveAttribute {
-  constructor(bufferView, componentCount, componentType, byteOffset, normalized) {
-    this.bufferView = bufferView;
+  constructor(componentCount, componentType, byteOffset, normalized) {
     this.componentCount = componentCount || 3;
     this.componentType = componentType || 5126; // gl.FLOAT;
     this.byteOffset = byteOffset || 0;
     this.normalized = normalized || false;
+  }
 
-    if (bufferView.byteStride) {
-      this.byteStride = bufferView.byteStride;
-    } else {
-      this.byteStride = getComponentTypeSize(this.componentType) * this.componentCount;
-    }
-
-    bufferView.usage.push('vertex');
+  get packedByteStride() {
+    return getComponentTypeSize(this.componentType) * this.componentCount;
   }
 }
 
@@ -416,18 +422,23 @@ class PrimitiveIndices {
     this.bufferView = bufferView;
     this.byteOffset = byteOffset || 0;
     this.type = type || 5123; // gl.UNSIGNED_SHORT;
-
-    bufferView.usage.push('index');
   }
 }
 
 class Primitive {
-  constructor(attributes, indices, elementCount, mode, material) {
-    this.attributes = attributes;
+  constructor(attributeBuffers, indices, elementCount, mode, material) {
+    this.attributeBuffers = attributeBuffers; // Map<BufferView -> PrimitiveAttribute{}>
     this.indices = indices || null;
     this.elementCount = elementCount || 0;
     this.mode = mode || 4; // gl.TRIANGLES;
     this.material = material;
+
+    this.enabledAttributes = new Set();
+    for (let attributes of attributeBuffers.values()) {
+      for (let attribName in attributes) {
+        this.enabledAttributes.add(attribName);
+      }
+    }
 
     // For renderer-specific data;
     this.renderData = {};
@@ -483,7 +494,7 @@ class BufferView {
     this.byteLength = length;
     this.dataView = buffer.then(value => new DataView(value, offset, length));
 
-    this.usage = [];
+    this.usage = new Set();
 
     // For renderer-specific data;
     this.renderData = {};
