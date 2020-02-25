@@ -288,14 +288,42 @@ export class WebGPURenderer extends GltfRenderer {
       return;
     }
 
+    // Oh FFS. Buffer copies have to be 4 byte aligned, I guess. >_<
+    const alignedLength = Math.ceil(bufferView.byteLength / 4) * 4;
+
     const gpuBuffer = this.device.createBuffer({
+      size: alignedLength,
+      usage: usage | GPUBufferUsage.COPY_DST
+    });
+    bufferView.renderData.gpuBuffer = gpuBuffer;
+
+    // TODO: Pretty sure this can all be handled more efficiently.
+    const copyBuffer = this.device.createBuffer({
+      size: alignedLength,
+      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC
+    });
+
+    const bufferData = await bufferView.dataView;
+
+    const copyBufferArray = await copyBuffer.mapWriteAsync();
+    const srcByteArray = new Uint8Array(bufferData.buffer, bufferData.byteOffset, bufferData.byteLength);
+    const dstByteArray = new Uint8Array(copyBufferArray);
+    dstByteArray.set(srcByteArray);
+    copyBuffer.unmap();
+
+    const commandEncoder = this.device.createCommandEncoder({});
+    commandEncoder.copyBufferToBuffer(copyBuffer, 0, gpuBuffer, 0, alignedLength);
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
+
+    /*const gpuBuffer = this.device.createBuffer({
       size: bufferView.byteLength,
       usage: usage | GPUBufferUsage.COPY_DST
     });
     bufferView.renderData.gpuBuffer = gpuBuffer;
 
     const bufferData = await bufferView.dataView;
-    gpuBuffer.setSubData(0, bufferData);
+    // This apparently only works if the bufferData size is a multiple of 4. :P
+    gpuBuffer.setSubData(0, bufferData);*/
   }
 
   async initImage(image) {
