@@ -20,7 +20,7 @@
 
 import { GltfRenderer } from '../gltf-renderer.js';
 import { PBRShaderProgram, ATTRIB_MAP, UNIFORM_BLOCKS } from './pbr-material.js';
-import { vec3, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -82,6 +82,8 @@ export class WebGL2Renderer extends GltfRenderer {
       this.initSampler(sampler);
     }
 
+    this.initMaterials(gltf.materials);
+
     for (let primitive of gltf.primitives) {
       this.initPrimitive(primitive);
     }
@@ -126,6 +128,29 @@ export class WebGL2Renderer extends GltfRenderer {
     gl.samplerParameteri(glSampler, gl.TEXTURE_MIN_FILTER, minFilter);
     gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_S, wrapS);
     gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_T, wrapT);
+  }
+
+  initMaterials(materials) {
+    const gl = this.gl;
+
+    const materialUniforms = new Float32Array(4 + 4 + 4 + 4);
+    const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
+    const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
+    const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
+    const occlusionStrength = new Float32Array(materialUniforms.buffer, 12 * 4, 1);
+
+    for (let material of materials) {
+      vec4.copy(baseColorFactor, material.baseColorFactor);
+      vec2.copy(metallicRoughnessFactor, material.metallicRoughnessFactor);
+      vec3.copy(emissiveFactor, material.emissiveFactor);
+      occlusionStrength[0] = material.occlusionStrength;
+
+      const materialUniformBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.UNIFORM_BUFFER, materialUniformBuffer);
+      gl.bufferData(gl.UNIFORM_BUFFER, materialUniforms, gl.STATIC_DRAW);
+      
+      material.renderData.glUniformBuffer = materialUniformBuffer;
+    }
   }
 
   initPrimitive(primitive) {
@@ -248,7 +273,7 @@ export class WebGL2Renderer extends GltfRenderer {
         gl.bindVertexArray(primitive.renderData.glVertexArray);
 
         for (let worldMatrix of primitive.renderData.instances) {
-          gl.uniformMatrix4fv(program.uniform.MODEL_MATRIX, false, worldMatrix);
+          gl.uniformMatrix4fv(program.uniform.modelMatrix, false, worldMatrix);
 
           // Draw primitive
           if (primitive.indices) {

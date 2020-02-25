@@ -517,6 +517,8 @@ export class WebGPURenderer extends GltfRenderer {
     vec3.copy(this.cameraPosition, this.camera.position);
     this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
 
+    // TODO: If we want multisampling this should attach to the resolveTarget,
+    // but there seems to be a bug with that right now?
     this.colorAttachment.attachment = this.swapChain.getCurrentTexture().createView();
 
     const commandEncoder = this.device.createCommandEncoder({});

@@ -38,12 +38,6 @@ layout(location = ${ATTRIB_MAP.POSITION}) in vec3 POSITION;
 layout(location = ${ATTRIB_MAP.NORMAL}) in vec3 NORMAL;
 layout(location = ${ATTRIB_MAP.TEXCOORD_0}) in vec2 TEXCOORD_0;
 
-uniform mat4 MODEL_MATRIX;
-/*uniform mat4 projectionMatrix, viewMatrix;
-uniform vec3 cameraPosition;
-uniform vec3 lightDirection;
-uniform vec3 lightColor;*/
-
 layout(std140) uniform FrameUniforms
 {
   mat4 projectionMatrix;
@@ -52,6 +46,8 @@ layout(std140) uniform FrameUniforms
   vec3 lightDirection;
   vec3 lightColor;
 };
+
+uniform mat4 modelMatrix;
 
 out vec3 vLight; // Vector from vertex to light.
 out vec3 vLightColor; // Light color.
@@ -71,9 +67,9 @@ out vec4 vCol;
 #endif
 
 void main() {
-  vec3 n = normalize(vec3(MODEL_MATRIX * vec4(NORMAL, 0.0)));
+  vec3 n = normalize(vec3(modelMatrix * vec4(NORMAL, 0.0)));
 #ifdef USE_NORMAL_MAP
-  vec3 t = normalize(vec3(MODEL_MATRIX * vec4(TANGENT.xyz, 0.0)));
+  vec3 t = normalize(vec3(modelMatrix * vec4(TANGENT.xyz, 0.0)));
   vec3 b = cross(n, t) * TANGENT.w;
   vTBN = mat3(t, b, n);
 #else
@@ -85,7 +81,7 @@ void main() {
 #endif
 
   vTex = TEXCOORD_0;
-  vec4 mPos = MODEL_MATRIX * vec4(POSITION, 1.0);
+  vec4 mPos = modelMatrix * vec4(POSITION, 1.0);
   vLight = -lightDirection;
   vLightColor = lightColor;
   vView = cameraPosition - mPos.xyz;
@@ -122,11 +118,17 @@ vec3 specF(float vDotH, vec3 F0) {
 const PBR_FRAGMENT_SOURCE = `
 precision highp float;
 
+layout(std140) uniform MaterialUniforms {
+  vec4 baseColorFactor;
+  vec2 metallicRoughnessFactor;
+  vec3 emissiveFactor;
+  float occlusionStrength;
+};
+
 #define M_PI 3.14159265
 
 out vec4 outputColor;
 
-uniform vec4 baseColorFactor;
 #ifdef USE_BASE_COLOR_MAP
 uniform sampler2D baseColorTex;
 #endif
@@ -150,17 +152,14 @@ in vec3 vNorm;
 #ifdef USE_METAL_ROUGH_MAP
 uniform sampler2D metallicRoughnessTex;
 #endif
-uniform vec2 metallicRoughnessFactor;
 
 #ifdef USE_OCCLUSION
 uniform sampler2D occlusionTex;
-uniform float occlusionStrength;
 #endif
 
 #ifdef USE_EMISSIVE_TEXTURE
 uniform sampler2D emissiveTex;
 #endif
-uniform vec3 emissiveFactor;
 
 const vec3 dielectricSpec = vec3(0.04);
 const vec3 black = vec3(0.0);
@@ -256,9 +255,7 @@ export class PBRShaderProgram extends ShaderProgram {
     const uniform = this.uniform;
     let samplerIndex = 0;
 
-    gl.uniform4fv(uniform.baseColorFactor, material.baseColorFactor);
-    gl.uniform2fv(uniform.metallicRoughnessFactor, material.metallicRoughnessFactor);
-    gl.uniform3fv(uniform.emissiveFactor, material.emissiveFactor);
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.MaterialUniforms, material.renderData.glUniformBuffer);
 
     if (uniform.baseColorTex) {
       gl.uniform1i(uniform.baseColorTex, samplerIndex);
@@ -285,8 +282,6 @@ export class PBRShaderProgram extends ShaderProgram {
     }
 
     if (uniform.occlusionStrength) {
-      gl.uniform1f(uniform.occlusionStrength, material.occlusionStrength);
-
       gl.uniform1i(uniform.occlusionTex, samplerIndex);
       gl.activeTexture(gl.TEXTURE0 + samplerIndex);
       gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.image.glTexture);
