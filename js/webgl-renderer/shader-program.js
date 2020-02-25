@@ -18,111 +18,101 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// Just a helper class to easily compile and link a shader program, then query
+// some helpful values such as attribute and uniform locations.
 export class ShaderProgram {
-  constructor(gl, vertSrc, fragSrc, attribMap, defines, uniformBlockMap, version = '') {
+  constructor(gl, config) {
+    if (!config || !config.vertexSource || !config.fragmentSource) {
+      throw new Error('Must provide a vertexSource and fragmentSource');
+    }
+
     this.gl = gl;
     this.program = gl.createProgram();
-    this.attrib = null;
-    this.uniform = null;
+    this.attribute = {};
+    this.uniform = {};
+    this.uniformBlock = {};
     this.defines = {};
-    this.uniformBlockMap = uniformBlockMap;
 
-    this._firstUse = true;
-    this._nextUseCallbacks = [];
-
-    let definesString = '';
-    if (version) {
-      definesString += `#version ${version}\n`;
+    let headerString = '';
+    if (config.version) {
+      headerString += `#version ${config.version}\n`;
     }
-    if (defines) {
-      for (let define in defines) {
-        this.defines[define] = defines[define];
-        definesString += `#define ${define} ${defines[define]}\n`;
+    if (config.defines) {
+      for (let define in config.defines) {
+        this.defines[define] = config.defines[define];
+        headerString += `#define ${define} ${config.defines[define]}\n`;
       }
     }
 
-    this._vertShader = gl.createShader(gl.VERTEX_SHADER);
-    gl.attachShader(this.program, this._vertShader);
-    gl.shaderSource(this._vertShader, definesString + vertSrc);
-    gl.compileShader(this._vertShader);
+    const vertShader = gl.createShader(gl.VERTEX_SHADER);
+    gl.attachShader(this.program, vertShader);
+    gl.shaderSource(vertShader, headerString + config.vertexSource);
+    gl.compileShader(vertShader);
 
-    this._fragShader = gl.createShader(gl.FRAGMENT_SHADER);
-    gl.attachShader(this.program, this._fragShader);
-    gl.shaderSource(this._fragShader, definesString + fragSrc);
-    gl.compileShader(this._fragShader);
+    const fragShader = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.attachShader(this.program, fragShader);
+    gl.shaderSource(fragShader, headerString + config.fragmentSource);
+    gl.compileShader(fragShader);
 
-    if (attribMap) {
-      this.attrib = {};
-      for (let attribName in attribMap) {
-        gl.bindAttribLocation(this.program, attribMap[attribName], attribName);
-        this.attrib[attribName] = attribMap[attribName];
+    if (config.attributeLocations) {
+      for (let attribName in config.attributeLocations) {
+        gl.bindAttribLocation(this.program, config.attributeLocations[attribName], attribName);
+        this.attribute[attribName] = config.attributeLocations[attribName];
       }
     }
 
     gl.linkProgram(this.program);
-  }
 
-  onNextUse(callback) {
-    this._nextUseCallbacks.push(callback);
+    if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
+      if (!gl.getShaderParameter(vertShader, gl.COMPILE_STATUS)) {
+        console.error('Vertex shader compile error: ' + gl.getShaderInfoLog(vertShader));
+      } else if (!gl.getShaderParameter(fragShader, gl.COMPILE_STATUS)) {
+        console.error('Fragment shader compile error: ' + gl.getShaderInfoLog(fragShader));
+      } else {
+        console.error('Program link error: ' + gl.getProgramInfoLog(this.program));
+      }
+      gl.deleteProgram(this.program);
+      this.program = null;
+      return;
+    }
+
+    gl.deleteShader(vertShader);
+    gl.deleteShader(fragShader);
+
+    if (!config.attributeLocations) {
+      let attribCount = gl.getProgramParameter(this.program, gl.ACTIVE_ATTRIBUTES);
+      for (let i = 0; i < attribCount; i++) {
+        let attribInfo = gl.getActiveAttrib(this.program, i);
+        this.attribute[attribInfo.name] = gl.getAttribLocation(this.program, attribInfo.name);
+      }
+    }
+
+    let uniformCount = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS);
+    let uniformName = '';
+    for (let i = 0; i < uniformCount; i++) {
+      let uniformInfo = gl.getActiveUniform(this.program, i);
+      uniformName = uniformInfo.name.replace('[0]', '');
+      this.uniform[uniformName] = gl.getUniformLocation(this.program, uniformName);
+    }
+
+    // Are we using WebGL 2?
+    if (gl.ACTIVE_UNIFORM_BLOCKS) {
+      let uniformBlockCount = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORM_BLOCKS);
+      for (let i = 0; i < uniformBlockCount; i++) {
+        let uniformBlockName = gl.getActiveUniformBlockName(this.program, i);
+        this.uniformBlock[uniformBlockName] = i;
+      }
+      /*for (let uniformBlockName in this.uniformBlockMap) {
+        let uniformBlockBinding = this.uniformBlockMap[uniformBlockName];
+        let uniformBlockIndex = gl.getUniformBlockIndex(this.program, uniformBlockName);
+        if (uniformBlockIndex != gl.INVALID_INDEX) {
+          gl.uniformBlockBinding(this.program, uniformBlockIndex, uniformBlockBinding);
+        }
+      }*/
+    }
   }
 
   use() {
-    const gl = this.gl;
-
-    // If this is the first time the program has been used do all the error checking and
-    // attrib/uniform querying needed.
-    if (this._firstUse) {
-      this._firstUse = false;
-      if (!gl.getProgramParameter(this.program, gl.LINK_STATUS)) {
-        if (!gl.getShaderParameter(this._vertShader, gl.COMPILE_STATUS)) {
-          console.error('Vertex shader compile error: ' + gl.getShaderInfoLog(this._vertShader));
-        } else if (!gl.getShaderParameter(this._fragShader, gl.COMPILE_STATUS)) {
-          console.error('Fragment shader compile error: ' + gl.getShaderInfoLog(this._fragShader));
-        } else {
-          console.error('Program link error: ' + gl.getProgramInfoLog(this.program));
-        }
-        gl.deleteProgram(this.program);
-        this.program = null;
-      } else {
-        if (!this.attrib) {
-          this.attrib = {};
-          let attribCount = gl.getProgramParameter(this.program, gl.ACTIVE_ATTRIBUTES);
-          for (let i = 0; i < attribCount; i++) {
-            let attribInfo = gl.getActiveAttrib(this.program, i);
-            this.attrib[attribInfo.name] = gl.getAttribLocation(this.program, attribInfo.name);
-          }
-        }
-
-        this.uniform = {};
-        let uniformCount = gl.getProgramParameter(this.program, gl.ACTIVE_UNIFORMS);
-        let uniformName = '';
-        for (let i = 0; i < uniformCount; i++) {
-          let uniformInfo = gl.getActiveUniform(this.program, i);
-          uniformName = uniformInfo.name.replace('[0]', '');
-          this.uniform[uniformName] = gl.getUniformLocation(this.program, uniformName);
-        }
-
-        if (this.uniformBlockMap) {
-          for (let uniformBlockName in this.uniformBlockMap) {
-            let uniformBlockBinding = this.uniformBlockMap[uniformBlockName];
-            let uniformBlockIndex = gl.getUniformBlockIndex(this.program, uniformBlockName);
-            if (uniformBlockIndex != gl.INVALID_INDEX) {
-              gl.uniformBlockBinding(this.program, uniformBlockIndex, uniformBlockBinding);
-            }
-          }
-        }
-      }
-      gl.deleteShader(this._vertShader);
-      gl.deleteShader(this._fragShader);
-    }
-
-    gl.useProgram(this.program);
-
-    if (this._nextUseCallbacks.length) {
-      for (let callback of this._nextUseCallbacks) {
-        callback(this);
-      }
-      this._nextUseCallbacks = [];
-    }
+    this.gl.useProgram(this.program);
   }
 }

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram, ATTRIB_MAP, UNIFORM_BLOCKS } from './pbr-material.js';
+import { PBRShaderProgram, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS } from './pbr-material.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
 function isPowerOfTwo(n) {
@@ -148,7 +148,7 @@ export class WebGL2Renderer extends GltfRenderer {
       const materialUniformBuffer = gl.createBuffer();
       gl.bindBuffer(gl.UNIFORM_BUFFER, materialUniformBuffer);
       gl.bufferData(gl.UNIFORM_BUFFER, materialUniforms, gl.STATIC_DRAW);
-      
+
       material.renderData.glUniformBuffer = materialUniformBuffer;
     }
   }
@@ -169,6 +169,22 @@ export class WebGL2Renderer extends GltfRenderer {
     if (!program) {
       program = new PBRShaderProgram(this.gl, defines);
       this.programs.set(key, program);
+
+      // Once the program is linked we can set the sampler indices and uniform
+      // block bind points once and they'll apply for the lifetime of the
+      // program.
+      program.use();
+      for (let samplerName in SAMPLER_MAP) {
+        if (program.uniform[samplerName]) {
+          this.gl.uniform1i(program.uniform[samplerName], SAMPLER_MAP[samplerName]);
+        }
+      }
+
+      for (let uniformBlockName in UNIFORM_BLOCKS) {
+        if(program.uniformBlock[uniformBlockName]) {
+          gl.uniformBlockBinding(program.program, program.uniformBlock[uniformBlockName], UNIFORM_BLOCKS[uniformBlockName]);
+        }
+      }
     }
 
     const glVertexArray = gl.createVertexArray();
@@ -201,6 +217,49 @@ export class WebGL2Renderer extends GltfRenderer {
 
     for (let childNode of node.children) {
       this.initNode(childNode);
+    }
+  }
+
+  bindMaterial(program, material) {
+    const gl = this.gl;
+    const uniform = program.uniform;
+
+    if (material.cullFace) {
+      gl.enable(gl.CULL_FACE);
+    } else {
+      gl.disable(gl.CULL_FACE);
+    }
+
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.MaterialUniforms, material.renderData.glUniformBuffer);
+
+    if (material.baseColorTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.baseColorTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.baseColorTexture.image.glTexture);
+      gl.bindSampler(SAMPLER_MAP.baseColorTexture, material.baseColorTexture.sampler.renderData.glSampler);
+    }
+
+    if (material.normalTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.normalTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.normalTexture.image.glTexture);
+      gl.bindSampler(SAMPLER_MAP.normalTexture, material.normalTexture.sampler.renderData.glSampler);
+    }
+
+    if (material.metallicRoughnessTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.metallicRoughnessTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.metallicRoughnessTexture.image.glTexture);
+      gl.bindSampler(SAMPLER_MAP.metallicRoughnessTexture, material.metallicRoughnessTexture.sampler.renderData.glSampler);
+    }
+
+    if (material.occlusionTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.occlusionTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.image.glTexture);
+      gl.bindSampler(SAMPLER_MAP.occlusionTexture, material.occlusionTexture.sampler.renderData.glSampler);
+    }
+
+    if (uniform.emissiveTex) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.emissiveTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.emissiveTexture.image.glTexture);
+      gl.bindSampler(SAMPLER_MAP.emissiveTexture, material.emissiveTexture.sampler.renderData.glSampler);
     }
   }
 
@@ -261,13 +320,7 @@ export class WebGL2Renderer extends GltfRenderer {
     program.use();
 
     for (let [material, primitives] of materialList) {
-      program.bindMaterial(material);
-
-      if (material.cullFace) {
-        gl.enable(gl.CULL_FACE);
-      } else {
-        gl.disable(gl.CULL_FACE);
-      }
+      this.bindMaterial(program, material);
 
       for (let primitive of primitives) {
         gl.bindVertexArray(primitive.renderData.glVertexArray);

@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram, ATTRIB_MAP } from './pbr-material.js';
+import { PBRShaderProgram, ATTRIB_MAP, SAMPLER_MAP } from './pbr-material.js';
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -124,6 +124,15 @@ export class WebGLRenderer extends GltfRenderer {
     if (!program) {
       program = new PBRShaderProgram(this.gl, defines);
       this.programs.set(key, program);
+
+      // Once the program is linked we can set the sampler indices once and
+      // they'll apply for the lifetime of the program.
+      program.use();
+      for (let samplerName in SAMPLER_MAP) {
+        if (program.uniform[samplerName]) {
+          this.gl.uniform1i(program.uniform[samplerName], SAMPLER_MAP[samplerName]);
+        }
+      }
     }
 
     let primitiveList;
@@ -203,6 +212,48 @@ export class WebGLRenderer extends GltfRenderer {
     }
   }
 
+  bindMaterial(program, material) {
+    const gl = this.gl;
+    const uniform = program.uniform;
+
+    if (material.cullFace) {
+      gl.enable(gl.CULL_FACE);
+    } else {
+      gl.disable(gl.CULL_FACE);
+    }
+
+    gl.uniform4fv(uniform.baseColorFactor, material.baseColorFactor);
+    gl.uniform2fv(uniform.metallicRoughnessFactor, material.metallicRoughnessFactor);
+    gl.uniform3fv(uniform.emissiveFactor, material.emissiveFactor);
+
+    if (material.baseColorTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.baseColorTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.baseColorTexture.renderData.glTexture);
+    }
+
+    if (material.normalTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.normalTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.normalTexture.renderData.glTexture);
+    }
+
+    if (material.metallicRoughnessTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.metallicRoughnessTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.metallicRoughnessTexture.renderData.glTexture);
+    }
+
+    if (material.occlusionTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.occlusionTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.renderData.glTexture);
+
+      gl.uniform1f(uniform.occlusionStrength, material.occlusionStrength);
+    }
+
+    if (material.emissiveTexture) {
+      gl.activeTexture(gl.TEXTURE0 + SAMPLER_MAP.emissiveTexture);
+      gl.bindTexture(gl.TEXTURE_2D, material.emissiveTexture.renderData.glTexture);
+    }
+  }
+
   drawRenderTree(program, materialList) {
     const gl = this.gl;
 
@@ -216,13 +267,7 @@ export class WebGLRenderer extends GltfRenderer {
     gl.uniform3fv(program.uniform.CAMERA_POSITION, this.camera.position);
 
     for (let [material, primitives] of materialList) {
-      program.bindMaterial(material);
-
-      if (material.cullFace) {
-        gl.enable(gl.CULL_FACE);
-      } else {
-        gl.disable(gl.CULL_FACE);
-      }
+      this.bindMaterial(program, material);
 
       for (let primitive of primitives) {
         this.bindPrimitive(primitive);

@@ -28,6 +28,14 @@ export const ATTRIB_MAP = {
   COLOR_0: 5,
 };
 
+export const SAMPLER_MAP = {
+  baseColorTexture: 0,
+  normalTexture: 1,
+  metallicRoughnessTexture: 2,
+  emissiveTexture: 3,
+  occlusionTexture: 4
+};
+
 const PBR_VERTEX_SOURCE = `
 attribute vec3 POSITION, NORMAL;
 attribute vec2 TEXCOORD_0;
@@ -107,7 +115,7 @@ precision highp float;
 
 uniform vec4 baseColorFactor;
 #ifdef USE_BASE_COLOR_MAP
-uniform sampler2D baseColorTex;
+uniform sampler2D baseColorTexture;
 #endif
 
 varying vec3 vLight;
@@ -119,24 +127,24 @@ varying vec4 vCol;
 #endif
 
 #ifdef USE_NORMAL_MAP
-uniform sampler2D normalTex;
+uniform sampler2D normalTexture;
 varying mat3 vTBN;
 #else
 varying vec3 vNorm;
 #endif
 
 #ifdef USE_METAL_ROUGH_MAP
-uniform sampler2D metallicRoughnessTex;
+uniform sampler2D metallicRoughnessTexture;
 #endif
 uniform vec2 metallicRoughnessFactor;
 
 #ifdef USE_OCCLUSION
-uniform sampler2D occlusionTex;
+uniform sampler2D occlusionTexture;
 uniform float occlusionStrength;
 #endif
 
 #ifdef USE_EMISSIVE_TEXTURE
-uniform sampler2D emissiveTex;
+uniform sampler2D emissiveTexture;
 #endif
 uniform vec3 emissiveFactor;
 
@@ -149,7 +157,7 @@ ${EPIC_PBR_FUNCTIONS}
 
 void main() {
 #ifdef USE_BASE_COLOR_MAP
-  vec4 baseColor = texture2D(baseColorTex, vTex) * baseColorFactor;
+  vec4 baseColor = texture2D(baseColorTexture, vTex) * baseColorFactor;
 #else
   vec4 baseColor = baseColorFactor;
 #endif
@@ -159,7 +167,7 @@ void main() {
 #endif
 
 #ifdef USE_NORMAL_MAP
-  vec3 n = texture2D(normalTex, vTex).rgb;
+  vec3 n = texture2D(normalTexture, vTex).rgb;
   n = normalize(vTBN * (2.0 * n - 1.0));
 #else
   vec3 n = normalize(vNorm);
@@ -174,7 +182,7 @@ void main() {
   float roughness = metallicRoughnessFactor.y;
 
 #ifdef USE_METAL_ROUGH_MAP
-  vec4 metallicRoughness = texture2D(metallicRoughnessTex, vTex);
+  vec4 metallicRoughness = texture2D(metallicRoughnessTexture, vTex);
   metallic *= metallicRoughness.b;
   roughness *= metallicRoughness.g;
 #endif
@@ -207,13 +215,13 @@ void main() {
   vec3 color = (halfLambert * LIGHT_COLOR * lambertDiffuse(cDiff)) + specular;
 
 #ifdef USE_OCCLUSION
-  float occlusion = texture2D(occlusionTex, vTex).r;
+  float occlusion = texture2D(occlusionTexture, vTex).r;
   color = mix(color, color * occlusion, occlusionStrength);
 #endif
 
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
-  emissive *= texture2D(emissiveTex, vTex).rgb;
+  emissive *= texture2D(emissiveTexture, vTex).rgb;
 #endif
   color += emissive;
 
@@ -225,57 +233,15 @@ void main() {
 
 export class PBRShaderProgram extends ShaderProgram {
   constructor(gl, defines) {
-    super(gl, PBR_VERTEX_SOURCE, PBR_FRAGMENT_SOURCE, ATTRIB_MAP, defines);
+    super(gl, {
+      vertexSource: PBR_VERTEX_SOURCE,
+      fragmentSource: PBR_FRAGMENT_SOURCE,
+      attributeLocations: ATTRIB_MAP,
+      defines
+    });
 
     this.opaqueMaterials = new Map(); // Material -> Primitives
     this.blendedMaterials = new Map(); // Material -> Primitives
-  }
-
-  bindMaterial(material) {
-    const gl = this.gl;
-    const uniform = this.uniform;
-    let samplerIndex = 0;
-
-    gl.uniform4fv(uniform.baseColorFactor, material.baseColorFactor);
-    gl.uniform2fv(uniform.metallicRoughnessFactor, material.metallicRoughnessFactor);
-    gl.uniform3fv(uniform.emissiveFactor, material.emissiveFactor);
-
-    if (uniform.baseColorTex) {
-      gl.uniform1i(uniform.baseColorTex, samplerIndex);
-      gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.baseColorTexture.renderData.glTexture);
-      samplerIndex++;
-    }
-
-    if (uniform.normalTex) {
-      gl.uniform1i(uniform.normalTex, samplerIndex);
-      gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.normalTexture.renderData.glTexture);
-      samplerIndex++;
-    }
-
-    if (uniform.metallicRoughnessTex) {
-      gl.uniform1i(uniform.metallicRoughnessTex, samplerIndex);
-      gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.metallicRoughnessTexture.renderData.glTexture);
-      samplerIndex++;
-    }
-
-    if (uniform.occlusionStrength) {
-      gl.uniform1f(uniform.occlusionStrength, material.occlusionStrength);
-
-      gl.uniform1i(uniform.occlusionTex, samplerIndex);
-      gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.occlusionTexture.renderData.glTexture);
-      samplerIndex++;
-    }
-
-    if (uniform.emissiveTex) {
-      gl.uniform1i(uniform.emissiveTex, samplerIndex);
-      gl.activeTexture(gl.TEXTURE0 + samplerIndex);
-      gl.bindTexture(gl.TEXTURE_2D, material.emissiveTexture.renderData.glTexture);
-      samplerIndex++;
-    }
   }
 
   static getProgramDefines(primitive) {
