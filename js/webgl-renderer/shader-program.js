@@ -31,27 +31,15 @@ export class ShaderProgram {
     this.attribute = {};
     this.uniform = {};
     this.uniformBlock = {};
-    this.defines = {};
-
-    let headerString = '';
-    if (config.version) {
-      headerString += `#version ${config.version}\n`;
-    }
-    if (config.defines) {
-      for (let define in config.defines) {
-        this.defines[define] = config.defines[define];
-        headerString += `#define ${define} ${config.defines[define]}\n`;
-      }
-    }
 
     const vertShader = gl.createShader(gl.VERTEX_SHADER);
     gl.attachShader(this.program, vertShader);
-    gl.shaderSource(vertShader, headerString + config.vertexSource);
+    gl.shaderSource(vertShader, config.vertexSource);
     gl.compileShader(vertShader);
 
     const fragShader = gl.createShader(gl.FRAGMENT_SHADER);
     gl.attachShader(this.program, fragShader);
-    gl.shaderSource(fragShader, headerString + config.fragmentSource);
+    gl.shaderSource(fragShader, config.fragmentSource);
     gl.compileShader(fragShader);
 
     if (config.attributeLocations) {
@@ -102,13 +90,6 @@ export class ShaderProgram {
         let uniformBlockName = gl.getActiveUniformBlockName(this.program, i);
         this.uniformBlock[uniformBlockName] = i;
       }
-      /*for (let uniformBlockName in this.uniformBlockMap) {
-        let uniformBlockBinding = this.uniformBlockMap[uniformBlockName];
-        let uniformBlockIndex = gl.getUniformBlockIndex(this.program, uniformBlockName);
-        if (uniformBlockIndex != gl.INVALID_INDEX) {
-          gl.uniformBlockBinding(this.program, uniformBlockIndex, uniformBlockBinding);
-        }
-      }*/
     }
   }
 

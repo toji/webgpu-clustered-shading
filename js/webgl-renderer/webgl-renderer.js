@@ -19,7 +19,21 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram, ATTRIB_MAP, SAMPLER_MAP } from './pbr-material.js';
+import { ShaderProgram } from './shader-program.js';
+import { WEBGL_VERTEX_SOURCE, WEBGL_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
+
+export class PBRShaderProgram extends ShaderProgram {
+  constructor(gl, defines) {
+    super(gl, {
+      vertexSource: WEBGL_VERTEX_SOURCE(defines),
+      fragmentSource: WEBGL_FRAGMENT_SOURCE(defines),
+      attributeLocations: ATTRIB_MAP
+    });
+
+    this.opaqueMaterials = new Map(); // Material -> Primitives
+    this.blendedMaterials = new Map(); // Material -> Primitives
+  }
+}
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -110,7 +124,7 @@ export class WebGLRenderer extends GltfRenderer {
   }
 
   initPrimitive(primitive) {
-    const defines = PBRShaderProgram.getProgramDefines(primitive);
+    const defines = GetDefinesForPrimitive(primitive);
     const material = primitive.material;
 
     primitive.renderData.instances = [];
@@ -259,12 +273,12 @@ export class WebGLRenderer extends GltfRenderer {
 
     program.use();
 
-    gl.uniformMatrix4fv(program.uniform.PROJECTION_MATRIX, false, this.projectionMatrix);
-    gl.uniform3fv(program.uniform.LIGHT_DIRECTION, this.lightDirection);
-    gl.uniform3fv(program.uniform.LIGHT_COLOR, this.lightColor);
+    gl.uniformMatrix4fv(program.uniform.projectionMatrix, false, this.projectionMatrix);
+    gl.uniform3fv(program.uniform.lightDirection, this.lightDirection);
+    gl.uniform3fv(program.uniform.lightColor, this.lightColor);
 
-    gl.uniformMatrix4fv(program.uniform.VIEW_MATRIX, false, this.camera.viewMatrix);
-    gl.uniform3fv(program.uniform.CAMERA_POSITION, this.camera.position);
+    gl.uniformMatrix4fv(program.uniform.viewMatrix, false, this.camera.viewMatrix);
+    gl.uniform3fv(program.uniform.cameraPosition, this.camera.position);
 
     for (let [material, primitives] of materialList) {
       this.bindMaterial(program, material);
@@ -273,7 +287,7 @@ export class WebGLRenderer extends GltfRenderer {
         this.bindPrimitive(primitive);
 
         for (let worldMatrix of primitive.renderData.instances) {
-          gl.uniformMatrix4fv(program.uniform.MODEL_MATRIX, false, worldMatrix);
+          gl.uniformMatrix4fv(program.uniform.modelMatrix, false, worldMatrix);
 
           // Draw primitive
           if (primitive.indices) {

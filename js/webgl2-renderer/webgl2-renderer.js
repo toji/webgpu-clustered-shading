@@ -19,8 +19,21 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderProgram, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS } from './pbr-material.js';
+import { ShaderProgram } from '../webgl-renderer/shader-program.js';
+import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+
+export class PBRShaderProgram extends ShaderProgram {
+  constructor(gl, defines) {
+    super(gl, {
+      vertexSource: WEBGL2_VERTEX_SOURCE(defines),
+      fragmentSource: WEBGL2_FRAGMENT_SOURCE(defines)
+    });
+
+    this.opaqueMaterials = new Map(); // Material -> Primitives
+    this.blendedMaterials = new Map(); // Material -> Primitives
+  }
+}
 
 function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
@@ -155,7 +168,7 @@ export class WebGL2Renderer extends GltfRenderer {
 
   initPrimitive(primitive) {
     const gl = this.gl;
-    const defines = PBRShaderProgram.getProgramDefines(primitive);
+    const defines = GetDefinesForPrimitive(primitive);
     const material = primitive.material;
 
     primitive.renderData.instances = [];
