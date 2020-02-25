@@ -80,9 +80,13 @@ attribute vec4 COLOR_0;
 const ATTRIBUTES_WITH_LAYOUT = `
 layout(location = ${ATTRIB_MAP.POSITION}) in vec3 POSITION;
 layout(location = ${ATTRIB_MAP.NORMAL}) in vec3 NORMAL;
+#ifdef USE_NORMAL_MAP
 layout(location = ${ATTRIB_MAP.TANGENT}) in vec4 TANGENT;
+#endif
 layout(location = ${ATTRIB_MAP.TEXCOORD_0}) in vec2 TEXCOORD_0;
+#ifdef USE_VERTEX_COLOR
 layout(location = ${ATTRIB_MAP.COLOR_0}) in vec4 COLOR_0;
+#endif
 `;
 
 const WEBGL_VARYINGS = `
@@ -155,7 +159,7 @@ uniform mat4 modelMatrix;
 `;
 
 const WEBGPU_VERTEX_UNIFORMS = `
-layout(set = 0, binding = 0) uniform FrameUniforms {
+layout(set = ${UNIFORM_BLOCKS.FrameUniforms}, binding = 0) uniform FrameUniforms {
   mat4 projectionMatrix;
   mat4 viewMatrix;
   vec3 cameraPosition;
@@ -163,7 +167,7 @@ layout(set = 0, binding = 0) uniform FrameUniforms {
   vec3 lightColor;
 };
 
-layout(set = 2, binding = 0) uniform PrimitiveUniforms {
+layout(set = ${UNIFORM_BLOCKS.PrimitiveUniforms}, binding = 0) uniform PrimitiveUniforms {
   mat4 modelMatrix;
 };
 `;
@@ -197,39 +201,32 @@ uniform sampler2D emissiveTexture;
 `;
 
 const WEBGPU_FRAGMENT_UNIFORMS = `
-layout(set = 1, binding = 0) uniform MaterialUniforms {
+layout(set = ${UNIFORM_BLOCKS.MaterialUniforms}, binding = 0) uniform MaterialUniforms {
   vec4 baseColorFactor;
   vec2 metallicRoughnessFactor;
   vec3 emissiveFactor;
   float occlusionStrength;
 };
 
-layout(set = 1, binding = 1) uniform texture2D baseColorTexture;
-layout(set = 1, binding = 2) uniform sampler baseColorSampler;
+layout(set = 1, binding = 1) uniform sampler defaultSampler;
 
+layout(set = 1, binding = 2) uniform texture2D baseColorTexture;
 layout(set = 1, binding = 3) uniform texture2D normalTexture;
-layout(set = 1, binding = 4) uniform sampler normalSampler;
-
-layout(set = 1, binding = 5) uniform texture2D metallicRoughnessTexture;
-layout(set = 1, binding = 6) uniform sampler metallicRoughnessSampler;
-
-layout(set = 1, binding = 7) uniform texture2D occlusionTexture;
-layout(set = 1, binding = 8) uniform sampler occlusionSampler;
-
-layout(set = 1, binding = 9) uniform texture2D emissiveTexture;
-layout(set = 1, binding = 10) uniform sampler emissiveSampler;
+layout(set = 1, binding = 4) uniform texture2D metallicRoughnessTexture;
+layout(set = 1, binding = 5) uniform texture2D occlusionTexture;
+layout(set = 1, binding = 6) uniform texture2D emissiveTexture;
 `;
 
-function WEBGL_TEXTURE(sampler, texcoord) {
-  return `texture2D(${sampler}Texture, ${texcoord})`;
+function WEBGL_TEXTURE(texture, texcoord) {
+  return `texture2D(${texture}, ${texcoord})`;
 }
 
-function WEBGL2_TEXTURE(sampler, texcoord) {
-  return `texture(${sampler}Texture, ${texcoord})`;
+function WEBGL2_TEXTURE(texture, texcoord) {
+  return `texture(${texture}, ${texcoord})`;
 }
 
-function WEBGPU_TEXTURE(sampler, texcoord) {
-  return `texture(sampler2D(${sampler}Texture, ${sampler}Sampler), ${texcoord})`;
+function WEBGPU_TEXTURE(texture, texcoord) {
+  return `texture(sampler2D(${texture}, defaultSampler), ${texcoord})`;
 }
 
 const PBR_VERTEX_MAIN = `
@@ -264,7 +261,7 @@ const vec3 black = vec3(0.0);
 
 vec4 computeColor() {
 #ifdef USE_BASE_COLOR_MAP
-  vec4 baseColor = ${textureFunc('baseColor', 'vTex')} * baseColorFactor;
+  vec4 baseColor = ${textureFunc('baseColorTexture', 'vTex')} * baseColorFactor;
 #else
   vec4 baseColor = baseColorFactor;
 #endif
@@ -274,7 +271,7 @@ vec4 computeColor() {
 #endif
 
 #ifdef USE_NORMAL_MAP
-  vec3 n = ${textureFunc('normal', 'vTex')}.rgb;
+  vec3 n = ${textureFunc('normalTexture', 'vTex')}.rgb;
   n = normalize(vTBN * (2.0 * n - 1.0));
 #else
   vec3 n = normalize(vNorm);
@@ -289,7 +286,7 @@ vec4 computeColor() {
   float roughness = metallicRoughnessFactor.y;
 
 #ifdef USE_METAL_ROUGH_MAP
-  vec4 metallicRoughness = ${textureFunc('metallicRoughness', 'vTex')};
+  vec4 metallicRoughness = ${textureFunc('metallicRoughnessTexture', 'vTex')};
   metallic *= metallicRoughness.b;
   roughness *= metallicRoughness.g;
 #endif
@@ -322,13 +319,13 @@ vec4 computeColor() {
   vec3 color = (halfLambert * vLightColor * lambertDiffuse(cDiff)) + specular;
 
 #ifdef USE_OCCLUSION
-  float occlusion = ${textureFunc('occlusion', 'vTex')}.r;
+  float occlusion = ${textureFunc('occlusionTexture', 'vTex')}.r;
   color = mix(color, color * occlusion, occlusionStrength);
 #endif
 
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
-  emissive *= ${textureFunc('emissive', 'vTex')}.rgb;
+  emissive *= ${textureFunc('emissiveTexture', 'vTex')}.rgb;
 #endif
   color += emissive;
 
@@ -399,7 +396,7 @@ export function WEBGPU_VERTEX_SOURCE(defines) {
   return `#version 450
   ${DEFINES(defines)}
   ${ATTRIBUTES_WITH_LAYOUT}
-  ${VARYINGS_WITH_LAYOUT('out')}
+  ${WEBGPU_VARYINGS('out')}
   ${WEBGPU_VERTEX_UNIFORMS}
   ${PBR_VERTEX_MAIN}
   `;
@@ -409,7 +406,7 @@ export function WEBGPU_FRAGMENT_SOURCE(defines) {
   return `#version 450
   precision highp float;
   ${DEFINES(defines)}
-  ${VARYINGS_WITH_LAYOUT('in')}
+  ${WEBGPU_VARYINGS('in')}
   ${WEBGPU_FRAGMENT_UNIFORMS}
   ${PBR_FRAGMENT_MAIN(WEBGPU_TEXTURE)}
 

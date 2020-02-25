@@ -19,28 +19,46 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { PBRShaderModule } from './pbr-material.js';
+import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+
+import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
 
 const SAMPLE_COUNT = 1;
 const DEPTH_FORMAT = "depth24plus";
 
-const ATTRIB_MAP = {
-  POSITION: 0,
-  NORMAL: 1,
-  TANGENT: 2,
-  TEXCOORD_0: 3,
-  COLOR_0: 4,
-};
-
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
+
+let NEXT_SHADER_ID = 0;
+
+class PBRShaderModule {
+  constructor(device, glslang, defines) {
+    this.id = NEXT_SHADER_ID++;
+
+    this.vertexStage = {
+      module: device.createShaderModule({
+        code: glslang.compileGLSL(WEBGPU_VERTEX_SOURCE(defines), 'vertex')
+      }),
+      entryPoint: 'main'
+    };
+
+    this.fragmentStage = {
+      module: device.createShaderModule({
+        code: glslang.compileGLSL(WEBGPU_FRAGMENT_SOURCE(defines), 'fragment')
+      }),
+      entryPoint: 'main'
+    };
+  }
+}
 
 export class WebGPURenderer extends GltfRenderer {
   constructor() {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
+
+    this.programs = new Map();
 
     this.frameUniforms = new Float32Array(16 + 16 + 4 + 4 + 4);
 
@@ -55,6 +73,9 @@ export class WebGPURenderer extends GltfRenderer {
 
     this.pipelines = new Map(); // Map<String -> GPURenderPipeline>
     this.pipelineMaterials = new WeakMap(); // WeakMap<GPURenderPipeline, Map<Material, Primitive[]>>
+
+    this.opaquePipelines = [];
+    this.blendedPipelines = [];
   }
 
   async init() {
@@ -103,14 +124,34 @@ export class WebGPURenderer extends GltfRenderer {
         type: 'uniform-buffer'
       },
       {
-        binding: 1,
+        binding: 1, // defaultSampler
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampler'
+      },
+      {
+        binding: 2, // baseColorTexture
         visibility: GPUShaderStage.FRAGMENT,
         type: 'sampled-texture'
       },
       {
-        binding: 2,
+        binding: 3, // normalTexture
         visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampler'
+        type: 'sampled-texture'
+      },
+      {
+        binding: 4, // metallicRoughnessTexture
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampled-texture'
+      },
+      {
+        binding: 5, // occlusionTexture
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampled-texture'
+      },
+      {
+        binding: 6, // emissiveTexture
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'sampled-texture'
       }]
     });
 
@@ -145,9 +186,44 @@ export class WebGPURenderer extends GltfRenderer {
       }],
     });
 
+    this.blackTextureView = this.getColorTexture(0, 0, 0, 0).createView();
+    this.whiteTextureView = this.getColorTexture(1.0, 1.0, 1.0, 1.0).createView();
+    this.blueTextureView = this.getColorTexture(0, 0, 1.0, 0).createView();
+
     // TODO: Will probably need to be per-material later
-    await PBRShaderModule.initGlslang();
-    this.pbrShaderModule = new PBRShaderModule(this.device);
+    this.glslang = await glslangModule();
+  }
+
+  getColorTexture(r, g, b, a) {
+    /*const imageData = new Uint8Array(256);
+    imageData[0] = r * 255;
+    imageData[1] = g * 255;
+    imageData[2] = b * 255;
+    imageData[3] = a * 255;*/
+    const imageData = new Uint8Array([r * 255, g * 255, b * 255, a * 255]);
+
+    const imageSize = { width: 1, height: 1, depth: 1 };
+    const texture = this.device.createTexture({
+      size: imageSize,
+      format: "rgba8unorm",
+      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
+    });
+
+    const textureDataBuffer = this.device.createBuffer({
+      size: 256, // WTF is up with this?!? rowPitch has to be a multiple of 256?
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    });
+    textureDataBuffer.setSubData(0, imageData);
+
+    const commandEncoder = this.device.createCommandEncoder({});
+    commandEncoder.copyBufferToTexture({
+      buffer: textureDataBuffer,
+      rowPitch: 256,
+      imageHeight: 0, // What is this for?
+    }, { texture: texture }, imageSize);
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
+
+    return texture;
   }
 
   onResize(width, height) {
@@ -241,7 +317,7 @@ export class WebGPURenderer extends GltfRenderer {
 
     // TODO: Generate mipmaps
 
-    image.gpuTexture = texture;
+    image.gpuTextureView = texture.createView();
   }
 
   initSampler(sampler) {
@@ -313,11 +389,28 @@ export class WebGPURenderer extends GltfRenderer {
       },
       {
         binding: 1,
-        resource: material.baseColorTexture.image.gpuTexture.createView(),
+        // TODO: Do we really need to pass one sampler per texture for accuracy? :(
+        resource: material.baseColorTexture.sampler.renderData.gpuSampler,
       },
       {
         binding: 2,
-        resource: material.baseColorTexture.sampler.renderData.gpuSampler,
+        resource: material.baseColorTexture ? material.baseColorTexture.image.gpuTextureView : this.whiteTextureView,
+      },
+      {
+        binding: 3,
+        resource: material.normalTexture ? material.normalTexture.image.gpuTextureView : this.blueTextureView,
+      },
+      {
+        binding: 4,
+        resource: material.metallicRoughnessTexture ? material.metallicRoughnessTexture.image.gpuTextureView : this.whiteTextureView,
+      },
+      {
+        binding: 5,
+        resource: material.occlusionTexture ? material.occlusionTexture.image.gpuTextureView : this.whiteTextureView,
+      },
+      {
+        binding: 6,
+        resource: material.emissiveTexture ? material.emissiveTexture.image.gpuTextureView : this.blackTextureView,
       }],
     });
 
@@ -385,6 +478,21 @@ export class WebGPURenderer extends GltfRenderer {
       primitive.renderData.gpuVertexState.indexFormat = 'uint16';
     }
 
+    const defines = GetDefinesForPrimitive(primitive);
+
+    let key = '';
+    for (let define in defines) {
+      key += `${define}=${defines[define]},`;
+    }
+
+    let program = this.programs.get(key);
+    if (!program) {
+      program = new PBRShaderModule(this.device, this.glslang, defines);
+      this.programs.set(key, program);
+    }
+
+    primitive.renderData.gpuShaderModule = program;
+
     if (primitive.renderData.instances.length) {
       const primitiveUniformsBuffer = this.device.createBuffer({
         size: 16 * 4,
@@ -435,11 +543,17 @@ export class WebGPURenderer extends GltfRenderer {
         return;
     }
     const cullMode = material.cullFace ? 'back' : 'none';
+    const colorBlend = {};
+    if (material.blend) {
+      colorBlend.srcFactor = 'src-alpha';
+      colorBlend.dstFactor = 'one-minus-src-alpha';
+    }
 
+    const shaderModule = primitive.renderData.gpuShaderModule;
     const vertexState = primitive.renderData.gpuVertexState;
 
     // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${primitiveTopology}|${cullMode}|`;
+    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
     let i = 0;
     for (let vertexBuffer of vertexState.vertexBuffers) {
       pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
@@ -458,8 +572,8 @@ export class WebGPURenderer extends GltfRenderer {
 
     if (!pipeline) {
       pipeline = this.device.createRenderPipeline({
-        vertexStage: this.pbrShaderModule.vertexStage,
-        fragmentStage: this.pbrShaderModule.fragmentStage,
+        vertexStage: shaderModule.vertexStage,
+        fragmentStage: shaderModule.fragmentStage,
 
         primitiveTopology,
 
@@ -473,6 +587,7 @@ export class WebGPURenderer extends GltfRenderer {
         layout: this.pipelineLayout,
         colorStates: [{
           format: this.swapChainFormat,
+          colorBlend
           // TODO: Bend mode goes here
         }],
         depthStencilState: {
@@ -482,7 +597,13 @@ export class WebGPURenderer extends GltfRenderer {
         },
         SAMPLE_COUNT,
       });
+
       this.pipelines.set(pipelineKey, pipeline);
+      if (material.blend) {
+        this.blendedPipelines.push(pipeline);
+      } else {
+        this.opaquePipelines.push(pipeline);
+      }
       this.pipelineMaterials.set(pipeline, new Map());
     }
 
@@ -526,32 +647,42 @@ export class WebGPURenderer extends GltfRenderer {
 
     passEncoder.setBindGroup(0, this.frameUniformBindGroup);
 
-    for (let pipeline of this.pipelines.values()) {
-      passEncoder.setPipeline(pipeline);
-      const materialPrimitives = this.pipelineMaterials.get(pipeline);
-      for (let [material, primitives] of materialPrimitives) {
-        passEncoder.setBindGroup(1, material.renderData.gpuBindGroup);
+    // Opaque primitives first
+    for (let pipeline of this.opaquePipelines) {
+      this.drawPipelinePrimitives(passEncoder, pipeline);
+    }
 
-        for (let primitive of primitives) {
-          passEncoder.setBindGroup(2, primitive.renderData.gpuBindGroup);
-
-          let i = 0;
-          for (let bufferView of primitive.attributeBuffers.keys()) {
-            passEncoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
-            i++;
-          }
-
-          if (primitive.indices) {
-            passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer, primitive.indices.byteOffset);
-            passEncoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
-          } else {
-            passEncoder.draw(primitive.elementCount, 1, 0, 0);
-          }
-        }
-      }
+    // Blended primitives next
+    for (let pipeline of this.blendedPipelines) {
+      this.drawPipelinePrimitives(passEncoder, pipeline);
     }
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
+  }
+
+  drawPipelinePrimitives(passEncoder, pipeline) {
+    passEncoder.setPipeline(pipeline);
+    const materialPrimitives = this.pipelineMaterials.get(pipeline);
+    for (let [material, primitives] of materialPrimitives) {
+      passEncoder.setBindGroup(1, material.renderData.gpuBindGroup);
+
+      for (let primitive of primitives) {
+        passEncoder.setBindGroup(2, primitive.renderData.gpuBindGroup);
+
+        let i = 0;
+        for (let bufferView of primitive.attributeBuffers.keys()) {
+          passEncoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
+          i++;
+        }
+
+        if (primitive.indices) {
+          passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer, primitive.indices.byteOffset);
+          passEncoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
+        } else {
+          passEncoder.draw(primitive.elementCount, 1, 0, 0);
+        }
+      }
+    }
   }
 }
