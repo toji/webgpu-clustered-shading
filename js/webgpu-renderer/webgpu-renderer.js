@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from '../gltf-renderer.js';
+import { Renderer } from '../gltf-renderer.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
@@ -52,24 +52,13 @@ class PBRShaderModule {
   }
 }
 
-export class WebGPURenderer extends GltfRenderer {
+export class WebGPURenderer extends Renderer {
   constructor() {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
 
     this.programs = new Map();
-
-    this.frameUniforms = new Float32Array(16 + 16 + 4 + 4 + 4);
-
-    this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
-    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
-    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
-    this.lightDirection = new Float32Array(this.frameUniforms.buffer, 36 * 4, 3);
-    this.lightColor = new Float32Array(this.frameUniforms.buffer, 40 * 4, 3);
-
-    vec3.set(this.lightDirection, -0.5, -1.0, -0.25);
-    vec3.set(this.lightColor, 0.6, 0.6, 0.5);
 
     this.pipelines = new Map(); // Map<String -> GPURenderPipeline>
     this.pipelineMaterials = new WeakMap(); // WeakMap<GPURenderPipeline, Map<Material, Primitive[]>>
@@ -163,11 +152,20 @@ export class WebGPURenderer extends GltfRenderer {
       }]
     });
 
+    this.lightUniformsBindGroupLayout = this.device.createBindGroupLayout({
+      bindings: [{
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'uniform-buffer'
+      }]
+    });
+
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.frameUniformsBindGroupLayout, // set 0
         this.materialUniformsBindGroupLayout, // set 1
-        this.primitiveUniformsBindGroupLayout // set 2
+        this.primitiveUniformsBindGroupLayout, // set 2
+        this.lightUniformsBindGroupLayout, // set 3
       ]
     });
 
@@ -179,9 +177,24 @@ export class WebGPURenderer extends GltfRenderer {
     this.frameUniformBindGroup = this.device.createBindGroup({
       layout: this.frameUniformsBindGroupLayout,
       bindings: [{
-        binding: 0, // FrameUniforms
+        binding: 0,
         resource: {
           buffer: this.frameUniformsBuffer,
+        },
+      }],
+    });
+
+    this.lightUniformsBuffer = this.device.createBuffer({
+      size: this.lightUniforms.byteLength,
+      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
+    });
+
+    this.lightUniformBindGroup = this.device.createBindGroup({
+      layout: this.lightUniformsBindGroupLayout,
+      bindings: [{
+        binding: 0,
+        resource: {
+          buffer: this.lightUniformsBuffer,
         },
       }],
     });
@@ -195,11 +208,6 @@ export class WebGPURenderer extends GltfRenderer {
   }
 
   getColorTexture(r, g, b, a) {
-    /*const imageData = new Uint8Array(256);
-    imageData[0] = r * 255;
-    imageData[1] = g * 255;
-    imageData[2] = b * 255;
-    imageData[3] = a * 255;*/
     const imageData = new Uint8Array([r * 255, g * 255, b * 255, a * 255]);
 
     const imageSize = { width: 1, height: 1, depth: 1 };
@@ -282,6 +290,7 @@ export class WebGPURenderer extends GltfRenderer {
     });
 
     renderBundleEncoder.setBindGroup(0, this.frameUniformBindGroup);
+    renderBundleEncoder.setBindGroup(4, this.lightUniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -683,8 +692,6 @@ export class WebGPURenderer extends GltfRenderer {
   onFrame(timestamp) {
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
-    mat4.copy(this.viewMatrix, this.camera.viewMatrix);
-    vec3.copy(this.cameraPosition, this.camera.position);
     this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
 
     // TODO: If we want multisampling this should attach to the resolveTarget,
@@ -697,19 +704,6 @@ export class WebGPURenderer extends GltfRenderer {
     if (this.renderBundle) {
       passEncoder.executeBundles([this.renderBundle]);
     }
-
-
-    /*passEncoder.setBindGroup(0, this.frameUniformBindGroup);
-
-    // Opaque primitives first
-    for (let pipeline of this.opaquePipelines) {
-      this.drawPipelinePrimitives(passEncoder, pipeline);
-    }
-
-    // Blended primitives next
-    for (let pipeline of this.blendedPipelines) {
-      this.drawPipelinePrimitives(passEncoder, pipeline);
-    }*/
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);

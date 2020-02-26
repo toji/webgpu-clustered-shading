@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from '../gltf-renderer.js';
+import { Renderer } from '../gltf-renderer.js';
 import { ShaderProgram } from '../webgl-renderer/shader-program.js';
 import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
@@ -39,7 +39,7 @@ function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
 }
 
-export class WebGL2Renderer extends GltfRenderer {
+export class WebGL2Renderer extends Renderer {
   constructor() {
     super();
 
@@ -50,26 +50,10 @@ export class WebGL2Renderer extends GltfRenderer {
 
     this.programs = new Map();
 
-    this.frameUniforms = new Float32Array(16 + 16 + 4);
-
-    this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
-    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
-    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
-
     this.frameUniformBuffer = gl.createBuffer();
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.frameUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.frameUniforms, gl.DYNAMIC_DRAW);
     gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBuffer);
-
-    this.lightUniforms = new Float32Array(4 + 4 + 4);
-
-    this.lightPosition = new Float32Array(this.lightUniforms.buffer, 0, 3);
-    this.lightColor = new Float32Array(this.lightUniforms.buffer, 4 * 4, 3);
-    this.lightAttenuation = new Float32Array(this.lightUniforms.buffer, 8 * 4, 1);
-
-    vec3.set(this.lightPosition, 3, 2, 1);
-    vec3.set(this.lightColor, 1, 1, 1);
-    this.lightAttenuation[0] = 1.0;
 
     this.lightUniformBuffer = gl.createBuffer();
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
@@ -313,17 +297,10 @@ export class WebGL2Renderer extends GltfRenderer {
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
-    mat4.copy(this.viewMatrix, this.camera.viewMatrix);
-    vec3.copy(this.cameraPosition, this.camera.position);
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.frameUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.frameUniforms, gl.DYNAMIC_DRAW);
 
     // Update the light unforms as well
-    vec3.set(this.lightPosition,
-      Math.sin(timestamp / 1500) * 4,
-      Math.cos(timestamp / 600) * 0.25 + 1.5,
-      Math.cos(timestamp / 500) * 0.75);
-    this.lightAttenuation[0] = 1.0; // TODO: Add subtle flicker?
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.lightUniforms, gl.DYNAMIC_DRAW);
 

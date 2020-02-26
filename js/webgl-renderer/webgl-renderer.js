@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { GltfRenderer } from '../gltf-renderer.js';
+import { Renderer } from '../gltf-renderer.js';
 import { ShaderProgram } from './shader-program.js';
 import { WEBGL_VERTEX_SOURCE, WEBGL_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 
@@ -39,7 +39,7 @@ function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
 }
 
-export class WebGLRenderer extends GltfRenderer {
+export class WebGLRenderer extends Renderer {
   constructor() {
     super();
 
@@ -49,9 +49,6 @@ export class WebGLRenderer extends GltfRenderer {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     this.programs = new Map();
-
-    this.lightDirection = new Float32Array([-0.5, -1.0, -0.25]);
-    this.lightColor = new Float32Array([0.6, 0.6, 0.5]);
   }
 
   init() {
@@ -274,11 +271,12 @@ export class WebGLRenderer extends GltfRenderer {
     program.use();
 
     gl.uniformMatrix4fv(program.uniform.projectionMatrix, false, this.projectionMatrix);
-    gl.uniform3fv(program.uniform.lightDirection, this.lightDirection);
-    gl.uniform3fv(program.uniform.lightColor, this.lightColor);
+    gl.uniformMatrix4fv(program.uniform.viewMatrix, false, this.viewMatrix);
+    gl.uniform3fv(program.uniform.cameraPosition, this.cameraPosition);
 
-    gl.uniformMatrix4fv(program.uniform.viewMatrix, false, this.camera.viewMatrix);
-    gl.uniform3fv(program.uniform.cameraPosition, this.camera.position);
+    gl.uniform3fv(program.uniform.lightPosition, this.lightPosition);
+    gl.uniform3fv(program.uniform.lightColor, this.lightColor);
+    gl.uniform1f(program.uniform.lightAttenuation, this.lightAttenuation[0]);
 
     for (let [material, primitives] of materialList) {
       this.bindMaterial(program, material);
