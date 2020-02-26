@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { GltfRenderer } from '../gltf-renderer.js';
-import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
+import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
 import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
@@ -273,6 +273,27 @@ export class WebGPURenderer extends GltfRenderer {
     for (let primitive of gltf.primitives) {
       this.initPrimitive(primitive);
     }
+
+    // Create a bundle we can use to replay our scene drawing each frame
+    const renderBundleEncoder = this.device.createRenderBundleEncoder({
+      colorFormats: [ this.swapChainFormat ],
+      depthStencilFormat: DEPTH_FORMAT,
+      sampleCount: SAMPLE_COUNT
+    });
+
+    renderBundleEncoder.setBindGroup(0, this.frameUniformBindGroup);
+
+    // Opaque primitives first
+    for (let pipeline of this.opaquePipelines) {
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    }
+
+    // Blended primitives next
+    for (let pipeline of this.blendedPipelines) {
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    }
+
+    this.renderBundle = renderBundleEncoder.finish();
   }
 
   async initBufferView(bufferView) {
@@ -673,7 +694,12 @@ export class WebGPURenderer extends GltfRenderer {
     const commandEncoder = this.device.createCommandEncoder({});
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
-    passEncoder.setBindGroup(0, this.frameUniformBindGroup);
+    if (this.renderBundle) {
+      passEncoder.executeBundles([this.renderBundle]);
+    }
+
+
+    /*passEncoder.setBindGroup(0, this.frameUniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -683,7 +709,7 @@ export class WebGPURenderer extends GltfRenderer {
     // Blended primitives next
     for (let pipeline of this.blendedPipelines) {
       this.drawPipelinePrimitives(passEncoder, pipeline);
-    }
+    }*/
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
