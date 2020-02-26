@@ -40,35 +40,6 @@ export const UNIFORM_BLOCKS = {
   PrimitiveUniforms: 2
 };
 
-// These equations are borrowed with love from this doc from Epic because I
-// just don't have anything novel to bring to the PBR scene.
-// http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
-const EPIC_PBR_FUNCTIONS = `
-#define M_PI 3.14159265
-
-vec3 lambertDiffuse(vec3 cDiff) {
-  return cDiff / M_PI;
-}
-
-float specD(float a, float nDotH) {
-  float aSqr = a * a;
-  float f = ((nDotH * nDotH) * (aSqr - 1.0) + 1.0);
-  return aSqr / (M_PI * f * f);
-}
-
-float specG(float roughness, float nDotL, float nDotV) {
-  float k = (roughness + 1.0) * (roughness + 1.0) / 8.0;
-  float gl = nDotL / (nDotL * (1.0 - k) + k);
-  float gv = nDotV / (nDotV * (1.0 - k) + k);
-  return gl * gv;
-}
-
-vec3 specF(float vDotH, vec3 F0) {
-  float exponent = (-5.55473 * vDotH - 6.98316) * vDotH;
-  float base = 2.0;
-  return F0 + (1.0 - F0) * pow(base, exponent);
-}`;
-
 const WEBGL_ATTRIBUTES = `
 attribute vec3 POSITION;
 attribute vec3 NORMAL;
@@ -90,7 +61,7 @@ layout(location = ${ATTRIB_MAP.COLOR_0}) in vec4 COLOR_0;
 `;
 
 const WEBGL_VARYINGS = `
-varying vec3 vLight; // Vector from vertex to light.
+varying vec3 vWorldPos;
 varying vec3 vLightColor;
 varying vec3 vView; // Vector from vertex to camera.
 varying vec2 vTex;
@@ -105,7 +76,7 @@ varying vec3 vNorm;
 
 function WEBGL2_VARYINGS(dir) {
   return `
-${dir} vec3 vLight; // Vector from vertex to light.
+${dir} vec3 vWorldPos;
 ${dir} vec3 vLightColor;
 ${dir} vec3 vView; // Vector from vertex to camera.
 ${dir} vec2 vTex;
@@ -121,7 +92,7 @@ ${dir} vec3 vNorm;
 
 function WEBGPU_VARYINGS(dir) {
   return `
-layout(location = 0) ${dir} vec3 vLight; // Vector from vertex to light.
+layout(location = 0) ${dir} vec3 vWorldPos;
 layout(location = 1) ${dir} vec3 vLightColor;
 layout(location = 2) ${dir} vec3 vView; // Vector from vertex to camera.
 layout(location = 3) ${dir} vec2 vTex;
@@ -229,6 +200,47 @@ function WEBGPU_TEXTURE(texture, texcoord) {
   return `texture(sampler2D(${texture}, defaultSampler), ${texcoord})`;
 }
 
+// Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
+// Thanks!
+const PBR_FUNCTIONS = `
+const float PI = 3.14159265359;
+
+vec3 FresnelSchlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(1.0 - cosTheta, 5.0);
+}
+
+float DistributionGGX(vec3 N, vec3 H, float roughness) {
+    float a      = roughness*roughness;
+    float a2     = a*a;
+    float NdotH  = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH*NdotH;
+
+    float num   = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+
+    return num / denom;
+}
+
+float GeometrySchlickGGX(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r*r) / 8.0;
+
+    float num   = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+
+    return num / denom;
+}
+
+float GeometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2  = GeometrySchlickGGX(NdotV, roughness);
+    float ggx1  = GeometrySchlickGGX(NdotL, roughness);
+
+    return ggx1 * ggx2;
+}`;
+
 const PBR_VERTEX_MAIN = `
 void main() {
   vec3 n = normalize(vec3(modelMatrix * vec4(NORMAL, 0.0)));
@@ -246,7 +258,7 @@ void main() {
 
   vTex = TEXCOORD_0;
   vec4 mPos = modelMatrix * vec4(POSITION, 1.0);
-  vLight = -lightDirection;
+  vWorldPos = mPos.xyz;
   vLightColor = lightColor;
   vView = cameraPosition - mPos.xyz;
   gl_Position = projectionMatrix * viewMatrix * mPos;
@@ -254,35 +266,25 @@ void main() {
 
 function PBR_FRAGMENT_MAIN(textureFunc) {
   return `
-${EPIC_PBR_FUNCTIONS}
+${PBR_FUNCTIONS}
 
 const vec3 dielectricSpec = vec3(0.04);
 const vec3 black = vec3(0.0);
 
-vec4 computeColor() {
-#ifdef USE_BASE_COLOR_MAP
-  vec4 baseColor = ${textureFunc('baseColorTexture', 'vTex')} * baseColorFactor;
-#else
-  vec4 baseColor = baseColorFactor;
-#endif
+const vec3 lightPosition = vec3(-3.0, 2.0, 0.0);
 
+vec4 computeColor() {
+  vec4 baseColor = baseColorFactor;
+#ifdef USE_BASE_COLOR_MAP
+  baseColor *= ${textureFunc('baseColorTexture', 'vTex')};
+#endif
 #ifdef USE_VERTEX_COLOR
   baseColor *= vCol;
 #endif
 
-#ifdef USE_NORMAL_MAP
-  vec3 n = ${textureFunc('normalTexture', 'vTex')}.rgb;
-  n = normalize(vTBN * (2.0 * n - 1.0));
-#else
-  vec3 n = normalize(vNorm);
-#endif
+  vec3 albedo = baseColor.rgb; //pow(baseColor.rgb, 2.2);
 
-#ifdef FULLY_ROUGH
-  float metallic = 0.0;
-#else
   float metallic = metallicRoughnessFactor.x;
-#endif
-
   float roughness = metallicRoughnessFactor.y;
 
 #ifdef USE_METAL_ROUGH_MAP
@@ -291,37 +293,53 @@ vec4 computeColor() {
   roughness *= metallicRoughness.g;
 #endif
 
-  vec3 l = normalize(vLight);
-  vec3 v = normalize(vView);
-  vec3 h = normalize(l+v);
-
-  float nDotL = clamp(dot(n, l), 0.001, 1.0);
-  float nDotV = abs(dot(n, v)) + 0.001;
-  float nDotH = max(dot(n, h), 0.0);
-  float vDotH = max(dot(v, h), 0.0);
-
-  // From GLTF Spec
-  vec3 cDiff = mix(baseColor.rgb * (1.0 - dielectricSpec.r), black, metallic); // Diffuse color
-  vec3 F0 = mix(dielectricSpec, baseColor.rgb, metallic); // Specular color
-  float a = roughness * roughness;
-
-#ifdef FULLY_ROUGH
-  vec3 specular = F0 * 0.45;
+#ifdef USE_NORMAL_MAP
+  vec3 N = ${textureFunc('normalTexture', 'vTex')}.rgb;
+  N = normalize(vTBN * (2.0 * N - 1.0));
 #else
-  vec3 F = specF(vDotH, F0);
-  float D = specD(a, nDotH);
-  float G = specG(roughness, nDotL, nDotV);
-  vec3 specular = (D * F * G) / (4.0 * nDotL * nDotV);
+  vec3 N = normalize(vNorm);
 #endif
-  float halfLambert = dot(n, l) * 0.5 + 0.5;
-  halfLambert *= halfLambert;
 
-  vec3 color = (halfLambert * vLightColor * lambertDiffuse(cDiff)) + specular;
+  vec3 V = normalize(vView);
+
+  vec3 F0 = vec3(0.04);
+  F0 = mix(F0, albedo, metallic);
+
+  // reflectance equation
+  vec3 Lo = vec3(0.0);
+
+  // calculate per-light radiance
+  vec3 L = normalize(lightPosition - vWorldPos);
+  vec3 H = normalize(V + L);
+  float distance    = length(lightPosition - vWorldPos);
+  float attenuation = 5.0 / (distance * distance);
+  vec3 radiance     = vLightColor * attenuation;
+
+  // cook-torrance brdf
+  float NDF = DistributionGGX(N, H, roughness);
+  float G   = GeometrySmith(N, V, L, roughness);
+  vec3 F    = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+  vec3 kS = F;
+  vec3 kD = vec3(1.0) - kS;
+  kD *= 1.0 - metallic;
+
+  vec3 numerator    = NDF * G * F;
+  float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+  vec3 specular     = numerator / max(denominator, 0.001);
+
+  // add to outgoing radiance Lo
+  float NdotL = max(dot(N, L), 0.0);
+  Lo += (kD * albedo / PI + specular) * radiance * NdotL;
 
 #ifdef USE_OCCLUSION
-  float occlusion = ${textureFunc('occlusionTexture', 'vTex')}.r;
-  color = mix(color, color * occlusion, occlusionStrength);
+  float ao = ${textureFunc('occlusionTexture', 'vTex')}.r * occlusionStrength;
+#else
+  float ao = 1.0;
 #endif
+
+  vec3 ambient = vec3(0.01) * albedo * ao;
+  vec3 color = ambient + Lo;
 
   vec3 emissive = emissiveFactor;
 #ifdef USE_EMISSIVE_TEXTURE
@@ -329,7 +347,7 @@ vec4 computeColor() {
 #endif
   color += emissive;
 
-  // gamma correction
+  color = color / (color + vec3(1.0));
   color = pow(color, vec3(1.0/2.2));
 
   return vec4(color, baseColor.a);
