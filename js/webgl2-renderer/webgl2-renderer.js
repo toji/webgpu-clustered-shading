@@ -50,21 +50,31 @@ export class WebGL2Renderer extends GltfRenderer {
 
     this.programs = new Map();
 
-    this.frameUniforms = new Float32Array(16 + 16 + 4 + 4 + 4);
+    this.frameUniforms = new Float32Array(16 + 16 + 4);
 
     this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
-    this.lightDirection = new Float32Array(this.frameUniforms.buffer, 36 * 4, 3);
-    this.lightColor = new Float32Array(this.frameUniforms.buffer, 40 * 4, 3);
-
-    vec3.set(this.lightDirection, -0.5, -1.0, -0.25);
-    vec3.set(this.lightColor, 0.6, 0.6, 0.5);
 
     this.frameUniformBuffer = gl.createBuffer();
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.frameUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.frameUniforms, gl.DYNAMIC_DRAW);
     gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBuffer);
+
+    this.lightUniforms = new Float32Array(4 + 4 + 4);
+
+    this.lightPosition = new Float32Array(this.lightUniforms.buffer, 0, 3);
+    this.lightColor = new Float32Array(this.lightUniforms.buffer, 4 * 4, 3);
+    this.lightAttenuation = new Float32Array(this.lightUniforms.buffer, 8 * 4, 1);
+
+    vec3.set(this.lightPosition, 3, 2, 1);
+    vec3.set(this.lightColor, 1, 1, 1);
+    this.lightAttenuation[0] = 1.0;
+
+    this.lightUniformBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
+    gl.bufferData(gl.UNIFORM_BUFFER, this.lightUniforms, gl.DYNAMIC_DRAW);
+    gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.LightUniforms, this.lightUniformBuffer);
   }
 
   init() {
@@ -307,6 +317,15 @@ export class WebGL2Renderer extends GltfRenderer {
     vec3.copy(this.cameraPosition, this.camera.position);
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.frameUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.frameUniforms, gl.DYNAMIC_DRAW);
+
+    // Update the light unforms as well
+    vec3.set(this.lightPosition,
+      Math.sin(timestamp / 1500) * 4,
+      Math.cos(timestamp / 600) * 0.25 + 1.5,
+      Math.cos(timestamp / 500) * 0.75);
+    this.lightAttenuation[0] = 1.0; // TODO: Add subtle flicker?
+    gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
+    gl.bufferData(gl.UNIFORM_BUFFER, this.lightUniforms, gl.DYNAMIC_DRAW);
 
     // Loop through the render tree to bind and render every primitive instance
 
