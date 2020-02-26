@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { Renderer } from '../gltf-renderer.js';
+import { Renderer } from '../renderer.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
@@ -290,7 +290,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     renderBundleEncoder.setBindGroup(0, this.frameUniformBindGroup);
-    renderBundleEncoder.setBindGroup(4, this.lightUniformBindGroup);
+    renderBundleEncoder.setBindGroup(3, this.lightUniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -693,6 +693,9 @@ export class WebGPURenderer extends Renderer {
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
     this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
+
+    // Update the light unforms as well
+    this.lightUniformsBuffer.setSubData(0, this.lightUniforms);
 
     // TODO: If we want multisampling this should attach to the resolveTarget,
     // but there seems to be a bug with that right now?

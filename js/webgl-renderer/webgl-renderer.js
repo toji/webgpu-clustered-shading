@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { Renderer } from '../gltf-renderer.js';
+import { Renderer } from '../renderer.js';
 import { ShaderProgram } from './shader-program.js';
 import { WEBGL_VERTEX_SOURCE, WEBGL_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 
