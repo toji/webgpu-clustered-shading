@@ -19,6 +19,7 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
+import { GPUTextureHelper } from './webgpu-texture-helper.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
@@ -26,6 +27,7 @@ import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.j
 
 const SAMPLE_COUNT = 1;
 const DEPTH_FORMAT = "depth24plus";
+const GENERATE_MIPMAPS = true;
 
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
@@ -199,39 +201,14 @@ export class WebGPURenderer extends Renderer {
       }],
     });
 
-    this.blackTextureView = this.getColorTexture(0, 0, 0, 0).createView();
-    this.whiteTextureView = this.getColorTexture(1.0, 1.0, 1.0, 1.0).createView();
-    this.blueTextureView = this.getColorTexture(0, 0, 1.0, 0).createView();
-
     // TODO: Will probably need to be per-material later
     this.glslang = await glslangModule();
-  }
 
-  getColorTexture(r, g, b, a) {
-    const imageData = new Uint8Array([r * 255, g * 255, b * 255, a * 255]);
+    this.textureHelper = new GPUTextureHelper(this.device, this.glslang);
 
-    const imageSize = { width: 1, height: 1, depth: 1 };
-    const texture = this.device.createTexture({
-      size: imageSize,
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
-    });
-
-    const textureDataBuffer = this.device.createBuffer({
-      size: 256, // WTF is up with this?!? rowPitch has to be a multiple of 256?
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
-    });
-    textureDataBuffer.setSubData(0, imageData);
-
-    const commandEncoder = this.device.createCommandEncoder({});
-    commandEncoder.copyBufferToTexture({
-      buffer: textureDataBuffer,
-      rowPitch: 256,
-      imageHeight: 0, // What is this for?
-    }, { texture: texture }, imageSize);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
-
-    return texture;
+    this.blackTextureView = this.textureHelper.generateColorTexture(0, 0, 0, 0).createView();
+    this.whiteTextureView = this.textureHelper.generateColorTexture(1.0, 1.0, 1.0, 1.0).createView();
+    this.blueTextureView = this.textureHelper.generateColorTexture(0, 0, 1.0, 0).createView();
   }
 
   onResize(width, height) {
@@ -360,60 +337,53 @@ export class WebGPURenderer extends Renderer {
     //await image.decode();
     const imageBitmap = await createImageBitmap(image);
 
-    const textureSize = {
-      width: imageBitmap.width,
-      height: imageBitmap.height,
-      depth: 1,
-    };
-
-    const texture = this.device.createTexture({
-      size: textureSize,
-      format: "rgba8unorm",
-      usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
-    });
-    this.device.defaultQueue.copyImageBitmapToTexture({ imageBitmap }, { texture }, textureSize);
-
-    // TODO: Generate mipmaps
-
-    image.gpuTextureView = texture.createView();
+    if (GENERATE_MIPMAPS) {
+      image.gpuTextureView = this.textureHelper.generateMipmappedTexture(imageBitmap).createView();
+    } else {
+      image.gpuTextureView = this.textureHelper.generateTexture(imageBitmap).createView();
+    }
   }
 
   initSampler(sampler) {
     const samplerDescriptor = {};
 
     switch (sampler.minFilter) {
+      case undefined:
+        samplerDescriptor.minFilter = 'linear';
+        samplerDescriptor.mipmapFilter = 'linear';
+        break;
       case GL.LINEAR:
       case GL.LINEAR_MIPMAP_NEAREST:
-        samplerDescriptor.minFilter = "linear";
+        samplerDescriptor.minFilter = 'linear';
         break;
       case GL.NEAREST_MIPMAP_LINEAR:
-        samplerDescriptor.mipmapFilter = "linear";
+        samplerDescriptor.mipmapFilter = 'linear';
         break;
       case GL.LINEAR_MIPMAP_LINEAR:
-        samplerDescriptor.minFilter = "linear";
-        samplerDescriptor.mipmapFilter = "linear";
+        samplerDescriptor.minFilter = 'linear';
+        samplerDescriptor.mipmapFilter = 'linear';
         break;
     }
 
-    if (sampler.magFilter == GL.LINEAR) {
-      samplerDescriptor.magFilter = "linear";
+    if (!sampler.magFilter || sampler.magFilter == GL.LINEAR) {
+      samplerDescriptor.magFilter = 'linear';
     }
 
     switch (sampler.wrapS) {
       case GL.REPEAT:
-        samplerDescriptor.addressModeU = "repeat";
+        samplerDescriptor.addressModeU = 'repeat';
         break;
       case GL.MIRRORED_REPEAT:
-        samplerDescriptor.addressModeU = "mirror-repeat";
+        samplerDescriptor.addressModeU = 'mirror-repeat';
         break;
     }
 
     switch (sampler.wrapT) {
       case GL.REPEAT:
-        samplerDescriptor.addressModeV = "repeat";
+        samplerDescriptor.addressModeV = 'repeat';
         break;
       case GL.MIRRORED_REPEAT:
-        samplerDescriptor.addressModeV = "mirror-repeat";
+        samplerDescriptor.addressModeV = 'mirror-repeat';
         break;
     }
 

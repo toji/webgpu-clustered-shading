@@ -287,6 +287,10 @@ vec4 computeColor() {
   baseColor *= vCol;
 #endif
 
+  if (baseColor.a < 0.05) {
+    discard;
+  }
+
   vec3 albedo = baseColor.rgb; //pow(baseColor.rgb, 2.2);
 
   float metallic = metallicRoughnessFactor.x;
