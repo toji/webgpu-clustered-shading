@@ -277,6 +277,7 @@ export class WebGLRenderer extends Renderer {
     gl.uniform3fv(program.uniform.lightPosition, this.lightPosition);
     gl.uniform3fv(program.uniform.lightColor, this.lightColor);
     gl.uniform1f(program.uniform.lightAttenuation, this.lightAttenuation[0]);
+    gl.uniform1f(program.uniform.lightAmbient, this.lightAmbient[0]);
 
     for (let [material, primitives] of materialList) {
       this.bindMaterial(program, material);

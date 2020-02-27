@@ -19,6 +19,26 @@
 // SOFTWARE.
 
 import { vec2, vec3, vec4, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
+import { ARRAY_TYPE } from './third-party/gl-matrix/src/gl-matrix/common.js';
+
+const lightFloatCount = 8;
+const lightByteSize = lightFloatCount * 4;
+
+class Light {
+  constructor(buffer, offset) {
+    this.position = new Float32Array(buffer, offset, 3);
+    this.color = new Float32Array(buffer, offset + 4 * 4, 3);
+    this._attenuation = new Float32Array(buffer, offset + 7 * 4, 1);
+  }
+
+  get attenuation() {
+    return this._attenuation[0];
+  }
+
+  set attenuation(value) {
+    return this._attenuation[0] = value;
+  }
+}
 
 export class Renderer {
   constructor() {
@@ -34,15 +54,38 @@ export class Renderer {
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
 
-    this.lightUniforms = new Float32Array(4 + 4 + 4);
+    this.lightCount = 6;
 
-    this.lightPosition = new Float32Array(this.lightUniforms.buffer, 0, 3);
-    this.lightColor = new Float32Array(this.lightUniforms.buffer, 4 * 4, 3);
-    this.lightAttenuation = new Float32Array(this.lightUniforms.buffer, 8 * 4, 1);
+    this.lightUniforms = new Float32Array(lightFloatCount * this.lightCount + 4);
 
-    vec3.set(this.lightPosition, 0, 1.5, 0);
-    vec3.set(this.lightColor, 1, 1, 1);
-    this.lightAttenuation[0] = 1.0;
+    this.lights = new Array(this.lightCount);
+    for (let i = 0; i < this.lightCount; ++i) {
+      this.lights[i] = new Light(this.lightUniforms.buffer, lightByteSize * i);
+    }
+
+    this.lightAmbient = new Float32Array(this.lightUniforms.buffer, (lightByteSize * this.lightCount), 4);
+
+    vec3.set(this.lights[0].position, 0, 1.5, 0);
+    vec3.set(this.lights[0].color, 1, 1, 1);
+    this.lights[0].attenuation = 0.25;
+
+    vec3.set(this.lights[1].position, 9, 1, -3.5);
+    vec3.set(this.lights[1].color, 1, 0, 0);
+    this.lights[1].attenuation = 0.25;
+
+    vec3.set(this.lights[2].position, 9, 1, 3.2);
+    vec3.set(this.lights[2].color, 1, 0, 0);
+    this.lights[2].attenuation = 0.25;
+
+    vec3.set(this.lights[3].position, -9.5, 1, -3.5);
+    vec3.set(this.lights[3].color, 0, 0, 1);
+    this.lights[3].attenuation = 0.25;
+
+    vec3.set(this.lights[4].position, -9.5, 1, 3.2);
+    vec3.set(this.lights[4].color, 0, 0, 1);
+    this.lights[4].attenuation = 0.25;
+  
+    this.lightAmbient[0] = 0.05;
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
@@ -107,14 +150,19 @@ export class Renderer {
     vec3.copy(this.cameraPosition, this.camera.position);
 
     // Update the lights
-    vec3.set(this.lightPosition,
+    vec3.set(this.lights[0].position,
       Math.sin(timestamp / 1500) * 4,
       Math.cos(timestamp / 600) * 0.25 + 1.5,
       Math.cos(timestamp / 500) * 0.75);
     
     // Add a little bit of a flicker to the light
-    let lightIntensity = Math.min(1.5, Math.max(0.5, this.lightColor[0] + (Math.random() - 0.5) * 0.05));
-    vec3.set(this.lightColor, lightIntensity, lightIntensity, lightIntensity);
+    let lightIntensity = Math.min(1.5, Math.max(0.5, this.lights[0].color[0] + (Math.random() - 0.5) * 0.05));
+    vec3.set(this.lights[0].color, lightIntensity, lightIntensity, lightIntensity);
+
+    for (let i = 1; i < 5; ++i) {
+      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 1500) * 0.25; 
+      this.lights[i].attenuation = Math.min(1.5, Math.max(0.25, this.lights[i].attenuation + (Math.random() - 0.5) * 0.15));
+    }
   }
 
   onResize(width, height) {

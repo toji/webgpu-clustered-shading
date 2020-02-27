@@ -163,6 +163,7 @@ export class WebGL2Renderer extends Renderer {
   initPrimitive(primitive) {
     const gl = this.gl;
     const defines = GetDefinesForPrimitive(primitive);
+    defines.LIGHT_COUNT = this.lightCount;
     const material = primitive.material;
 
     primitive.renderData.instances = [];

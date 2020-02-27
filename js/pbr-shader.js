@@ -150,6 +150,7 @@ uniform sampler2D emissiveTexture;
 uniform vec3 lightPosition;
 uniform vec3 lightColor;
 uniform float lightAttenuation; // Quadratic
+uniform float lightAmbient;
 `;
 
 const WEBGL2_FRAGMENT_UNIFORMS = `
@@ -166,10 +167,15 @@ uniform sampler2D metallicRoughnessTexture;
 uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
-layout(std140) uniform LightUniforms {
+struct Light {
   vec3 lightPosition;
   vec3 lightColor;
   float lightAttenuation; // Quadratic
+};
+
+layout(std140) uniform LightUniforms {
+  Light lights[LIGHT_COUNT];
+  float lightAmbient;
 };
 `;
 
@@ -193,6 +199,7 @@ layout(set = ${UNIFORM_BLOCKS.LightUniforms}, binding = 0) uniform LightUniforms
   vec3 lightPosition;
   vec3 lightColor;
   float lightAttenuation; // Quadratic
+  float lightAmbient;
 };
 `;
 
@@ -317,29 +324,35 @@ vec4 computeColor() {
   // reflectance equation
   vec3 Lo = vec3(0.0);
 
-  // calculate per-light radiance
-  vec3 L = normalize(lightPosition - vWorldPos);
-  vec3 H = normalize(V + L);
-  float distance    = length(lightPosition - vWorldPos);
-  float attenuation = 2.0 / (distance * distance);
-  vec3 radiance     = lightColor * attenuation;
+  for (int i = 0; i < LIGHT_COUNT; ++i) {
+    if (lights[i].lightAttenuation == 0.0) {
+      continue; // Skip lights that don't have properly initialized data
+    }
 
-  // cook-torrance brdf
-  float NDF = DistributionGGX(N, H, roughness);
-  float G   = GeometrySmith(N, V, L, roughness);
-  vec3 F    = FresnelSchlick(max(dot(H, V), 0.0), F0);
+    // calculate per-light radiance
+    vec3 L = normalize(lights[i].lightPosition - vWorldPos);
+    vec3 H = normalize(V + L);
+    float distance    = length(lights[i].lightPosition - vWorldPos);
+    float attenuation = 1.0 / (lights[i].lightAttenuation * (distance * distance));
+    vec3 radiance     = lights[i].lightColor * attenuation;
 
-  vec3 kS = F;
-  vec3 kD = vec3(1.0) - kS;
-  kD *= 1.0 - metallic;
+    // cook-torrance brdf
+    float NDF = DistributionGGX(N, H, roughness);
+    float G   = GeometrySmith(N, V, L, roughness);
+    vec3 F    = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
-  vec3 numerator    = NDF * G * F;
-  float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-  vec3 specular     = numerator / max(denominator, 0.001);
+    vec3 kS = F;
+    vec3 kD = vec3(1.0) - kS;
+    kD *= 1.0 - metallic;
 
-  // add to outgoing radiance Lo
-  float NdotL = max(dot(N, L), 0.0);
-  Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+    vec3 numerator    = NDF * G * F;
+    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+    vec3 specular     = numerator / max(denominator, 0.001);
+
+    // add to outgoing radiance Lo
+    float NdotL = max(dot(N, L), 0.0);
+    Lo += (kD * albedo / PI + specular) * radiance * NdotL;
+  }
 
 #ifdef USE_OCCLUSION
   float ao = ${textureFunc('occlusionTexture', 'vTex')}.r * occlusionStrength;
@@ -347,7 +360,7 @@ vec4 computeColor() {
   float ao = 1.0;
 #endif
 
-  vec3 ambient = vec3(0.01) * albedo * ao;
+  vec3 ambient = vec3(lightAmbient) * albedo * ao;
   vec3 color = ambient + Lo;
 
   vec3 emissive = emissiveFactor;
