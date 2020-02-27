@@ -54,6 +54,72 @@ class PBRShaderModule {
   }
 }
 
+const LightSprite = {
+  vertexCount: 4,
+  vertexSource: `#version 450
+  const vec2 pos[4] = vec2[4](vec2(-1.0f, 1.0f), vec2(1.0f, 1.0f), vec2(-1.0f, -1.0f), vec2(1.0f, -1.0f));
+
+  layout(std140, set=0, binding=0) uniform FrameUniforms {
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec3 cameraPosition;
+  };
+
+  struct Light {
+    vec3 position;
+    vec3 color;
+    float attenuation; // Quadratic
+  };
+
+  layout(std140, set=0, binding=1) uniform LightUniforms {
+    Light lights[5];
+    float lightAmbient;
+  };
+
+  layout(location = 0) out vec2 vPos;
+  layout(location = 1) out vec3 vColor;
+  layout(location = 2) out float vAttenuation;
+
+  void main() {
+    vPos = pos[gl_VertexIndex];
+    vColor = lights[gl_InstanceIndex].color;
+    vAttenuation = lights[gl_InstanceIndex].attenuation;
+    vec3 worldPos = lights[gl_InstanceIndex].position + vec3(pos[gl_VertexIndex], 0.0) * 0.25;
+
+    // Generate a billboarded model view matrix
+    /*mat4 bbModelViewMatrix;
+    bbModelViewMatrix[3] = vec4(lights[gl_InstanceIndex].position, 1.0);
+    bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
+    bbModelViewMatrix[0][0] = 1.0;
+    bbModelViewMatrix[0][1] = 0.0;
+    bbModelViewMatrix[0][2] = 0.0;
+
+    bbModelViewMatrix[1][0] = 0.0;
+    bbModelViewMatrix[1][1] = 1.0;
+    bbModelViewMatrix[1][2] = 0.0;
+
+    bbModelViewMatrix[2][0] = 0.0;
+    bbModelViewMatrix[2][1] = 0.0;
+    bbModelViewMatrix[2][2] = 1.0;*/
+
+    gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+  }`,
+  fragmentSource: `#version 450
+  precision highp float;
+
+  layout(location = 0) in vec2 vPos;
+  layout(location = 1) in vec3 vColor;
+  layout(location = 2) in float vAttenuation;
+
+  layout(location = 0) out vec4 outColor;
+
+  void main() {
+    float distToCenter = length(vPos);
+    float fade = clamp(0.1 / (vAttenuation * (distToCenter * distToCenter)), 0.0, 1.0);
+    outColor = vec4((vColor + vec3(0.7)) * fade, fade);
+  }`
+};
+
 export class WebGPURenderer extends Renderer {
   constructor() {
     super();
@@ -209,6 +275,68 @@ export class WebGPURenderer extends Renderer {
     this.blackTextureView = this.textureHelper.generateColorTexture(0, 0, 0, 0).createView();
     this.whiteTextureView = this.textureHelper.generateColorTexture(1.0, 1.0, 1.0, 1.0).createView();
     this.blueTextureView = this.textureHelper.generateColorTexture(0, 0, 1.0, 0).createView();
+
+    this.buildLightSprite();
+  }
+
+  buildLightSprite() {
+    const lightSpriteBindGroupLayout = this.device.createBindGroupLayout({
+      bindings: [{
+        binding: 0,
+        visibility: GPUShaderStage.VERTEX,
+        type: 'uniform-buffer'
+      }, {
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX,
+        type: 'uniform-buffer'
+      }]
+    });
+
+    this.lightSpriteBindGroup = this.device.createBindGroup({
+      layout: lightSpriteBindGroupLayout,
+      bindings: [{
+        binding: 0,
+        resource: {
+          buffer: this.frameUniformsBuffer,
+        },
+      }, {
+        binding: 1,
+        resource: {
+          buffer: this.lightUniformsBuffer,
+        },
+      }],
+    });
+
+    this.lightSpritePipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({ bindGroupLayouts: [lightSpriteBindGroupLayout] }),
+      vertexStage: {
+        module: this.device.createShaderModule({
+          code: this.glslang.compileGLSL(LightSprite.vertexSource, 'vertex')
+        }),
+        entryPoint: 'main'
+      },
+      fragmentStage: {
+        module: this.device.createShaderModule({
+          code: this.glslang.compileGLSL(LightSprite.fragmentSource, 'fragment')
+        }),
+        entryPoint: 'main'
+      },
+      primitiveTopology: 'triangle-strip',
+      colorStates: [{
+        format: this.swapChainFormat,
+        colorBlend: {
+          srcFactor: 'src-alpha',
+          dstFactor: 'one-minus-src-alpha',
+        }
+        // TODO: Bend mode goes here
+      }],
+      depthStencilState: {
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        format: DEPTH_FORMAT,
+      },
+      SAMPLE_COUNT,
+    });
   }
 
   onResize(width, height) {
@@ -279,6 +407,11 @@ export class WebGPURenderer extends Renderer {
       this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
     }
 
+    // Last, render a sprite for all of the lights
+    renderBundleEncoder.setPipeline(this.lightSpritePipeline);
+    renderBundleEncoder.setBindGroup(0, this.lightSpriteBindGroup);
+    renderBundleEncoder.draw(4, this.lightCount, 0, 0);
+
     this.renderBundle = renderBundleEncoder.finish();
   }
 
@@ -321,16 +454,6 @@ export class WebGPURenderer extends Renderer {
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToBuffer(copyBuffer, 0, gpuBuffer, 0, alignedLength);
     this.device.defaultQueue.submit([commandEncoder.finish()]);
-
-    /*const gpuBuffer = this.device.createBuffer({
-      size: bufferView.byteLength,
-      usage: usage | GPUBufferUsage.COPY_DST
-    });
-    bufferView.renderData.gpuBuffer = gpuBuffer;
-
-    const bufferData = await bufferView.dataView;
-    // This apparently only works if the bufferData size is a multiple of 4. :P
-    gpuBuffer.setSubData(0, bufferData);*/
   }
 
   async initImage(image) {
