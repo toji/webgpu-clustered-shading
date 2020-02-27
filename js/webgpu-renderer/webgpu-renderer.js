@@ -783,16 +783,16 @@ export class WebGPURenderer extends Renderer {
   }
 
   onFrame(timestamp) {
+    // TODO: If we want multisampling this should attach to the resolveTarget,
+    // but there seems to be a bug with that right now?
+    this.colorAttachment.attachment = this.swapChain.getCurrentTexture().createView();
+
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
     this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
 
     // Update the light unforms as well
     this.lightUniformsBuffer.setSubData(0, this.lightUniforms);
-
-    // TODO: If we want multisampling this should attach to the resolveTarget,
-    // but there seems to be a bug with that right now?
-    this.colorAttachment.attachment = this.swapChain.getCurrentTexture().createView();
 
     const commandEncoder = this.device.createCommandEncoder({});
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
