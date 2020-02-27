@@ -38,7 +38,7 @@ export class PBRShaderProgram extends ShaderProgram {
 const LightSprite = {
   vertexCount: 6,
   vertexArray: new Float32Array([
-  // x   y 
+  // x   y
     -1, -1,
     -1,  1,
      1,  1,
@@ -55,13 +55,13 @@ const LightSprite = {
     mat4 viewMatrix;
     vec3 cameraPosition;
   };
-  
+
   struct Light {
     vec3 position;
     vec3 color;
     float attenuation; // Quadratic
   };
-  
+
   layout(std140) uniform LightUniforms {
     Light lights[5];
     float lightAmbient;
@@ -78,9 +78,9 @@ const LightSprite = {
     vec3 worldPos = vec3(POSITION, 0.0) * 0.25;
 
     // Generate a billboarded model view matrix
-    mat4 bbModelViewMatrix;
+    mat4 bbModelViewMatrix = mat4(1.0);
     bbModelViewMatrix[3] = vec4(lights[gl_InstanceID].position, 1.0);
-    
+
     bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;
@@ -148,7 +148,7 @@ export class WebGL2Renderer extends Renderer {
       defines: { LIGHT_COUNT: this.lightCount }
     });
     gl.uniformBlockBinding(this.lightProgram.program, this.lightProgram.uniformBlock.LightUniforms, UNIFORM_BLOCKS.LightUniforms);
-  
+
     this.lightVertexArray = gl.createVertexArray();
     gl.bindVertexArray(this.lightVertexArray);
     gl.enableVertexAttribArray(ATTRIB_MAP.POSITION);

@@ -42,7 +42,7 @@ function isPowerOfTwo(n) {
 const LightSprite = {
   vertexCount: 6,
   vertexArray: new Float32Array([
-  // x   y 
+  // x   y
     -1, -1,
     -1,  1,
      1,  1,
@@ -56,7 +56,7 @@ const LightSprite = {
 
   uniform mat4 projectionMatrix;
   uniform mat4 viewMatrix;
-  
+
   uniform vec3 lightPosition;
 
   varying vec2 vPos;
@@ -66,9 +66,9 @@ const LightSprite = {
     vec3 worldPos = vec3(POSITION, 0.0) * 0.25;
 
     // Generate a billboarded model view matrix
-    mat4 bbModelViewMatrix;
+    mat4 bbModelViewMatrix = mat4(1.0);
     bbModelViewMatrix[3] = vec4(lightPosition, 1.0);
-    
+
     bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;

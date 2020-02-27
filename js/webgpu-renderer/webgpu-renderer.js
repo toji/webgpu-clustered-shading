@@ -84,10 +84,10 @@ const LightSprite = {
     vPos = pos[gl_VertexIndex];
     vColor = lights[gl_InstanceIndex].color;
     vAttenuation = lights[gl_InstanceIndex].attenuation;
-    vec3 worldPos = lights[gl_InstanceIndex].position + vec3(pos[gl_VertexIndex], 0.0) * 0.25;
+    vec3 worldPos = vec3(pos[gl_VertexIndex], 0.0) * 0.25;
 
     // Generate a billboarded model view matrix
-    /*mat4 bbModelViewMatrix;
+    mat4 bbModelViewMatrix = mat4(1.0);
     bbModelViewMatrix[3] = vec4(lights[gl_InstanceIndex].position, 1.0);
     bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
@@ -100,9 +100,9 @@ const LightSprite = {
 
     bbModelViewMatrix[2][0] = 0.0;
     bbModelViewMatrix[2][1] = 0.0;
-    bbModelViewMatrix[2][2] = 1.0;*/
+    bbModelViewMatrix[2][2] = 1.0;
 
-    gl_Position = projectionMatrix * viewMatrix * vec4(worldPos, 1.0);
+    gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
   }`,
   fragmentSource: `#version 450
   precision highp float;
