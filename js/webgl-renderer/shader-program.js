@@ -79,7 +79,7 @@ export class ShaderProgram {
     let uniformName = '';
     for (let i = 0; i < uniformCount; i++) {
       let uniformInfo = gl.getActiveUniform(this.program, i);
-      uniformName = uniformInfo.name.replace('[0]', '');
+      uniformName = uniformInfo.name;
       this.uniform[uniformName] = gl.getUniformLocation(this.program, uniformName);
     }
 

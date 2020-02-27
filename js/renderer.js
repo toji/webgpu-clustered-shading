@@ -84,8 +84,8 @@ export class Renderer {
     vec3.set(this.lights[4].position, -9.5, 1, 3.2);
     vec3.set(this.lights[4].color, 0, 0, 1);
     this.lights[4].attenuation = 0.25;
-  
-    this.lightAmbient[0] = 0.05;
+
+    this.lightAmbient[0] = 0.01;
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
@@ -154,13 +154,13 @@ export class Renderer {
       Math.sin(timestamp / 1500) * 4,
       Math.cos(timestamp / 600) * 0.25 + 1.5,
       Math.cos(timestamp / 500) * 0.75);
-    
+
     // Add a little bit of a flicker to the light
     let lightIntensity = Math.min(1.5, Math.max(0.5, this.lights[0].color[0] + (Math.random() - 0.5) * 0.05));
     vec3.set(this.lights[0].color, lightIntensity, lightIntensity, lightIntensity);
 
     for (let i = 1; i < 5; ++i) {
-      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 1500) * 0.25; 
+      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 1500) * 0.25;
       this.lights[i].attenuation = Math.min(1.5, Math.max(0.25, this.lights[i].attenuation + (Math.random() - 0.5) * 0.15));
     }
   }

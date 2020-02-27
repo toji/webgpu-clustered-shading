@@ -507,6 +507,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     const defines = GetDefinesForPrimitive(primitive);
+    defines.LIGHT_COUNT = this.lightCount;
 
     let key = '';
     for (let define in defines) {

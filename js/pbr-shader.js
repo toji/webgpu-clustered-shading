@@ -147,9 +147,13 @@ uniform sampler2D metallicRoughnessTexture;
 uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
-uniform vec3 lightPosition;
-uniform vec3 lightColor;
-uniform float lightAttenuation; // Quadratic
+struct Light {
+  vec3 position;
+  vec3 color;
+  float attenuation; // Quadratic
+};
+
+uniform Light lights[LIGHT_COUNT];
 uniform float lightAmbient;
 `;
 
@@ -168,9 +172,9 @@ uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
 struct Light {
-  vec3 lightPosition;
-  vec3 lightColor;
-  float lightAttenuation; // Quadratic
+  vec3 position;
+  vec3 color;
+  float attenuation; // Quadratic
 };
 
 layout(std140) uniform LightUniforms {
@@ -195,10 +199,14 @@ layout(set = 1, binding = 4) uniform texture2D metallicRoughnessTexture;
 layout(set = 1, binding = 5) uniform texture2D occlusionTexture;
 layout(set = 1, binding = 6) uniform texture2D emissiveTexture;
 
+struct Light {
+  vec3 position;
+  vec3 color;
+  float attenuation; // Quadratic
+};
+
 layout(set = ${UNIFORM_BLOCKS.LightUniforms}, binding = 0) uniform LightUniforms {
-  vec3 lightPosition;
-  vec3 lightColor;
-  float lightAttenuation; // Quadratic
+  Light lights[LIGHT_COUNT];
   float lightAmbient;
 };
 `;
@@ -325,16 +333,16 @@ vec4 computeColor() {
   vec3 Lo = vec3(0.0);
 
   for (int i = 0; i < LIGHT_COUNT; ++i) {
-    if (lights[i].lightAttenuation == 0.0) {
+    if (lights[i].attenuation == 0.0) {
       continue; // Skip lights that don't have properly initialized data
     }
 
     // calculate per-light radiance
-    vec3 L = normalize(lights[i].lightPosition - vWorldPos);
+    vec3 L = normalize(lights[i].position - vWorldPos);
     vec3 H = normalize(V + L);
-    float distance    = length(lights[i].lightPosition - vWorldPos);
-    float attenuation = 1.0 / (lights[i].lightAttenuation * (distance * distance));
-    vec3 radiance     = lights[i].lightColor * attenuation;
+    float distance    = length(lights[i].position - vWorldPos);
+    float attenuation = 1.0 / (lights[i].attenuation * (distance * distance));
+    vec3 radiance     = lights[i].color * attenuation;
 
     // cook-torrance brdf
     float NDF = DistributionGGX(N, H, roughness);

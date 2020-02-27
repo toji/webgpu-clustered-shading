@@ -122,6 +122,7 @@ export class WebGLRenderer extends Renderer {
 
   initPrimitive(primitive) {
     const defines = GetDefinesForPrimitive(primitive);
+    defines.LIGHT_COUNT = this.lightCount;
     const material = primitive.material;
 
     primitive.renderData.instances = [];
@@ -274,9 +275,13 @@ export class WebGLRenderer extends Renderer {
     gl.uniformMatrix4fv(program.uniform.viewMatrix, false, this.viewMatrix);
     gl.uniform3fv(program.uniform.cameraPosition, this.cameraPosition);
 
-    gl.uniform3fv(program.uniform.lightPosition, this.lightPosition);
-    gl.uniform3fv(program.uniform.lightColor, this.lightColor);
-    gl.uniform1f(program.uniform.lightAttenuation, this.lightAttenuation[0]);
+    for (let i = 0; i < this.lightCount; ++i) {
+      let light = this.lights[i];
+      gl.uniform3fv(program.uniform[`lights[${i}].position`], light.position);
+      gl.uniform3fv(program.uniform[`lights[${i}].color`], light.color);
+      gl.uniform1f(program.uniform[`lights[${i}].attenuation`], light.attenuation);
+    }
+
     gl.uniform1f(program.uniform.lightAmbient, this.lightAmbient[0]);
 
     for (let [material, primitives] of materialList) {
