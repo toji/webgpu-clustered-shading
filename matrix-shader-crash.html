@@ -1,0 +1,101 @@
+<!doctype html>
+
+<html>
+  <head>
+    <title>WebGPU Shader Matrix crash</title>
+  </head>
+  <body>
+    <canvas id='output'></canvas>
+    <script type="module">
+      import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
+
+      const outputCanvas = document.getElementById('output');
+      const context = outputCanvas.getContext('gpupresent');
+
+      const vertexShaderGLSL = `#version 450
+        const vec2 pos[4] = vec2[4](vec2(-1.0f, 1.0f), vec2(1.0f, 1.0f), vec2(-1.0f, -1.0f), vec2(1.0f, -1.0f));
+
+        void main() {
+            // Generate a dummy model view matrix, uninitialized, which causes the crash when you attempt to use
+            // as part of a pipeline. If you initialize the matrix with valid data here (ie: = mat4(1.0)) then it
+            // works as expected.
+            mat4 modelView;
+            gl_Position = modelView * vec4(pos[gl_VertexIndex], 0.0, 1.0);
+        }`;
+
+      const fragmentShaderGLSL = `#version 450
+        layout(location = 0) out vec4 outColor;
+        void main() {
+          outColor = vec4(0.0, 1.0, 0.0, 1.0);
+        }`;
+
+      let adapter;
+      let device;
+      let glslang;
+      let swapChain;
+      let pipeline;
+
+      async function initWebGPU(canvas) {
+        adapter = await navigator.gpu.requestAdapter();
+        device = await adapter.requestDevice();
+        glslang = await glslangModule();
+
+        const colorFormat = await context.getSwapChainPreferredFormat(device);
+        swapChain = context.configureSwapChain({ device, format: colorFormat });
+
+        pipeline = device.createRenderPipeline({
+          layout: device.createPipelineLayout({ bindGroupLayouts: [] }),
+
+          vertexStage: {
+            module: device.createShaderModule({
+              code: glslang.compileGLSL(vertexShaderGLSL, 'vertex')
+            }),
+            entryPoint: 'main'
+          },
+          fragmentStage: {
+            module: device.createShaderModule({
+              code: glslang.compileGLSL(fragmentShaderGLSL, 'fragment')
+            }),
+            entryPoint: 'main'
+          },
+
+          primitiveTopology: 'triangle-strip',
+
+          colorStates: [{
+            format: colorFormat,
+          }]
+        });
+
+        function onResize() {
+          canvas.width = canvas.offsetWidth * window.devicePixelRatio;
+          canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+        }
+        window.addEventListener('resize', onResize);
+        onResize();
+
+        window.requestAnimationFrame(onFrame);
+      }
+
+      function onFrame() {
+        window.requestAnimationFrame(onFrame);
+
+        const commandEncoder = device.createCommandEncoder({});
+        const passEncoder = commandEncoder.beginRenderPass({
+          colorAttachments: [{
+            // attachment is acquired and set in render loop.
+            attachment: swapChain.getCurrentTexture().createView(),
+            loadValue: { r: 1.0, g: 0.5, b: 0.0, a: 1.0 },
+          }]
+        });
+
+        passEncoder.setPipeline(pipeline);
+        passEncoder.draw(4, 1, 0, 0);
+        passEncoder.endPass();
+
+        device.defaultQueue.submit([commandEncoder.finish()]);
+      }
+
+      initWebGPU(outputCanvas);
+    </script>
+  </body>
+</html>
