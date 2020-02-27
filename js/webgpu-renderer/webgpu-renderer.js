@@ -78,13 +78,13 @@ const LightSprite = {
 
   layout(location = 0) out vec2 vPos;
   layout(location = 1) out vec3 vColor;
-  layout(location = 2) out float vAttenuation;
+
+  const float lightSize = 0.2;
 
   void main() {
     vPos = pos[gl_VertexIndex];
     vColor = lights[gl_InstanceIndex].color;
-    vAttenuation = lights[gl_InstanceIndex].attenuation;
-    vec3 worldPos = vec3(pos[gl_VertexIndex], 0.0) * 0.25;
+    vec3 worldPos = vec3(pos[gl_VertexIndex], 0.0) * lightSize;
 
     // Generate a billboarded model view matrix
     mat4 bbModelViewMatrix = mat4(1.0);
@@ -109,14 +109,13 @@ const LightSprite = {
 
   layout(location = 0) in vec2 vPos;
   layout(location = 1) in vec3 vColor;
-  layout(location = 2) in float vAttenuation;
 
   layout(location = 0) out vec4 outColor;
 
   void main() {
     float distToCenter = length(vPos);
-    float fade = clamp(0.1 / (vAttenuation * (distToCenter * distToCenter)), 0.0, 1.0);
-    outColor = vec4((vColor + vec3(0.7)) * fade, fade);
+    float fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+    outColor = vec4(vColor * fade, fade);
   }`
 };
 

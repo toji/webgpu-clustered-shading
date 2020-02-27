@@ -54,6 +54,8 @@ const LightSprite = {
   vertexSource: `
   attribute vec2 POSITION;
 
+  const float lightSize = 0.2;
+
   uniform mat4 projectionMatrix;
   uniform mat4 viewMatrix;
 
@@ -63,7 +65,7 @@ const LightSprite = {
 
   void main() {
     vPos = POSITION;
-    vec3 worldPos = vec3(POSITION, 0.0) * 0.25;
+    vec3 worldPos = vec3(POSITION, 0.0) * lightSize;
 
     // Generate a billboarded model view matrix
     mat4 bbModelViewMatrix = mat4(1.0);
@@ -88,14 +90,13 @@ const LightSprite = {
   precision highp float;
 
   uniform vec3 lightColor;
-  uniform float lightAttenuation;
 
   varying vec2 vPos;
 
   void main() {
     float distToCenter = length(vPos);
-    float fade = clamp(0.1 / (lightAttenuation * (distToCenter * distToCenter)), 0.0, 1.0);
-    gl_FragColor = vec4((lightColor + vec3(0.7)) * fade, fade);
+    float fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+    gl_FragColor = vec4(lightColor * fade, fade);
   }`
 };
 
@@ -284,7 +285,6 @@ export class WebGLRenderer extends Renderer {
       if (light.attenuation == 0) { continue; }
       gl.uniform3fv(this.lightProgram.uniform.lightPosition, light.position);
       gl.uniform3fv(this.lightProgram.uniform.lightColor, light.color);
-      gl.uniform1f(this.lightProgram.uniform.lightAttenuation, light.attenuation);
 
       gl.drawArrays(gl.TRIANGLES, 0, LightSprite.vertexCount);
     }

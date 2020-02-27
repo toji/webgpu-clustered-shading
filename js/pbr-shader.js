@@ -341,7 +341,7 @@ vec4 computeColor() {
     vec3 L = normalize(lights[i].position - vWorldPos);
     vec3 H = normalize(V + L);
     float distance    = length(lights[i].position - vWorldPos);
-    float attenuation = 1.0 / (lights[i].attenuation * (distance * distance));
+    float attenuation = 1.0 / (1.0 + distance * distance);
     vec3 radiance     = lights[i].color * attenuation;
 
     // cook-torrance brdf

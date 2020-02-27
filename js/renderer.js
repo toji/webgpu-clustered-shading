@@ -66,24 +66,24 @@ export class Renderer {
 
     // Central wandering light
     vec3.set(this.lights[0].position, 0, 1.5, 0);
-    vec3.set(this.lights[0].color, 1, 1, 1);
+    vec3.set(this.lights[0].color, 10, 10, 10);
     this.lights[0].attenuation = 0.25;
 
     // Lights in each corner over the birdbath things.
     vec3.set(this.lights[1].position, 8.95, 1, -3.55);
-    vec3.set(this.lights[1].color, 1, 0, 0);
+    vec3.set(this.lights[1].color, 5, 1, 1);
     this.lights[1].attenuation = 0.25;
 
     vec3.set(this.lights[2].position, 8.95, 1, 3.2);
-    vec3.set(this.lights[2].color, 1, 0, 0);
+    vec3.set(this.lights[2].color, 5, 1, 1);
     this.lights[2].attenuation = 0.25;
 
     vec3.set(this.lights[3].position, -9.65, 1, -3.55);
-    vec3.set(this.lights[3].color, 0, 0, 1);
+    vec3.set(this.lights[3].color, 1, 1, 5);
     this.lights[3].attenuation = 0.25;
 
     vec3.set(this.lights[4].position, -9.65, 1, 3.2);
-    vec3.set(this.lights[4].color, 0, 0, 1);
+    vec3.set(this.lights[4].color, 1, 1, 5);
     this.lights[4].attenuation = 0.25;
 
     this.lightAmbient[0] = 0.05;
