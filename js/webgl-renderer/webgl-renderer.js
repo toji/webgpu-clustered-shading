@@ -39,6 +39,66 @@ function isPowerOfTwo(n) {
   return (n & (n - 1)) === 0;
 }
 
+const LightSprite = {
+  vertexCount: 6,
+  vertexArray: new Float32Array([
+  // x   y 
+    -1, -1,
+    -1,  1,
+     1,  1,
+
+     1,  1,
+     1, -1,
+    -1, -1,
+  ]),
+  vertexSource: `
+  attribute vec2 POSITION;
+
+  uniform mat4 projectionMatrix;
+  uniform mat4 viewMatrix;
+  
+  uniform vec3 lightPosition;
+
+  varying vec2 vPos;
+
+  void main() {
+    vPos = POSITION;
+    vec3 worldPos = vec3(POSITION, 0.0) * 0.25;
+
+    // Generate a billboarded model view matrix
+    mat4 bbModelViewMatrix;
+    bbModelViewMatrix[3] = vec4(lightPosition, 1.0);
+    
+    bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
+    bbModelViewMatrix[0][0] = 1.0;
+    bbModelViewMatrix[0][1] = 0.0;
+    bbModelViewMatrix[0][2] = 0.0;
+
+    bbModelViewMatrix[1][0] = 0.0;
+    bbModelViewMatrix[1][1] = 1.0;
+    bbModelViewMatrix[1][2] = 0.0;
+
+    bbModelViewMatrix[2][0] = 0.0;
+    bbModelViewMatrix[2][1] = 0.0;
+    bbModelViewMatrix[2][2] = 1.0;
+
+    gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
+  }`,
+  fragmentSource: `
+  precision highp float;
+
+  uniform vec3 lightColor;
+  uniform float lightAttenuation;
+
+  varying vec2 vPos;
+
+  void main() {
+    float distToCenter = length(vPos);
+    float fade = clamp(0.1 / (lightAttenuation * (distToCenter * distToCenter)), 0.0, 1.0);
+    gl_FragColor = vec4((lightColor + vec3(0.7)) * fade, fade);
+  }`
+};
+
 export class WebGLRenderer extends Renderer {
   constructor() {
     super();
@@ -49,6 +109,21 @@ export class WebGLRenderer extends Renderer {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
     this.programs = new Map();
+
+    this.buildLightSprite();
+  }
+
+  buildLightSprite() {
+    const gl = this.gl;
+    this.lightBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.lightBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, LightSprite.vertexArray, gl.STATIC_DRAW);
+
+    this.lightProgram = new ShaderProgram(gl, {
+      vertexSource: LightSprite.vertexSource,
+      fragmentSource: LightSprite.fragmentSource,
+      attributeLocations: ATTRIB_MAP
+    });
   }
 
   init() {
@@ -181,19 +256,37 @@ export class WebGLRenderer extends Renderer {
     // Loop through the render tree to bind and render every primitive instance
 
     // Opaque primitives first
+    gl.disable(gl.BLEND);
     for (let program of this.programs.values()) {
       if (program.opaqueMaterials.size) {
-        gl.disable(gl.BLEND);
         this.drawRenderTree(program, program.opaqueMaterials);
       }
     }
 
     // Blended primitives next
+    gl.enable(gl.BLEND);
     for (let program of this.programs.values()) {
       if (program.blendedMaterials.size) {
-        gl.enable(gl.BLEND);
         this.drawRenderTree(program, program.blendedMaterials);
       }
+    }
+
+    // Last, render a sprite for all of the lights
+    this.lightProgram.use();
+    gl.uniformMatrix4fv(this.lightProgram.uniform.projectionMatrix, false, this.projectionMatrix);
+    gl.uniformMatrix4fv(this.lightProgram.uniform.viewMatrix, false, this.viewMatrix);
+
+    gl.enableVertexAttribArray(ATTRIB_MAP.POSITION);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.lightBuffer);
+    gl.vertexAttribPointer(ATTRIB_MAP.POSITION, 2, gl.FLOAT, false, 8, 0);
+    for (let i = 0; i < this.lightCount; ++i) {
+      const light = this.lights[i];
+      if (light.attenuation == 0) { continue; }
+      gl.uniform3fv(this.lightProgram.uniform.lightPosition, light.position);
+      gl.uniform3fv(this.lightProgram.uniform.lightColor, light.color);
+      gl.uniform1f(this.lightProgram.uniform.lightAttenuation, light.attenuation);
+
+      gl.drawArrays(gl.TRIANGLES, 0, LightSprite.vertexCount);
     }
   }
 

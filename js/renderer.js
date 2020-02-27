@@ -18,8 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { vec2, vec3, vec4, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
-import { ARRAY_TYPE } from './third-party/gl-matrix/src/gl-matrix/common.js';
+import { vec3, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
 
 const lightFloatCount = 8;
 const lightByteSize = lightFloatCount * 4;
@@ -54,7 +53,7 @@ export class Renderer {
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
 
-    this.lightCount = 6;
+    this.lightCount = 5;
 
     this.lightUniforms = new Float32Array(lightFloatCount * this.lightCount + 4);
 
@@ -65,27 +64,29 @@ export class Renderer {
 
     this.lightAmbient = new Float32Array(this.lightUniforms.buffer, (lightByteSize * this.lightCount), 4);
 
+    // Central wandering light
     vec3.set(this.lights[0].position, 0, 1.5, 0);
     vec3.set(this.lights[0].color, 1, 1, 1);
     this.lights[0].attenuation = 0.25;
 
-    vec3.set(this.lights[1].position, 9, 1, -3.5);
+    // Lights in each corner over the birdbath things.
+    vec3.set(this.lights[1].position, 8.95, 1, -3.55);
     vec3.set(this.lights[1].color, 1, 0, 0);
     this.lights[1].attenuation = 0.25;
 
-    vec3.set(this.lights[2].position, 9, 1, 3.2);
+    vec3.set(this.lights[2].position, 8.95, 1, 3.2);
     vec3.set(this.lights[2].color, 1, 0, 0);
     this.lights[2].attenuation = 0.25;
 
-    vec3.set(this.lights[3].position, -9.5, 1, -3.5);
+    vec3.set(this.lights[3].position, -9.65, 1, -3.55);
     vec3.set(this.lights[3].color, 0, 0, 1);
     this.lights[3].attenuation = 0.25;
 
-    vec3.set(this.lights[4].position, -9.5, 1, 3.2);
+    vec3.set(this.lights[4].position, -9.65, 1, 3.2);
     vec3.set(this.lights[4].color, 0, 0, 1);
     this.lights[4].attenuation = 0.25;
 
-    this.lightAmbient[0] = 0.01;
+    this.lightAmbient[0] = 0.05;
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
@@ -156,11 +157,10 @@ export class Renderer {
       Math.cos(timestamp / 500) * 0.75);
 
     // Add a little bit of a flicker to the light
-    let lightIntensity = Math.min(1.5, Math.max(0.5, this.lights[0].color[0] + (Math.random() - 0.5) * 0.05));
-    vec3.set(this.lights[0].color, lightIntensity, lightIntensity, lightIntensity);
+    this.lights[0].attenuation = Math.min(0.75, Math.max(0.25, this.lights[0].attenuation + (Math.random() - 0.5) * 0.15));
 
     for (let i = 1; i < 5; ++i) {
-      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 1500) * 0.25;
+      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 800) * 0.1;
       this.lights[i].attenuation = Math.min(1.5, Math.max(0.25, this.lights[i].attenuation + (Math.random() - 0.5) * 0.15));
     }
   }

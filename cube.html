@@ -32,7 +32,6 @@
     <canvas id='output'></canvas>
     <script type="module">
       import {mat4, vec3} from './js/third-party/gl-matrix/src/gl-matrix.js';
-      import { Cube } from './js/cube.js';
 
       import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
 
@@ -67,6 +66,74 @@
         void main() {
           outColor = fragColor;
         }`;
+
+      const Cube = {
+        layout: {
+          arrayStride: 4 * 10, // Byte size of one cube vertex
+          attributes: [{
+            // position
+            shaderLocation: 0,
+            offset: 0,
+            format: "float4"
+          }, {
+            // color
+            shaderLocation: 1,
+            offset: 4 * 4,
+            format: "float4"
+          },
+          {
+            // UV
+            shaderLocation: 2,
+            offset: 4 * 8,
+            format: "float2"
+          }]
+        },
+        vertexCount: 36,
+        vertexArray: new Float32Array([
+          // float4 position, float4 color, float2 uv,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 1,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 0,
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 0,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 0,
+
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          1, -1, 1, 1,   1, 0, 1, 1,  0, 1,
+          1, -1, -1, 1,  1, 0, 0, 1,  0, 0,
+          1, 1, -1, 1,   1, 1, 0, 1,  1, 0,
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          1, -1, -1, 1,  1, 0, 0, 1,  0, 0,
+
+          -1, 1, 1, 1,   0, 1, 1, 1,  1, 1,
+          1, 1, 1, 1,    1, 1, 1, 1,  0, 1,
+          1, 1, -1, 1,   1, 1, 0, 1,  0, 0,
+          -1, 1, -1, 1,  0, 1, 0, 1,  1, 0,
+          -1, 1, 1, 1,   0, 1, 1, 1,  1, 1,
+          1, 1, -1, 1,   1, 1, 0, 1,  0, 0,
+
+          -1, -1, 1, 1,  0, 0, 1, 1,  1, 1,
+          -1, 1, 1, 1,   0, 1, 1, 1,  0, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+          -1, -1, -1, 1, 0, 0, 0, 1,  1, 0,
+          -1, -1, 1, 1,  0, 0, 1, 1,  1, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+          -1, 1, 1, 1,   0, 1, 1, 1,  0, 1,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 0,
+          -1, -1, 1, 1,  0, 0, 1, 1,  0, 0,
+          1, -1, 1, 1,   1, 0, 1, 1,  1, 0,
+          1, 1, 1, 1,    1, 1, 1, 1,  1, 1,
+
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 1,
+          -1, -1, -1, 1, 0, 0, 0, 1,  0, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+          1, 1, -1, 1,   1, 1, 0, 1,  1, 0,
+          1, -1, -1, 1,  1, 0, 0, 1,  1, 1,
+          -1, 1, -1, 1,  0, 1, 0, 1,  0, 0,
+        ])
+      };
 
       let adapter;
       let device;

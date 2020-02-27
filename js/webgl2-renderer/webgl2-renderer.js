@@ -35,9 +35,82 @@ export class PBRShaderProgram extends ShaderProgram {
   }
 }
 
-function isPowerOfTwo(n) {
-  return (n & (n - 1)) === 0;
-}
+const LightSprite = {
+  vertexCount: 6,
+  vertexArray: new Float32Array([
+  // x   y 
+    -1, -1,
+    -1,  1,
+     1,  1,
+
+     1,  1,
+     1, -1,
+    -1, -1,
+  ]),
+  vertexSource: `#version 300 es
+  layout(location = ${ATTRIB_MAP.POSITION}) in vec2 POSITION;
+
+  layout(std140) uniform FrameUniforms {
+    mat4 projectionMatrix;
+    mat4 viewMatrix;
+    vec3 cameraPosition;
+  };
+  
+  struct Light {
+    vec3 position;
+    vec3 color;
+    float attenuation; // Quadratic
+  };
+  
+  layout(std140) uniform LightUniforms {
+    Light lights[5];
+    float lightAmbient;
+  };
+
+  out vec2 vPos;
+  out vec3 vColor;
+  out float vAttenuation;
+
+  void main() {
+    vPos = POSITION;
+    vColor = lights[gl_InstanceID].color;
+    vAttenuation = lights[gl_InstanceID].attenuation;
+    vec3 worldPos = vec3(POSITION, 0.0) * 0.25;
+
+    // Generate a billboarded model view matrix
+    mat4 bbModelViewMatrix;
+    bbModelViewMatrix[3] = vec4(lights[gl_InstanceID].position, 1.0);
+    
+    bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
+    bbModelViewMatrix[0][0] = 1.0;
+    bbModelViewMatrix[0][1] = 0.0;
+    bbModelViewMatrix[0][2] = 0.0;
+
+    bbModelViewMatrix[1][0] = 0.0;
+    bbModelViewMatrix[1][1] = 1.0;
+    bbModelViewMatrix[1][2] = 0.0;
+
+    bbModelViewMatrix[2][0] = 0.0;
+    bbModelViewMatrix[2][1] = 0.0;
+    bbModelViewMatrix[2][2] = 1.0;
+
+    gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
+  }`,
+  fragmentSource: `#version 300 es
+  precision highp float;
+
+  in vec2 vPos;
+  in vec3 vColor;
+  in float vAttenuation;
+
+  out vec4 outColor;
+
+  void main() {
+    float distToCenter = length(vPos);
+    float fade = clamp(0.1 / (vAttenuation * (distToCenter * distToCenter)), 0.0, 1.0);
+    outColor = vec4((vColor + vec3(0.7)) * fade, fade);
+  }`
+};
 
 export class WebGL2Renderer extends Renderer {
   constructor() {
@@ -59,6 +132,29 @@ export class WebGL2Renderer extends Renderer {
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
     gl.bufferData(gl.UNIFORM_BUFFER, this.lightUniforms, gl.DYNAMIC_DRAW);
     gl.bindBufferBase(gl.UNIFORM_BUFFER, UNIFORM_BLOCKS.LightUniforms, this.lightUniformBuffer);
+
+    this.buildLightSprite();
+  }
+
+  buildLightSprite() {
+    const gl = this.gl;
+    this.lightBuffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.lightBuffer);
+    gl.bufferData(gl.ARRAY_BUFFER, LightSprite.vertexArray, gl.STATIC_DRAW);
+
+    this.lightProgram = new ShaderProgram(gl, {
+      vertexSource: LightSprite.vertexSource,
+      fragmentSource: LightSprite.fragmentSource,
+      defines: { LIGHT_COUNT: this.lightCount }
+    });
+    gl.uniformBlockBinding(this.lightProgram.program, this.lightProgram.uniformBlock.LightUniforms, UNIFORM_BLOCKS.LightUniforms);
+  
+    this.lightVertexArray = gl.createVertexArray();
+    gl.bindVertexArray(this.lightVertexArray);
+    gl.enableVertexAttribArray(ATTRIB_MAP.POSITION);
+    gl.bindBuffer(gl.ARRAY_BUFFER, this.lightBuffer);
+    gl.vertexAttribPointer(ATTRIB_MAP.POSITION, 2, gl.FLOAT, false, 8, 0);
+    gl.bindVertexArray(null);
   }
 
   init() {
@@ -322,6 +418,11 @@ export class WebGL2Renderer extends Renderer {
         this.drawRenderTree(program, program.blendedMaterials);
       }
     }
+
+    // Last, render a sprite for all of the lights
+    this.lightProgram.use();
+    gl.bindVertexArray(this.lightVertexArray);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightCount);
   }
 
   drawRenderTree(program, materialList) {

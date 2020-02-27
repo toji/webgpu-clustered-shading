@@ -7,7 +7,7 @@
     <meta name='mobile-web-app-capable' content='yes'>
     <meta name='apple-mobile-web-app-capable' content='yes'>
 
-    <title>glTF2 API Test</title>
+    <title>Web Graphics API Test</title>
 
     <style>
       html, body {
@@ -91,7 +91,7 @@
             await renderer.init();
             renderer.setStats(stats);
             if (gltf) {
-              renderer.setGltf(gltf);
+              await renderer.setGltf(gltf);
             }
             renderer.camera = camera;
             if (prevCanvas) {
