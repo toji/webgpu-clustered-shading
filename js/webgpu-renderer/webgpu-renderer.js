@@ -25,7 +25,7 @@ import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.j
 
 import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
 
-const SAMPLE_COUNT = 1;
+const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 const GENERATE_MIPMAPS = true;
 
@@ -333,7 +333,7 @@ export class WebGPURenderer extends Renderer {
         depthCompare: 'less',
         format: DEPTH_FORMAT,
       },
-      SAMPLE_COUNT,
+      sampleCount: SAMPLE_COUNT,
     });
   }
 
@@ -745,7 +745,7 @@ export class WebGPURenderer extends Renderer {
           depthCompare: 'less',
           format: DEPTH_FORMAT,
         },
-        SAMPLE_COUNT,
+        sampleCount: SAMPLE_COUNT,
       });
 
       this.pipelines.set(pipelineKey, pipeline);
@@ -784,7 +784,7 @@ export class WebGPURenderer extends Renderer {
   onFrame(timestamp) {
     // TODO: If we want multisampling this should attach to the resolveTarget,
     // but there seems to be a bug with that right now?
-    this.colorAttachment.attachment = this.swapChain.getCurrentTexture().createView();
+    this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
