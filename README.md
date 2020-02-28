@@ -1,5 +1,7 @@
 # Web Graphics API Test
 
+Live page at [https://toji.github.io/webgpu-test/](https://toji.github.io/webgpu-test/).
+
 This project renders a scene using WebGL, WebGL 2.0, and WebGPU as implemented in Chrome Canary circa Feb 2020. The purpose was mostly educational for me, I wanted to learn about the current state of WebGPU, but I also wanted to create a page that would allow for simple comparisons and profiling between the APIs.
 
 The renderer for each API loads resources from a glTF file and renders them using best practices for each API (without extensions). The scene was selected to be interesting and reasonably real-world in terms of geometry and materials, but it isn't particularly challenging for many modern GPUs, so don't expect to see framerate differences between the renderers. Additionally since the scene is the same and shaders are roughly equivalent across renderers the GPU time spent will probably be about the same.
