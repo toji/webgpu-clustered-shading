@@ -59,7 +59,6 @@ const LightSprite = {
   struct Light {
     vec3 position;
     vec3 color;
-    float attenuation; // Quadratic
   };
 
   layout(std140) uniform LightUniforms {

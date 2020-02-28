@@ -150,7 +150,6 @@ uniform sampler2D emissiveTexture;
 struct Light {
   vec3 position;
   vec3 color;
-  float attenuation; // Quadratic
 };
 
 uniform Light lights[LIGHT_COUNT];
@@ -174,7 +173,6 @@ uniform sampler2D emissiveTexture;
 struct Light {
   vec3 position;
   vec3 color;
-  float attenuation; // Quadratic
 };
 
 layout(std140) uniform LightUniforms {
@@ -202,7 +200,6 @@ layout(set = 1, binding = 6) uniform texture2D emissiveTexture;
 struct Light {
   vec3 position;
   vec3 color;
-  float attenuation; // Quadratic
 };
 
 layout(set = ${UNIFORM_BLOCKS.LightUniforms}, binding = 0) uniform LightUniforms {
@@ -333,10 +330,6 @@ vec4 computeColor() {
   vec3 Lo = vec3(0.0);
 
   for (int i = 0; i < LIGHT_COUNT; ++i) {
-    if (lights[i].attenuation == 0.0) {
-      continue; // Skip lights that don't have properly initialized data
-    }
-
     // calculate per-light radiance
     vec3 L = normalize(lights[i].position - vWorldPos);
     vec3 H = normalize(V + L);

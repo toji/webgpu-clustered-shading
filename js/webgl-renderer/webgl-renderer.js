@@ -282,7 +282,6 @@ export class WebGLRenderer extends Renderer {
     gl.vertexAttribPointer(ATTRIB_MAP.POSITION, 2, gl.FLOAT, false, 8, 0);
     for (let i = 0; i < this.lightCount; ++i) {
       const light = this.lights[i];
-      if (light.attenuation == 0) { continue; }
       gl.uniform3fv(this.lightProgram.uniform.lightPosition, light.position);
       gl.uniform3fv(this.lightProgram.uniform.lightColor, light.color);
 
@@ -372,7 +371,6 @@ export class WebGLRenderer extends Renderer {
       let light = this.lights[i];
       gl.uniform3fv(program.uniform[`lights[${i}].position`], light.position);
       gl.uniform3fv(program.uniform[`lights[${i}].color`], light.color);
-      gl.uniform1f(program.uniform[`lights[${i}].attenuation`], light.attenuation);
     }
 
     gl.uniform1f(program.uniform.lightAmbient, this.lightAmbient[0]);

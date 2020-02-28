@@ -27,15 +27,6 @@ class Light {
   constructor(buffer, offset) {
     this.position = new Float32Array(buffer, offset, 3);
     this.color = new Float32Array(buffer, offset + 4 * 4, 3);
-    this._attenuation = new Float32Array(buffer, offset + 7 * 4, 1);
-  }
-
-  get attenuation() {
-    return this._attenuation[0];
-  }
-
-  set attenuation(value) {
-    return this._attenuation[0] = value;
   }
 }
 
@@ -67,24 +58,19 @@ export class Renderer {
     // Central wandering light
     vec3.set(this.lights[0].position, 0, 1.5, 0);
     vec3.set(this.lights[0].color, 10, 10, 10);
-    this.lights[0].attenuation = 0.25;
 
     // Lights in each corner over the birdbath things.
     vec3.set(this.lights[1].position, 8.95, 1, -3.55);
     vec3.set(this.lights[1].color, 5, 1, 1);
-    this.lights[1].attenuation = 0.25;
 
     vec3.set(this.lights[2].position, 8.95, 1, 3.2);
     vec3.set(this.lights[2].color, 5, 1, 1);
-    this.lights[2].attenuation = 0.25;
 
     vec3.set(this.lights[3].position, -9.65, 1, -3.55);
     vec3.set(this.lights[3].color, 1, 1, 5);
-    this.lights[3].attenuation = 0.25;
 
     vec3.set(this.lights[4].position, -9.65, 1, 3.2);
     vec3.set(this.lights[4].color, 1, 1, 5);
-    this.lights[4].attenuation = 0.25;
 
     this.lightAmbient[0] = 0.05;
 
@@ -156,12 +142,8 @@ export class Renderer {
       Math.cos(timestamp / 600) * 0.25 + 1.5,
       Math.cos(timestamp / 500) * 0.75);
 
-    // Add a little bit of a flicker to the light
-    this.lights[0].attenuation = Math.min(0.75, Math.max(0.25, this.lights[0].attenuation + (Math.random() - 0.5) * 0.15));
-
     for (let i = 1; i < 5; ++i) {
       this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 800) * 0.1;
-      this.lights[i].attenuation = Math.min(1.5, Math.max(0.25, this.lights[i].attenuation + (Math.random() - 0.5) * 0.15));
     }
   }
 
