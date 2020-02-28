@@ -24,7 +24,7 @@ export class FlyingCamera {
     let moving = false;
     let lastX, lastY;
     this.mousedownCallback = (event) => {
-      if (event.which === 1) {
+      if (event.isPrimary) {
         moving = true;
       }
       lastX = event.pageX;
@@ -32,7 +32,7 @@ export class FlyingCamera {
     };
     this.mousemoveCallback = (event) => {
       let xDelta, yDelta;
-      
+
       if(document.pointerLockEnabled) {
           xDelta = event.movementX;
           yDelta = event.movementY;
@@ -46,7 +46,7 @@ export class FlyingCamera {
       }
     };
     this.mouseupCallback = (event) => {
-      if (event.which === 1) {
+      if (event.isPrimary) {
         moving = false;
       }
     };
@@ -66,16 +66,16 @@ export class FlyingCamera {
 
   set element(value) {
     if (this._element && this._element != value) {
-      this._element.removeEventListener('mousedown', this.mousedownCallback);
-      this._element.removeEventListener('mousemove', this.mousemoveCallback);
-      this._element.removeEventListener('mouseup', this.mouseupCallback);
+      this._element.removeEventListener('pointerdown', this.mousedownCallback);
+      this._element.removeEventListener('pointermove', this.mousemoveCallback);
+      this._element.removeEventListener('pointerup', this.mouseupCallback);
     }
 
     this._element = value;
     if (this._element) {
-      this._element.addEventListener('mousedown', this.mousedownCallback);
-      this._element.addEventListener('mousemove', this.mousemoveCallback);
-      this._element.addEventListener('mouseup', this.mouseupCallback);
+      this._element.addEventListener('pointerdown', this.mousedownCallback);
+      this._element.addEventListener('pointermove', this.mousemoveCallback);
+      this._element.addEventListener('pointerup', this.mouseupCallback);
     }
   }
 
@@ -105,10 +105,10 @@ export class FlyingCamera {
       if (this._angles[0] > Math.PI * 0.5) {
         this._angles[0] = Math.PI * 0.5;
       }
-          
+
       // Update the directional matrix
       mat4.identity(rot);
-      
+
       mat4.rotateY(rot, rot, -this._angles[1]);
       mat4.rotateX(rot, rot, -this._angles[0]);
 

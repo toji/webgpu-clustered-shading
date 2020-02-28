@@ -54,10 +54,14 @@
       import { WebGPURenderer } from './js/webgpu-renderer/webgpu-renderer.js';
 
       let renderer = null;
-      let camera = new FlyingCamera();
-      let stats = new Stats();
       let gltf = null;
+
+      const stats = new Stats();
       document.body.appendChild(stats.dom);
+
+      const camera = new FlyingCamera();
+      camera.position = [0, 1.5, 0];
+      camera.rotateView(-Math.PI * 0.5, 0);
 
       const apiSelect = document.getElementById('api');
       apiSelect.addEventListener('change', async () => {
