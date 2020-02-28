@@ -134,7 +134,9 @@ export class WebGPURenderer extends Renderer {
   }
 
   async init() {
-    this.adapter = await navigator.gpu.requestAdapter();
+    this.adapter = await navigator.gpu.requestAdapter({
+      powerPreference: "high-performance"
+    });
     this.device = await this.adapter.requestDevice();
     this.swapChainFormat = await this.context.getSwapChainPreferredFormat(this.device);
     this.swapChain = this.context.configureSwapChain({

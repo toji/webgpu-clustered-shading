@@ -104,7 +104,9 @@ export class WebGLRenderer extends Renderer {
   constructor() {
     super();
 
-    const gl = this.gl = this.canvas.getContext('webgl');
+    const gl = this.gl = this.canvas.getContext('webgl', {
+      powerPreference: "high-performance"
+    });
     gl.clearColor(0.5, 0.0, 0.0, 1.0);
     gl.enable(gl.DEPTH_TEST);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);

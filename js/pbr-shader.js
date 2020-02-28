@@ -148,8 +148,8 @@ uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
 struct Light {
-  vec3 position;
-  vec3 color;
+  vec4 position;
+  vec4 color;
 };
 
 uniform Light lights[LIGHT_COUNT];
@@ -171,8 +171,8 @@ uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
 struct Light {
-  vec3 position;
-  vec3 color;
+  vec4 position;
+  vec4 color;
 };
 
 layout(std140) uniform LightUniforms {
@@ -198,8 +198,8 @@ layout(set = 1, binding = 5) uniform texture2D occlusionTexture;
 layout(set = 1, binding = 6) uniform texture2D emissiveTexture;
 
 struct Light {
-  vec3 position;
-  vec3 color;
+  vec4 position;
+  vec4 color;
 };
 
 layout(set = ${UNIFORM_BLOCKS.LightUniforms}, binding = 0) uniform LightUniforms {
@@ -331,11 +331,11 @@ vec4 computeColor() {
 
   for (int i = 0; i < LIGHT_COUNT; ++i) {
     // calculate per-light radiance
-    vec3 L = normalize(lights[i].position - vWorldPos);
+    vec3 L = normalize(lights[i].position.xyz - vWorldPos);
     vec3 H = normalize(V + L);
-    float distance    = length(lights[i].position - vWorldPos);
+    float distance    = length(lights[i].position.xyz - vWorldPos);
     float attenuation = 1.0 / (1.0 + distance * distance);
-    vec3 radiance     = lights[i].color * attenuation;
+    vec3 radiance     = lights[i].color.rgb * attenuation;
 
     // cook-torrance brdf
     float NDF = DistributionGGX(N, H, roughness);
