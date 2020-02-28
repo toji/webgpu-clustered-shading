@@ -25,8 +25,8 @@ const lightByteSize = lightFloatCount * 4;
 
 class Light {
   constructor(buffer, offset) {
-    this.position = new Float32Array(buffer, offset, 3);
-    this.color = new Float32Array(buffer, offset + 4 * 4, 3);
+    this.position = new Float32Array(buffer, offset, 4);
+    this.color = new Float32Array(buffer, offset + 4 * 4, 4);
   }
 }
 

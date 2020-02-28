@@ -59,7 +59,7 @@ const LightSprite = {
   uniform mat4 projectionMatrix;
   uniform mat4 viewMatrix;
 
-  uniform vec3 lightPosition;
+  uniform vec4 lightPosition;
 
   varying vec2 vPos;
 
@@ -69,7 +69,7 @@ const LightSprite = {
 
     // Generate a billboarded model view matrix
     mat4 bbModelViewMatrix = mat4(1.0);
-    bbModelViewMatrix[3] = vec4(lightPosition, 1.0);
+    bbModelViewMatrix[3] = vec4(lightPosition.xyz, 1.0);
 
     bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
@@ -89,14 +89,14 @@ const LightSprite = {
   fragmentSource: `
   precision highp float;
 
-  uniform vec3 lightColor;
+  uniform vec4 lightColor;
 
   varying vec2 vPos;
 
   void main() {
     float distToCenter = length(vPos);
     float fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    gl_FragColor = vec4(lightColor * fade, fade);
+    gl_FragColor = vec4(lightColor.rgb * fade, fade);
   }`
 };
 
@@ -284,8 +284,8 @@ export class WebGLRenderer extends Renderer {
     gl.vertexAttribPointer(ATTRIB_MAP.POSITION, 2, gl.FLOAT, false, 8, 0);
     for (let i = 0; i < this.lightCount; ++i) {
       const light = this.lights[i];
-      gl.uniform3fv(this.lightProgram.uniform.lightPosition, light.position);
-      gl.uniform3fv(this.lightProgram.uniform.lightColor, light.color);
+      gl.uniform4fv(this.lightProgram.uniform.lightPosition, light.position);
+      gl.uniform4fv(this.lightProgram.uniform.lightColor, light.color);
 
       gl.drawArrays(gl.TRIANGLES, 0, LightSprite.vertexCount);
     }
@@ -371,8 +371,8 @@ export class WebGLRenderer extends Renderer {
 
     for (let i = 0; i < this.lightCount; ++i) {
       let light = this.lights[i];
-      gl.uniform3fv(program.uniform[`lights[${i}].position`], light.position);
-      gl.uniform3fv(program.uniform[`lights[${i}].color`], light.color);
+      gl.uniform4fv(program.uniform[`lights[${i}].position`], light.position);
+      gl.uniform4fv(program.uniform[`lights[${i}].color`], light.color);
     }
 
     gl.uniform1f(program.uniform.lightAmbient, this.lightAmbient[0]);
