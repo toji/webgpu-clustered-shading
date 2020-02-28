@@ -127,7 +127,7 @@ export class Gltf2Loader {
     return this.loadFromJson(json, baseUrl, chunks[CHUNK_TYPE.BIN]);
   }
 
-  loadFromJson(json, baseUrl, binaryChunk) {
+  async loadFromJson(json, baseUrl, binaryChunk) {
     if (!json.asset) {
       throw new Error('Missing asset description.');
     }
@@ -137,6 +137,7 @@ export class Gltf2Loader {
     }
 
     const gltf = new Gltf2();
+    const resourcePromises = [];
 
     // Buffers
     if (binaryChunk) {
@@ -169,6 +170,11 @@ export class Gltf2Loader {
       for (let image of json.images) {
         let imgElement = new Image();
         gltf.images.push(imgElement);
+
+        resourcePromises.push(new Promise((resolve, reject) => {
+          imgElement.addEventListener('load', resolve);
+          imgElement.addEventListener('error', reject);
+        }));
 
         if (image.uri) {
           if (isDataUri(image.uri)) {
@@ -375,6 +381,8 @@ export class Gltf2Loader {
     for (let nodeId of scene.nodes) {
       gltf.scene.children.push(processNode(json.nodes[nodeId], gltf.scene.worldMatrix));
     }
+
+    await Promise.all(resourcePromises);
 
     return gltf;
   }

@@ -35,6 +35,7 @@ export class Renderer {
     this.canvas = document.createElement('canvas');
     this.camera = null;
     this.rafId = 0;
+    this.frameCount = -1;
 
     // Storage for global uniforms.
     // These can either be used individually or as a uniform buffer.
@@ -76,6 +77,9 @@ export class Renderer {
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
+      this.frameCount++;
+      if (this.frameCount % 200 == 0) { return; }
+
       if (this.stats) {
         this.stats.begin();
       }

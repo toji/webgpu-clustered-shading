@@ -64,7 +64,7 @@
       camera.rotateView(-Math.PI * 0.5, 0);
 
       const apiSelect = document.getElementById('api');
-      apiSelect.addEventListener('change', async () => {
+      async function onApiChange() {
         let prevCanvas;
         if (renderer) {
           prevCanvas = renderer.canvas;
@@ -111,7 +111,8 @@
             renderer = null;
           }
         }
-      });
+      }
+      apiSelect.addEventListener('change', onApiChange);
 
       async function initGltf() {
         const gltfLoader = new Gltf2Loader();
