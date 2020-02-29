@@ -293,15 +293,15 @@ const vec3 black = vec3(0.0);
 vec4 computeColor() {
   vec4 baseColor = baseColorFactor;
 #ifdef USE_BASE_COLOR_MAP
-  baseColor *= ${textureFunc('baseColorTexture', 'vTex')};
+  vec4 baseColorMap = ${textureFunc('baseColorTexture', 'vTex')};
+  if (baseColorMap.a < 0.05) {
+    discard;
+  }
+  baseColor *= baseColorMap;
 #endif
 #ifdef USE_VERTEX_COLOR
   baseColor *= vCol;
 #endif
-
-  if (baseColor.a < 0.05) {
-    discard;
-  }
 
   vec3 albedo = baseColor.rgb; //pow(baseColor.rgb, 2.2);
 
@@ -428,7 +428,7 @@ export function WEBGL2_FRAGMENT_SOURCE(defines) {
 
   out vec4 outputColor;
   void main() {
-    outputColor = computeColor();
+    outputColor = computeColor();;
   }
   `;
 }
