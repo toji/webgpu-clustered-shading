@@ -285,7 +285,7 @@ export class WebGL2Renderer extends Renderer {
       }
 
       for (let uniformBlockName in UNIFORM_BLOCKS) {
-        if(program.uniformBlock[uniformBlockName]) {
+        if(uniformBlockName in program.uniformBlock) {
           gl.uniformBlockBinding(program.program, program.uniformBlock[uniformBlockName], UNIFORM_BLOCKS[uniformBlockName]);
         }
       }
