@@ -370,7 +370,7 @@ export class Gltf2Loader {
 
       if (node.children) {
         for (let nodeId of node.children) {
-          glNode.children.push(processNode(json.nodes[nodeId], node.worldMatrix));
+          glNode.children.push(processNode(json.nodes[nodeId], glNode.worldMatrix));
         }
       }
 
