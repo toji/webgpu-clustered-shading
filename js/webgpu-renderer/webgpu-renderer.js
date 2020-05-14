@@ -252,6 +252,11 @@ export class WebGPURenderer extends Renderer {
       }],
     });
 
+    this.lightUniformsSrcBuffer = this.device.createBuffer({
+      size: this.lightUniforms.byteLength,
+      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
+    });
+
     this.lightUniformsBuffer = this.device.createBuffer({
       size: this.lightUniforms.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -438,17 +443,15 @@ export class WebGPURenderer extends Renderer {
     bufferView.renderData.gpuBuffer = gpuBuffer;
 
     // TODO: Pretty sure this can all be handled more efficiently.
-    const copyBuffer = this.device.createBuffer({
+    const [copyBuffer, copyBufferArray] = this.device.createBufferMapped({
       size: alignedLength,
-      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC
+      usage: GPUBufferUsage.COPY_SRC
     });
 
     const bufferData = await bufferView.dataView;
 
-    const copyBufferArray = await copyBuffer.mapWriteAsync();
     const srcByteArray = new Uint8Array(bufferData.buffer, bufferData.byteOffset, bufferData.byteLength);
-    const dstByteArray = new Uint8Array(copyBufferArray);
-    dstByteArray.set(srcByteArray);
+    new Uint8Array(copyBufferArray).set(srcByteArray);
     copyBuffer.unmap();
 
     const commandEncoder = this.device.createCommandEncoder({});
@@ -528,7 +531,18 @@ export class WebGPURenderer extends Renderer {
       size: materialUniforms.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
-    materialUniformsBuffer.setSubData(0, materialUniforms);
+
+    const [materialUniformsSrcBuffer, materialUniformsSrcArray] = this.device.createBufferMapped({
+      size: materialUniforms.byteLength,
+      usage: GPUBufferUsage.COPY_SRC,
+    });
+
+    new Float32Array(materialUniformsSrcArray).set(materialUniforms);
+    materialUniformsSrcBuffer.unmap();
+
+    const commandEncoder = this.device.createCommandEncoder({});
+    commandEncoder.copyBufferToBuffer(materialUniformsSrcBuffer, 0, materialUniformsBuffer, 0, materialUniforms.byteLength);
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
 
     const materialBindGroup = this.device.createBindGroup({
       layout: this.materialUniformsBindGroupLayout,
@@ -645,13 +659,26 @@ export class WebGPURenderer extends Renderer {
 
     primitive.renderData.gpuShaderModule = program;
 
+    const bufferSize = 16 * 4;
+
+    // TODO: Support multiple instances
     if (primitive.renderData.instances.length) {
       const primitiveUniformsBuffer = this.device.createBuffer({
-        size: 16 * 4,
+        size: bufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
-      // TODO: Support multiple instances
-      primitiveUniformsBuffer.setSubData(0, primitive.renderData.instances[0]);
+
+      const [copyBuffer, copyBufferArray] = this.device.createBufferMapped({
+        size: bufferSize,
+        usage: GPUBufferUsage.COPY_SRC
+      });
+
+      new Float32Array(copyBufferArray).set(primitive.renderData.instances[0]);
+      copyBuffer.unmap();
+
+      const commandEncoder = this.device.createCommandEncoder({});
+      commandEncoder.copyBufferToBuffer(copyBuffer, 0, primitiveUniformsBuffer, 0, bufferSize);
+      this.device.defaultQueue.submit([commandEncoder.finish()]);
 
       const primitiveBindGroup = this.device.createBindGroup({
         layout: this.primitiveUniformsBindGroupLayout,
@@ -788,14 +815,27 @@ export class WebGPURenderer extends Renderer {
     // but there seems to be a bug with that right now?
     this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
 
+    const commandEncoder = this.device.createCommandEncoder({});
+
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
-    this.frameUniformsBuffer.setSubData(0, this.frameUniforms);
+    const [frameUniformsSrcBuffer, frameUniformsMappedArray] = this.device.createBufferMapped({
+      size: this.frameUniforms.byteLength,
+      usage: GPUBufferUsage.COPY_SRC,
+    });
+    new Float32Array(frameUniformsMappedArray).set(this.frameUniforms);
+    frameUniformsSrcBuffer.unmap();
+    commandEncoder.copyBufferToBuffer(frameUniformsSrcBuffer, 0, this.frameUniformsBuffer, 0, this.frameUniforms.byteLength);
 
     // Update the light unforms as well
-    this.lightUniformsBuffer.setSubData(0, this.lightUniforms);
+    const [lightUniformsSrcBuffer, lightUniformsMappedArray] = this.device.createBufferMapped({
+      size: this.lightUniforms.byteLength,
+      usage: GPUBufferUsage.COPY_SRC,
+    });
+    new Float32Array(lightUniformsMappedArray).set(this.lightUniforms);
+    lightUniformsSrcBuffer.unmap();
+    commandEncoder.copyBufferToBuffer(lightUniformsSrcBuffer, 0, this.lightUniformsBuffer, 0, this.lightUniforms.byteLength);
 
-    const commandEncoder = this.device.createCommandEncoder({});
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
     if (this.renderBundle) {

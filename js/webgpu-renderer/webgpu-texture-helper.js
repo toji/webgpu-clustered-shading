@@ -202,12 +202,13 @@ export class GPUTextureHelper {
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED,
     });
 
-    const textureDataBuffer = this.device.createBuffer({
+    const [textureDataBuffer, textureDataArray] = this.device.createBufferMapped({
       // BUG? WTF is up with this?!? bytesPerRow has to be a multiple of 256?
       size: 256,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+      usage: GPUBufferUsage.COPY_SRC,
     });
-    textureDataBuffer.setSubData(0, imageData);
+    new Uint8Array(textureDataArray).set(imageData);
+    textureDataBuffer.unmap();
 
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToTexture({
