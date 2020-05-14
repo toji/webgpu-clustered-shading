@@ -167,7 +167,7 @@ export class WebGPURenderer extends Renderer {
     };
 
     this.frameUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
         type: 'uniform-buffer'
@@ -175,7 +175,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     this.materialUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
         type: 'uniform-buffer'
@@ -213,7 +213,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     this.primitiveUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
         type: 'uniform-buffer'
@@ -221,7 +221,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     this.lightUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
         type: 'uniform-buffer'
@@ -244,7 +244,7 @@ export class WebGPURenderer extends Renderer {
 
     this.frameUniformBindGroup = this.device.createBindGroup({
       layout: this.frameUniformsBindGroupLayout,
-      bindings: [{
+      entries: [{
         binding: 0,
         resource: {
           buffer: this.frameUniformsBuffer,
@@ -259,7 +259,7 @@ export class WebGPURenderer extends Renderer {
 
     this.lightUniformBindGroup = this.device.createBindGroup({
       layout: this.lightUniformsBindGroupLayout,
-      bindings: [{
+      entries: [{
         binding: 0,
         resource: {
           buffer: this.lightUniformsBuffer,
@@ -281,7 +281,7 @@ export class WebGPURenderer extends Renderer {
 
   buildLightSprite() {
     const lightSpriteBindGroupLayout = this.device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX,
         type: 'uniform-buffer'
@@ -294,7 +294,7 @@ export class WebGPURenderer extends Renderer {
 
     this.lightSpriteBindGroup = this.device.createBindGroup({
       layout: lightSpriteBindGroupLayout,
-      bindings: [{
+      entries: [{
         binding: 0,
         resource: {
           buffer: this.frameUniformsBuffer,
@@ -532,7 +532,7 @@ export class WebGPURenderer extends Renderer {
 
     const materialBindGroup = this.device.createBindGroup({
       layout: this.materialUniformsBindGroupLayout,
-      bindings: [{
+      entries: [{
         binding: 0,
         resource: {
           buffer: materialUniformsBuffer,
@@ -655,7 +655,7 @@ export class WebGPURenderer extends Renderer {
 
       const primitiveBindGroup = this.device.createBindGroup({
         layout: this.primitiveUniformsBindGroupLayout,
-        bindings: [{
+        entries: [{
           binding: 0,
           resource: {
             buffer: primitiveUniformsBuffer,

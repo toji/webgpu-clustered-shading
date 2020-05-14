@@ -45,7 +45,7 @@ export class GPUTextureHelper {
     this.mipmapSampler = device.createSampler({ minFilter: 'linear' });
 
     this.mipmapBindGroupLayout = device.createBindGroupLayout({
-      bindings: [{
+      entries: [{
         binding: 0,
         visibility: GPUShaderStage.FRAGMENT,
         type: 'sampler'
@@ -131,7 +131,7 @@ export class GPUTextureHelper {
     for (let i = 0; i < mipLevelCount; ++i) {
       const bindGroup = this.device.createBindGroup({
         layout: this.mipmapBindGroupLayout,
-        bindings: [{
+        entries: [{
           binding: 0,
           resource: this.mipmapSampler,
         }, {
@@ -203,7 +203,7 @@ export class GPUTextureHelper {
     });
 
     const textureDataBuffer = this.device.createBuffer({
-      // BUG? WTF is up with this?!? rowPitch has to be a multiple of 256?
+      // BUG? WTF is up with this?!? bytesPerRow has to be a multiple of 256?
       size: 256,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     });
@@ -212,8 +212,8 @@ export class GPUTextureHelper {
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToTexture({
       buffer: textureDataBuffer,
-      rowPitch: 256,
-      imageHeight: 0, // What is this for?
+      bytesPerRow: 256,
+      rowsPerImage: 0, // What is this for?
     }, { texture: texture }, imageSize);
     this.device.defaultQueue.submit([commandEncoder.finish()]);
 
