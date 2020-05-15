@@ -118,6 +118,52 @@ const LightSprite = {
   }`
 };
 
+// Small helper class for making uniform uploads more efficient
+class DynamicUniformBuffer {
+  constructor(device, byteLength, arrayType) {
+    this.device = device;
+    this.byteLength = byteLength;
+    this.alignedLength = Math.ceil(this.byteLength / 4) * 4;
+    this.arrayType = arrayType;
+    this.buffer = this.device.createBuffer({
+      size: this.alignedLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+
+    this.mappedBuffers = [];
+    this.previousBuffer = null;
+  }
+
+  // Get a recycled mapped buffer or allocate a new one if none are available.
+  acquireMappedBuffer() {
+    if (this.mappedBuffers.length) {
+      return this.mappedBuffers.pop();
+    } else {
+      return this.device.createBufferMapped({
+        size: this.alignedLength,
+        usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
+      })
+    }
+  }
+
+  update(commandEncoder, array) {
+    const [copyBuffer, copyArray] = this.acquireMappedBuffer();
+    new this.arrayType(copyArray).set(array);
+    copyBuffer.unmap();
+
+    commandEncoder.copyBufferToBuffer(copyBuffer, 0, this.buffer, 0, this.alignedLength);
+
+    // Map the last use buffer for writing again.
+    if (this.previousBuffer) {
+      const pendingBuffer = this.previousBuffer;
+      pendingBuffer.mapWriteAsync().then((mappedArray) => {
+        this.mappedBuffers.push([pendingBuffer, mappedArray]);
+      });
+    }
+    this.previousBuffer = copyBuffer;
+  }
+}
+
 export class WebGPURenderer extends Renderer {
   constructor() {
     super();
@@ -237,29 +283,17 @@ export class WebGPURenderer extends Renderer {
       ]
     });
 
-    this.frameUniformsBuffer = this.device.createBuffer({
-      size: this.frameUniforms.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
-    });
+    this.frameUniformsBuffer = new DynamicUniformBuffer(this.device, this.frameUniforms.byteLength, Float32Array);
+    this.lightUniformsBuffer = new DynamicUniformBuffer(this.device, this.lightUniforms.byteLength, Float32Array);
 
     this.frameUniformBindGroup = this.device.createBindGroup({
       layout: this.frameUniformsBindGroupLayout,
       entries: [{
         binding: 0,
         resource: {
-          buffer: this.frameUniformsBuffer,
+          buffer: this.frameUniformsBuffer.buffer,
         },
       }],
-    });
-
-    this.lightUniformsSrcBuffer = this.device.createBuffer({
-      size: this.lightUniforms.byteLength,
-      usage: GPUBufferUsage.MAP_WRITE | GPUBufferUsage.COPY_SRC,
-    });
-
-    this.lightUniformsBuffer = this.device.createBuffer({
-      size: this.lightUniforms.byteLength,
-      usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
     this.lightUniformBindGroup = this.device.createBindGroup({
@@ -267,7 +301,7 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         resource: {
-          buffer: this.lightUniformsBuffer,
+          buffer: this.lightUniformsBuffer.buffer,
         },
       }],
     });
@@ -302,12 +336,12 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         resource: {
-          buffer: this.frameUniformsBuffer,
+          buffer: this.frameUniformsBuffer.buffer,
         },
       }, {
         binding: 1,
         resource: {
-          buffer: this.lightUniformsBuffer,
+          buffer: this.lightUniformsBuffer.buffer,
         },
       }],
     });
@@ -819,22 +853,24 @@ export class WebGPURenderer extends Renderer {
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
-    const [frameUniformsSrcBuffer, frameUniformsMappedArray] = this.device.createBufferMapped({
+    this.frameUniformsBuffer.update(commandEncoder, this.frameUniforms);
+    /*const [frameUniformsSrcBuffer, frameUniformsMappedArray] = this.device.createBufferMapped({
       size: this.frameUniforms.byteLength,
       usage: GPUBufferUsage.COPY_SRC,
     });
     new Float32Array(frameUniformsMappedArray).set(this.frameUniforms);
     frameUniformsSrcBuffer.unmap();
-    commandEncoder.copyBufferToBuffer(frameUniformsSrcBuffer, 0, this.frameUniformsBuffer, 0, this.frameUniforms.byteLength);
+    commandEncoder.copyBufferToBuffer(frameUniformsSrcBuffer, 0, this.frameUniformsBuffer, 0, this.frameUniforms.byteLength);*/
 
     // Update the light unforms as well
-    const [lightUniformsSrcBuffer, lightUniformsMappedArray] = this.device.createBufferMapped({
+    this.lightUniformsBuffer.update(commandEncoder, this.lightUniforms);
+    /*const [lightUniformsSrcBuffer, lightUniformsMappedArray] = this.device.createBufferMapped({
       size: this.lightUniforms.byteLength,
       usage: GPUBufferUsage.COPY_SRC,
     });
     new Float32Array(lightUniformsMappedArray).set(this.lightUniforms);
     lightUniformsSrcBuffer.unmap();
-    commandEncoder.copyBufferToBuffer(lightUniformsSrcBuffer, 0, this.lightUniformsBuffer, 0, this.lightUniforms.byteLength);
+    commandEncoder.copyBufferToBuffer(lightUniformsSrcBuffer, 0, this.lightUniformsBuffer, 0, this.lightUniforms.byteLength);*/
 
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
