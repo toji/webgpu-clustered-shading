@@ -61,30 +61,17 @@ layout(location = ${ATTRIB_MAP.COLOR_0}) in vec4 COLOR_0;
 #endif
 `;
 
-const WEBGL_VARYINGS = `
-varying vec3 vWorldPos;
-varying vec3 vView; // Vector from vertex to camera.
-varying vec2 vTex;
-varying vec4 vCol;
-
-#ifdef USE_NORMAL_MAP
-varying mat3 vTBN;
-#else
-varying vec3 vNorm;
-#endif
-`;
-
-function WEBGL2_VARYINGS(dir) {
+function WEBGL_VARYINGS(type = 'varying') {
   return `
-${dir} vec3 vWorldPos;
-${dir} vec3 vView; // Vector from vertex to camera.
-${dir} vec2 vTex;
-${dir} vec4 vCol;
+${type} vec3 vWorldPos;
+${type} vec3 vView; // Vector from vertex to camera.
+${type} vec2 vTex;
+${type} vec4 vCol;
 
 #ifdef USE_NORMAL_MAP
-${dir} mat3 vTBN;
+${type} mat3 vTBN;
 #else
-${dir} vec3 vNorm;
+${type} vec3 vNorm;
 #endif
 `;
 }
@@ -389,7 +376,7 @@ export function WEBGL_VERTEX_SOURCE(defines) {
   return `
   ${DEFINES(defines)}
   ${WEBGL_ATTRIBUTES}
-  ${WEBGL_VARYINGS}
+  ${WEBGL_VARYINGS()}
   ${WEBGL_VERTEX_UNIFORMS}
   ${PBR_VERTEX_MAIN}
   `;
@@ -398,7 +385,7 @@ export function WEBGL_VERTEX_SOURCE(defines) {
 export function WEBGL_FRAGMENT_SOURCE(defines) {
   return `precision highp float;
   ${DEFINES(defines)}
-  ${WEBGL_VARYINGS}
+  ${WEBGL_VARYINGS()}
   ${WEBGL_FRAGMENT_UNIFORMS}
   ${PBR_FRAGMENT_MAIN(WEBGL_TEXTURE)}
 
@@ -412,7 +399,7 @@ export function WEBGL2_VERTEX_SOURCE(defines) {
   return `#version 300 es
   ${DEFINES(defines)}
   ${ATTRIBUTES_WITH_LAYOUT}
-  ${WEBGL2_VARYINGS('out')}
+  ${WEBGL_VARYINGS('out')}
   ${WEBGL2_VERTEX_UNIFORMS}
   ${PBR_VERTEX_MAIN}
   `;
@@ -422,7 +409,7 @@ export function WEBGL2_FRAGMENT_SOURCE(defines) {
   return `#version 300 es
   precision highp float;
   ${DEFINES(defines)}
-  ${WEBGL2_VARYINGS('in')}
+  ${WEBGL_VARYINGS('in')}
   ${WEBGL2_FRAGMENT_UNIFORMS}
   ${PBR_FRAGMENT_MAIN(WEBGL2_TEXTURE)}
 
