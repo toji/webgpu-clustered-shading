@@ -44,21 +44,7 @@ export class GPUTextureHelper {
 
     this.mipmapSampler = device.createSampler({ minFilter: 'linear' });
 
-    this.mipmapBindGroupLayout = device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampler'
-      },
-      {
-        binding: 1,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      }]
-    });
-
     this.mipmapPipeline = device.createRenderPipeline({
-      layout: device.createPipelineLayout({ bindGroupLayouts: [this.mipmapBindGroupLayout] }),
       vertexStage: {
         module: device.createShaderModule({
           code: glslang.compileGLSL(mipmapVertexSource, 'vertex')
@@ -91,53 +77,27 @@ export class GPUTextureHelper {
     const srcTexture = this.device.createTexture({
       size: textureSize,
       format: 'rgba8unorm',
+      // TO COMPLAIN ABOUT: Kind of worrying that this style of mipmap generation implies that almost every texture
+      // generated will be an output attachment. There's gotta be a performance penalty for that.
       usage: GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED | GPUTextureUsage.OUTPUT_ATTACHMENT,
       mipLevelCount
     });
     this.device.defaultQueue.copyImageBitmapToTexture({ imageBitmap }, { texture: srcTexture }, textureSize);
 
-    // BUG: The fact that we have to create a second texture here is due to a bug in Chrome that doesn't allow you to
-    // use a single texture as both a sampler and a output attachement at the same time. If we could do that this code
-    // would use half as much GPU allocations and no copyTextureToTexture calls.
-    const mipmappedTexture = this.device.createTexture({
-      size: textureSize,
-      format: 'rgba8unorm',
-      // TO COMPLAIN ABOUT: Kind of worrying that this style of mipmap generation implies that almost every texture
-      // generated will be an output attachment. There's gotta be a performance penalty for that.
-      usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.SAMPLED | GPUTextureUsage.OUTPUT_ATTACHMENT,
-      mipLevelCount
-    });
-
     const commandEncoder = this.device.createCommandEncoder({});
 
-    // BUG: Chrome currently says that if any level of a texture is incomplete the entire thing gets wiped to black when
-    // you attempt to sample from it. This is despite the fact that below we're using texture views restricted
-    // exclusively to the known populated mip levels. As a result in order for this code to work properly we first have
-    // to clear EVERY level of the mip chain (except the first, which was populated with copyImageBitmapToTexture)
-    // before we can render with it.
-    for (let i = 1; i < mipLevelCount; ++i) {
-      const passEncoder = commandEncoder.beginRenderPass({
-        colorAttachments: [{
-          attachment: srcTexture.createView({
-            baseMipLevel: i,
-            mipLevelCount: 1
-          }),
-          loadValue: { r: 1.0, g: 0.0, b: 0.0, a: 0.0 },
-        }],
-      });
-      passEncoder.endPass();
-    }
+    const bindGroupLayout = this.mipmapPipeline.getBindGroupLayout(0);
 
-    for (let i = 0; i < mipLevelCount; ++i) {
+    for (let i = 1; i < mipLevelCount; ++i) {
       const bindGroup = this.device.createBindGroup({
-        layout: this.mipmapBindGroupLayout,
+        layout: bindGroupLayout,
         entries: [{
           binding: 0,
           resource: this.mipmapSampler,
         }, {
           binding: 1,
           resource: srcTexture.createView({
-            baseMipLevel: Math.max(0, i-1),
+            baseMipLevel: i-1,
             mipLevelCount: 1
           }),
         }],
@@ -145,7 +105,7 @@ export class GPUTextureHelper {
 
       const passEncoder = commandEncoder.beginRenderPass({
         colorAttachments: [{
-          attachment: mipmappedTexture.createView({
+          attachment: srcTexture.createView({
             baseMipLevel: i,
             mipLevelCount: 1
           }),
@@ -157,22 +117,12 @@ export class GPUTextureHelper {
       passEncoder.draw(4, 1, 0, 0);
       passEncoder.endPass();
 
-      commandEncoder.copyTextureToTexture({
-        texture: mipmappedTexture,
-        mipLevel: i
-      }, {
-        texture: srcTexture,
-        mipLevel: i
-      }, textureSize);
-
       textureSize.width = Math.ceil(textureSize.width / 2);
       textureSize.height = Math.ceil(textureSize.height / 2);
     }
     this.device.defaultQueue.submit([commandEncoder.finish()]);
 
-    srcTexture.destroy();
-
-    return mipmappedTexture;
+    return srcTexture;
   }
 
   generateTexture(imageBitmap) {
