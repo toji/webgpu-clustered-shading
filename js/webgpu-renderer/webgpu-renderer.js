@@ -438,15 +438,17 @@ export class WebGPURenderer extends Renderer {
     bufferView.renderData.gpuBuffer = gpuBuffer;
 
     // TODO: Pretty sure this can all be handled more efficiently.
-    const [copyBuffer, copyBufferArray] = this.device.createBufferMapped({
+    const copyBuffer = this.device.createBuffer({
       size: alignedLength,
-      usage: GPUBufferUsage.COPY_SRC
+      usage: GPUBufferUsage.COPY_SRC,
+      mappedAtCreation: true
     });
+    const copyBufferArray = new Uint8Array(copyBuffer.getMappedRange());
 
     const bufferData = await bufferView.dataView;
 
     const srcByteArray = new Uint8Array(bufferData.buffer, bufferData.byteOffset, bufferData.byteLength);
-    new Uint8Array(copyBufferArray).set(srcByteArray);
+    copyBufferArray.set(srcByteArray);
     copyBuffer.unmap();
 
     const commandEncoder = this.device.createCommandEncoder({});
@@ -530,12 +532,14 @@ export class WebGPURenderer extends Renderer {
     this.device.defaultQueue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
 
     // FYI: This is how you'd do it without using writeBuffer
-    /*const [materialUniformsSrcBuffer, materialUniformsSrcArray] = this.device.createBufferMapped({
+    /*const materialUniformsSrcBuffer = this.device.createBuffer({
       size: materialUniforms.byteLength,
       usage: GPUBufferUsage.COPY_SRC,
+      mappedAtCreation: true,
     });
 
-    new Float32Array(materialUniformsSrcArray).set(materialUniforms);
+    materialUniformsSrcArray = new Float32Array(materialUniformsSrcBuffer.getMappedRange());
+    materialUniformsSrcArray.set(materialUniforms);
     materialUniformsSrcBuffer.unmap();
 
     const commandEncoder = this.device.createCommandEncoder({});
@@ -667,18 +671,6 @@ export class WebGPURenderer extends Renderer {
       });
 
       this.device.defaultQueue.writeBuffer(primitiveUniformsBuffer, 0, primitive.renderData.instances[0]);
-
-      /*const [copyBuffer, copyBufferArray] = this.device.createBufferMapped({
-        size: bufferSize,
-        usage: GPUBufferUsage.COPY_SRC
-      });
-
-      new Float32Array(copyBufferArray).set(primitive.renderData.instances[0]);
-      copyBuffer.unmap();
-
-      const commandEncoder = this.device.createCommandEncoder({});
-      commandEncoder.copyBufferToBuffer(copyBuffer, 0, primitiveUniformsBuffer, 0, bufferSize);
-      this.device.defaultQueue.submit([commandEncoder.finish()]);*/
 
       const primitiveBindGroup = this.device.createBindGroup({
         layout: this.primitiveUniformsBindGroupLayout,
