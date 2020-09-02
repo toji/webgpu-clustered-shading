@@ -322,6 +322,9 @@ export class WebGPURenderer extends Renderer {
         entryPoint: 'main'
       },
       primitiveTopology: 'triangle-strip',
+      vertexState: {
+        indexFormat: 'uint32'
+      },
       colorStates: [{
         format: this.swapChainFormat,
         colorBlend: {
@@ -641,9 +644,13 @@ export class WebGPURenderer extends Renderer {
       vertexBuffers
     };
 
-    if (primitive.indices && primitive.indices.type == GL.UNSIGNED_SHORT) {
-      primitive.renderData.gpuVertexState.indexFormat = 'uint16';
+    if (primitive.indices) {
+      primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
     }
+
+    /*if (primitive.indices && primitive.indices.type == GL.UNSIGNED_SHORT) {
+      primitive.renderData.gpuVertexState.indexFormat = 'uint16';
+    }*/
 
     const defines = GetDefinesForPrimitive(primitive);
     defines.LIGHT_COUNT = this.lightCount;
@@ -691,6 +698,8 @@ export class WebGPURenderer extends Renderer {
 
   createPipeline(primitive) {
     const material = primitive.material;
+    const shaderModule = primitive.renderData.gpuShaderModule;
+    const vertexState = primitive.renderData.gpuVertexState;
 
     let primitiveTopology;
     switch (primitive.mode) {
@@ -699,12 +708,14 @@ export class WebGPURenderer extends Renderer {
         break;
       case GL.TRIANGLE_STRIP:
         primitiveTopology = 'triangle-strip';
+        vertexState.indexFormat = primitive.indices.gpuType;
         break;
       case GL.LINES:
         primitiveTopology = 'line-list';
         break;
       case GL.LINE_STRIP:
         primitiveTopology = 'line-strip';
+        vertexState.indexFormat = primitive.indices.gpuType;
         break;
       case GL.POINTS:
         primitiveTopology = 'point-list';
@@ -719,9 +730,6 @@ export class WebGPURenderer extends Renderer {
       colorBlend.srcFactor = 'src-alpha';
       colorBlend.dstFactor = 'one-minus-src-alpha';
     }
-
-    const shaderModule = primitive.renderData.gpuShaderModule;
-    const vertexState = primitive.renderData.gpuVertexState;
 
     // Generate a key that describes this pipeline's layout/state
     let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
@@ -842,7 +850,8 @@ export class WebGPURenderer extends Renderer {
         }
 
         if (primitive.indices) {
-          passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer, primitive.indices.byteOffset);
+          passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer,
+                                     primitive.indices.gpuType, primitive.indices.byteOffset);
           passEncoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
         } else {
           passEncoder.draw(primitive.elementCount, 1, 0, 0);
