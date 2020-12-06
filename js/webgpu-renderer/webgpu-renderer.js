@@ -20,7 +20,7 @@
 
 import { Renderer } from '../renderer.js';
 import { GPUTextureHelper } from './webgpu-texture-helper.js';
-import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from '../pbr-shader.js';
+import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
 import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
@@ -34,21 +34,64 @@ const GL = WebGLRenderingContext;
 
 let NEXT_SHADER_ID = 0;
 
+function logWithNumberedLines(codeSrc) {
+  const lines = codeSrc.split('\n');
+  let lineNum = 1;
+  let outSrc = '';
+  for (const line of lines) {
+    outSrc += `${lineNum}: ${line}\n`;
+    lineNum++;
+  }
+
+  console.log(outSrc);
+}
+
+const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
+
+function createShaderModuleDebug(device, code) {
+  device.pushErrorScope('validation');
+
+  const shaderModule = device.createShaderModule({ code });
+
+  device.popErrorScope().then((error) => {
+    if (error) {
+      const codeLines = code.split('\n');
+
+      const errorList = error.message.matchAll(SHADER_ERROR_REGEX);
+      if (!errorList) {
+        console.error(error.message);
+        return;
+      }
+
+      for (const errorMatch of errorList) {
+        const errorLine = parseInt(errorMatch[1], 10);
+        const errorChar = parseInt(errorMatch[2], 10);
+
+        let errorPointer = '';
+        for (let i = 0; i < errorChar-1; ++i) {
+          errorPointer += '-';
+        }
+        errorPointer += '^';
+
+        console.error(errorMatch[0], `\n${codeLines[errorLine-1]}\n${errorPointer}`);
+      }
+    }
+  });
+
+  return shaderModule;
+}
+
 class PBRShaderModule {
   constructor(device, glslang, defines) {
     this.id = NEXT_SHADER_ID++;
 
     this.vertexStage = {
-      module: device.createShaderModule({
-        code: glslang.compileGLSL(WEBGPU_VERTEX_SOURCE(defines), 'vertex')
-      }),
+      module: createShaderModuleDebug(device, WEBGPU_VERTEX_SOURCE(defines)),
       entryPoint: 'main'
     };
 
     this.fragmentStage = {
-      module: device.createShaderModule({
-        code: glslang.compileGLSL(WEBGPU_FRAGMENT_SOURCE(defines), 'fragment')
-      }),
+      module: createShaderModuleDebug(device, WEBGPU_FRAGMENT_SOURCE(defines)),
       entryPoint: 'main'
     };
   }
@@ -56,39 +99,49 @@ class PBRShaderModule {
 
 const LightSprite = {
   vertexCount: 4,
-  vertexSource: `#version 450
-  const vec2 pos[4] = vec2[4](vec2(-1.0f, 1.0f), vec2(1.0f, 1.0f), vec2(-1.0f, -1.0f), vec2(1.0f, -1.0f));
 
-  layout(std140, set=0, binding=0) uniform FrameUniforms {
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    vec3 cameraPosition;
+  vertexSource: `
+  var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
+    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
+  );
+
+  [[block]] struct FrameUniforms {
+    [[offset(0)]] projectionMatrix : mat4x4<f32>;
+    [[offset(64)]] viewMatrix : mat4x4<f32>;
+    [[offset(128)]] cameraPosition : vec3<f32>;
   };
+  [[binding(0), set(0)]] var<uniform> frame : FrameUniforms;
 
   struct Light {
-    vec3 position;
-    vec3 color;
+    [[offset(0)]] position : vec3<f32>;
+    [[offset(16)]] color : vec3<f32>;
   };
 
-  layout(std140, set=0, binding=1) uniform LightUniforms {
-    Light lights[5];
-    float lightAmbient;
+  [[block]] struct LightUniforms {
+    [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
+    [[offset(160)]] lightAmbient : f32;
   };
+  [[binding(1), set(0)]] var<uniform> light : LightUniforms;
 
-  layout(location = 0) out vec2 vPos;
-  layout(location = 1) out vec3 vColor;
+  [[location(0)]] var<out> vPos : vec2<f32>;
+  [[location(1)]] var<out> vColor : vec3<f32>;
 
-  const float lightSize = 0.2;
+  [[builtin(position)]] var<out> outPosition : vec4<f32>;
+  [[builtin(vertex_idx)]] var<in> vertexIndex : i32;
+  [[builtin(instance_idx)]] var<in> instanceIndex : i32;
 
-  void main() {
-    vPos = pos[gl_VertexIndex];
-    vColor = lights[gl_InstanceIndex].color;
-    vec3 worldPos = vec3(pos[gl_VertexIndex], 0.0) * lightSize;
+  [[stage(vertex)]]
+  fn main() -> void {
+    const lightSize : f32 = 0.2;
 
-    // Generate a billboarded model view matrix
-    mat4 bbModelViewMatrix = mat4(1.0);
-    bbModelViewMatrix[3] = vec4(lights[gl_InstanceIndex].position, 1.0);
-    bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
+    vPos = pos[vertexIndex];
+    vColor = light.lights[instanceIndex].color;
+    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * lightSize;
+
+    # Generate a billboarded model view matrix
+    var bbModelViewMatrix : mat4x4<f32>;
+    bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
+    bbModelViewMatrix = frame.viewMatrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;
     bbModelViewMatrix[0][2] = 0.0;
@@ -101,21 +154,23 @@ const LightSprite = {
     bbModelViewMatrix[2][1] = 0.0;
     bbModelViewMatrix[2][2] = 1.0;
 
-    gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
+    outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
+    return;
   }`,
-  fragmentSource: `#version 450
-  precision highp float;
 
-  layout(location = 0) in vec2 vPos;
-  layout(location = 1) in vec3 vColor;
+  fragmentSource: `
+  [[location(0)]] var<out> outColor : vec4<f32>;
 
-  layout(location = 0) out vec4 outColor;
+  [[location(0)]] var<in> vPos : vec2<f32>;
+  [[location(1)]] var<in> vColor : vec3<f32>;
 
-  void main() {
-    float distToCenter = length(vPos);
-    float fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    outColor = vec4(vColor * fade, fade);
-  }`
+  [[stage(fragment)]]
+  fn main() -> void {
+    var distToCenter : f32 = length(vPos);
+    var fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+    outColor = vec4<f32>(vColor * fade, fade);
+    return;
+  }`,
 };
 
 export class WebGPURenderer extends Renderer {
@@ -138,7 +193,8 @@ export class WebGPURenderer extends Renderer {
       powerPreference: "high-performance"
     });
     this.device = await this.adapter.requestDevice();
-    this.swapChainFormat = await this.context.getSwapChainPreferredFormat(this.device);
+
+    this.swapChainFormat = this.context.getSwapChainPreferredFormat(this.adapter);
     this.swapChain = this.context.configureSwapChain({
       device: this.device,
       format: this.swapChainFormat
@@ -311,13 +367,13 @@ export class WebGPURenderer extends Renderer {
       layout: this.device.createPipelineLayout({ bindGroupLayouts: [lightSpriteBindGroupLayout] }),
       vertexStage: {
         module: this.device.createShaderModule({
-          code: this.glslang.compileGLSL(LightSprite.vertexSource, 'vertex')
+          code: LightSprite.vertexSource,
         }),
         entryPoint: 'main'
       },
       fragmentStage: {
         module: this.device.createShaderModule({
-          code: this.glslang.compileGLSL(LightSprite.fragmentSource, 'fragment')
+          code: LightSprite.fragmentSource,
         }),
         entryPoint: 'main'
       },
