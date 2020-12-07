@@ -17,6 +17,6 @@ The biggest gains with this renderer vs. the WebGL renderer come from using Vert
 ## WebGPU
 The nature of the API means that most of the work is done at initialization time, so the number of calls needed to dispatch draw commands is lower than WebGL 2.0 to begin with, but the render loop is reduced down to almost nothing by using the GPURenderBundles to record the draw commands used at load time and replay them with a single call during the frame callback.
 
-It should be noted that the WebGPU code path uses [WGSL shaders]](https://gpuweb.github.io/gpuweb/wgsl.html), which is WebGPU's native shading language but is not yet finalized. Some breakage is expected in the future, but I'll generally keep it up-to-date with Chrome Canary's implementation.
+It should be noted that the WebGPU code path uses [WGSL shaders](https://gpuweb.github.io/gpuweb/wgsl.html), which is WebGPU's native shading language but is not yet finalized. Some breakage is expected in the future, but I'll generally keep it up-to-date with Chrome Canary's implementation.
 
 To test the WebGPU renderer use Chrome Canary on Windows or MacOS, navigate to about:flags, and turn on the "Unsafe WebGPU" flag.
