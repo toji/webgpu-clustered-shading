@@ -20,7 +20,7 @@
 
 import { Renderer } from '../renderer.js';
 import { GPUTextureHelper } from './webgpu-texture-helper.js';
-import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
+import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
 const SAMPLE_COUNT = 4;
@@ -31,18 +31,6 @@ const GENERATE_MIPMAPS = true;
 const GL = WebGLRenderingContext;
 
 let NEXT_SHADER_ID = 0;
-
-function numberLines(codeSrc) {
-  const lines = codeSrc.split('\n');
-  let lineNum = 1;
-  let outSrc = {};
-  for (const line of lines) {
-    outSrc[lineNum] = line;
-    lineNum++;
-  }
-
-  return outSrc;
-}
 
 const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
 
@@ -94,10 +82,6 @@ function createShaderModuleDebug(device, code) {
       if (error.message.length > lastIndex+1) {
         errorMessage += error.message.substring(lastIndex+1, error.message.length);
       }
-
-      // (Optional, messy) Add an expandable version of the source code, complete with line numbers.
-      //errorMessage += `\n%O`;
-      //errorStyles.push(numberLines(code));
 
       // Finally, log to console as an error.
       console.error(errorMessage, ...errorStyles);
@@ -390,15 +374,11 @@ export class WebGPURenderer extends Renderer {
     this.lightSpritePipeline = this.device.createRenderPipeline({
       layout: this.device.createPipelineLayout({ bindGroupLayouts: [lightSpriteBindGroupLayout] }),
       vertexStage: {
-        module: this.device.createShaderModule({
-          code: LightSprite.vertexSource,
-        }),
+        module: createShaderModuleDebug(this.device, LightSprite.vertexSource),
         entryPoint: 'main'
       },
       fragmentStage: {
-        module: this.device.createShaderModule({
-          code: LightSprite.fragmentSource,
-        }),
+        module: createShaderModuleDebug(this.device, LightSprite.fragmentSource),
         entryPoint: 'main'
       },
       primitiveTopology: 'triangle-strip',
@@ -477,8 +457,8 @@ export class WebGPURenderer extends Renderer {
       sampleCount: SAMPLE_COUNT
     });
 
-    renderBundleEncoder.setBindGroup(0, this.frameUniformBindGroup);
-    renderBundleEncoder.setBindGroup(3, this.lightUniformBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightUniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -918,10 +898,10 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(pipeline);
     const materialPrimitives = this.pipelineMaterials.get(pipeline);
     for (let [material, primitives] of materialPrimitives) {
-      passEncoder.setBindGroup(1, material.renderData.gpuBindGroup);
+      passEncoder.setBindGroup(UNIFORM_BLOCKS.MaterialUniforms, material.renderData.gpuBindGroup);
 
       for (let primitive of primitives) {
-        passEncoder.setBindGroup(2, primitive.renderData.gpuBindGroup);
+        passEncoder.setBindGroup(UNIFORM_BLOCKS.PrimitiveUniforms, primitive.renderData.gpuBindGroup);
 
         let i = 0;
         for (let bufferView of primitive.attributeBuffers.keys()) {
