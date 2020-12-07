@@ -76,21 +76,6 @@ ${type} vec3 vNorm;
 `;
 }
 
-function WEBGPU_VARYINGS(dir) {
-  return `
-layout(location = 0) ${dir} vec3 vWorldPos;
-layout(location = 1) ${dir} vec3 vView; // Vector from vertex to camera.
-layout(location = 2) ${dir} vec2 vTex;
-layout(location = 3) ${dir} vec4 vCol;
-
-#ifdef USE_NORMAL_MAP
-layout(location = 4) ${dir} mat3 vTBN;
-#else
-layout(location = 4) ${dir} vec3 vNorm;
-#endif
-`;
-}
-
 const WEBGL_VERTEX_UNIFORMS = `
 uniform mat4 projectionMatrix;
 uniform mat4 viewMatrix;
@@ -108,18 +93,6 @@ layout(std140) uniform FrameUniforms
 };
 
 uniform mat4 modelMatrix;
-`;
-
-const WEBGPU_VERTEX_UNIFORMS = `
-layout(set = ${UNIFORM_BLOCKS.FrameUniforms}, binding = 0) uniform FrameUniforms {
-  mat4 projectionMatrix;
-  mat4 viewMatrix;
-  vec3 cameraPosition;
-};
-
-layout(set = ${UNIFORM_BLOCKS.PrimitiveUniforms}, binding = 0) uniform PrimitiveUniforms {
-  mat4 modelMatrix;
-};
 `;
 
 const WEBGL_FRAGMENT_UNIFORMS = `
@@ -168,43 +141,12 @@ layout(std140) uniform LightUniforms {
 };
 `;
 
-const WEBGPU_FRAGMENT_UNIFORMS = `
-layout(set = ${UNIFORM_BLOCKS.MaterialUniforms}, binding = 0) uniform MaterialUniforms {
-  vec4 baseColorFactor;
-  vec2 metallicRoughnessFactor;
-  vec3 emissiveFactor;
-  float occlusionStrength;
-};
-
-layout(set = 1, binding = 1) uniform sampler defaultSampler;
-
-layout(set = 1, binding = 2) uniform texture2D baseColorTexture;
-layout(set = 1, binding = 3) uniform texture2D normalTexture;
-layout(set = 1, binding = 4) uniform texture2D metallicRoughnessTexture;
-layout(set = 1, binding = 5) uniform texture2D occlusionTexture;
-layout(set = 1, binding = 6) uniform texture2D emissiveTexture;
-
-struct Light {
-  vec4 position;
-  vec4 color;
-};
-
-layout(set = ${UNIFORM_BLOCKS.LightUniforms}, binding = 0) uniform LightUniforms {
-  Light lights[LIGHT_COUNT];
-  float lightAmbient;
-};
-`;
-
 function WEBGL_TEXTURE(texture, texcoord) {
   return `texture2D(${texture}, ${texcoord})`;
 }
 
 function WEBGL2_TEXTURE(texture, texcoord) {
   return `texture(${texture}, ${texcoord})`;
-}
-
-function WEBGPU_TEXTURE(texture, texcoord) {
-  return `texture(sampler2D(${texture}, defaultSampler), ${texcoord})`;
 }
 
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
@@ -416,31 +358,6 @@ export function WEBGL2_FRAGMENT_SOURCE(defines) {
   out vec4 outputColor;
   void main() {
     outputColor = computeColor();;
-  }
-  `;
-}
-
-export function WEBGPU_VERTEX_SOURCE(defines) {
-  return `#version 450
-  ${DEFINES(defines)}
-  ${ATTRIBUTES_WITH_LAYOUT}
-  ${WEBGPU_VARYINGS('out')}
-  ${WEBGPU_VERTEX_UNIFORMS}
-  ${PBR_VERTEX_MAIN}
-  `;
-}
-
-export function WEBGPU_FRAGMENT_SOURCE(defines) {
-  return `#version 450
-  precision highp float;
-  ${DEFINES(defines)}
-  ${WEBGPU_VARYINGS('in')}
-  ${WEBGPU_FRAGMENT_UNIFORMS}
-  ${PBR_FRAGMENT_MAIN(WEBGPU_TEXTURE)}
-
-  layout(location = 0) out vec4 outputColor;
-  void main() {
-    outputColor = computeColor();
   }
   `;
 }

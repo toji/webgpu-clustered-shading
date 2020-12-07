@@ -23,8 +23,6 @@ import { GPUTextureHelper } from './webgpu-texture-helper.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 
-import glslangModule from 'https://unpkg.com/@webgpu/glslang@0.0.7/web/glslang.js';
-
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 const GENERATE_MIPMAPS = true;
@@ -352,8 +350,6 @@ export class WebGPURenderer extends Renderer {
     });
 
     // TODO: Will probably need to be per-material later
-    this.glslang = await glslangModule();
-
     this.textureHelper = new GPUTextureHelper(this.device, this.glslang);
 
     this.blackTextureView = this.textureHelper.generateColorTexture(0, 0, 0, 0).createView();
@@ -851,7 +847,7 @@ export class WebGPURenderer extends Renderer {
         colorStates: [{
           format: this.swapChainFormat,
           colorBlend
-          // TODO: Bend mode goes here
+          // TODO: Blend mode goes here
         }],
         depthStencilState: {
           depthWriteEnabled: true,
