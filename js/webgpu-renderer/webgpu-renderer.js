@@ -34,16 +34,16 @@ const GL = WebGLRenderingContext;
 
 let NEXT_SHADER_ID = 0;
 
-function logWithNumberedLines(codeSrc) {
+function numberLines(codeSrc) {
   const lines = codeSrc.split('\n');
   let lineNum = 1;
-  let outSrc = '';
+  let outSrc = {};
   for (const line of lines) {
-    outSrc += `${lineNum}: ${line}\n`;
+    outSrc[lineNum] = line;
     lineNum++;
   }
 
-  console.log(outSrc);
+  return outSrc;
 }
 
 const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
@@ -57,16 +57,10 @@ function createShaderModuleDebug(device, code) {
     if (error) {
       const codeLines = code.split('\n');
 
+      // Find every line in the error that matches a known format. (line:char: message)
       const errorList = error.message.matchAll(SHADER_ERROR_REGEX);
 
-      // If no parsable errors were found, just print the whole message.
-      if (!errorList) {
-        console.error(error.message);
-        return;
-      }
-
-      // Otherwise loop through the parsed error messages and show the relevant source code for
-      // each message.
+      // Loop through the parsed error messages and show the relevant source code for each message.
       let errorMessage = '';
       let errorStyles = [];
 
@@ -92,11 +86,22 @@ function createShaderModuleDebug(device, code) {
 
       }
 
-      // Include any trailing content.
+      // If no parsable errors were found, just print the whole message.
+      if (lastIndex == 0) {
+        console.error(error.message);
+        return;
+      }
+
+      // Otherwise append any trailing message content.
       if (error.message.length > lastIndex+1) {
         errorMessage += error.message.substring(lastIndex+1, error.message.length);
       }
 
+      // (Optional, messy) Add an expandable version of the source code, complete with line numbers.
+      //errorMessage += `\n%O`;
+      //errorStyles.push(numberLines(code));
+
+      // Finally, log to console as an error.
       console.error(errorMessage, ...errorStyles);
     }
   });

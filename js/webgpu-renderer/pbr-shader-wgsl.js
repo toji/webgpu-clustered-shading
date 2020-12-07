@@ -33,31 +33,29 @@ export const UNIFORM_BLOCKS = {
   LightUniforms: 3
 };
 
-function PBR_VARYINGS(dir) {
-  return `
+function PBR_VARYINGS(defines, dir) { return `
 [[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
 [[location(1)]] var<${dir}> vView : vec3<f32>; # Vector from vertex to camera.
 [[location(2)]] var<${dir}> vTex : vec2<f32>;
 [[location(3)]] var<${dir}> vCol : vec4<f32>;
 
-#ifdef USE_NORMAL_MAP
-#[[location(4)]] var<${dir}> vTBN : mat3x3<f32>;
-#else
+${defines.USE_NORMAL_MAP ? `
+[[location(4)]] var<${dir}> vTBN : mat3x3<f32>;
+` : `
 [[location(4)]] var<${dir}> vNorm : vec3<f32>;
-#endif
-`;
+`}`;
 }
 
-const PBR_VERTEX_MAIN = `
+export function WEBGPU_VERTEX_SOURCE(defines) { return `
 [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
 [[location(${ATTRIB_MAP.NORMAL})]] var<in> NORMAL : vec3<f32>;
-#ifdef USE_NORMAL_MAP
-#[[location(${ATTRIB_MAP.TANGENT})]] var<in> TANGENT : vec4<f32>;
-#endif
+${defines.USE_NORMAL_MAP ? `
+[[location(${ATTRIB_MAP.TANGENT})]] var<in> TANGENT : vec4<f32>;
+` : ``}
 [[location(${ATTRIB_MAP.TEXCOORD_0})]] var<in> TEXCOORD_0 : vec2<f32>;
-#ifdef USE_VERTEX_COLOR
-#[[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
-#endif
+${defines.USE_VERTEX_COLOR ? `
+[[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
+` : ``}
 
 [[block]] struct FrameUniforms {
   [[offset(0)]] projectionMatrix : mat4x4<f32>;
@@ -67,28 +65,28 @@ const PBR_VERTEX_MAIN = `
 [[binding(0), set(${UNIFORM_BLOCKS.FrameUniforms})]] var<uniform> frame : FrameUniforms;
 
 [[block]] struct PrimitiveUniforms {
-  [[offset(0]] modelMatrix : mat4x4<f32>;
+  [[offset(0)]] modelMatrix : mat4x4<f32>;
 };
 [[binding(0), set(${UNIFORM_BLOCKS.PrimitiveUniforms})]] var<uniform> primitive : PrimitiveUniforms;
 
-${PBR_VARYINGS('out')}
+${PBR_VARYINGS(defines, 'out')}
 
 [[builtin(position)]] var<out> outPosition : vec4<f32>;
 
 [[stage(vertex)]]
 fn main() -> void {
   var n : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(NORMAL, 0.0)).xyz);
-#ifdef USE_NORMAL_MAP
-#  var t : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
-#  var b : vec3<f32> = cross(n, t) * TANGENT.w;
-#  vTBN = mat3x3<f32>(t, b, n);
-#else
+${defines.USE_NORMAL_MAP ? `
+  var t : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
+  var b : vec3<f32> = cross(n, t) * TANGENT.w;
+  vTBN = mat3x3<f32>(t, b, n);
+` : `
   vNorm = n;
-#endif
+`}
 
-#ifdef USE_VERTEX_COLOR
-#  vCol = COLOR_0;
-#endif
+${defines.USE_VERTEX_COLOR ? `
+  vCol = COLOR_0;
+` : `` }
 
   vTex = TEXCOORD_0;
   var mPos : vec4<f32> = primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
@@ -97,6 +95,7 @@ fn main() -> void {
   outPosition = frame.projectionMatrix * frame.viewMatrix * mPos;
   return;
 }`;
+}
 
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
@@ -139,7 +138,7 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
   return ggx1 * ggx2;
 }`;
 
-const PBR_FRAGMENT_MAIN = `
+export function WEBGPU_FRAGMENT_SOURCE(defines) { return `
 ${PBR_FUNCTIONS}
 
 [[block]] struct MaterialUniforms {
@@ -163,62 +162,58 @@ struct Light {
 };
 
 [[block]] struct LightUniforms {
-  [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
-  [[offset(160)]] lightAmbient : f32;
+  [[offset(0)]] lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
+  [[offset(${defines.LIGHT_COUNT * 32})]] lightAmbient : f32;
 };
 [[binding(0), set(${UNIFORM_BLOCKS.LightUniforms})]] var<uniform> light : LightUniforms;
 
-${PBR_VARYINGS('in')}
+${PBR_VARYINGS(defines, 'in')}
 
 [[location(0)]] var<out> outColor : vec4<f32>;
 
 const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
 const black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-const LIGHT_COUNT : i32 = 5;
-
 [[stage(fragment)]]
 fn main() -> void {
   var baseColor : vec4<f32> = material.baseColorFactor;
-#ifdef USE_BASE_COLOR_MAP
+${defines.USE_BASE_COLOR_MAP ? `
   var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
   if (baseColorMap.a < 0.05) {
     discard;
   }
   baseColor = baseColor * baseColorMap;
-#endif
-#ifdef USE_VERTEX_COLOR
-#  baseColor = baseColor * vCol;
-#endif
+` : ``}
+${defines.USE_VERTEX_COLOR ? `
+  baseColor = baseColor * vCol;
+` : ``}
 
-  var albedo : vec3<f32> = baseColor.rgb; #pow(baseColor.rgb, 2.2);
+  var albedo : vec3<f32> = baseColor.rgb;
 
   var metallic : f32 = material.metallicRoughnessFactor.x;
   var roughness : f32 = material.metallicRoughnessFactor.y;
 
-#ifdef USE_METAL_ROUGH_MAP
+${defines.USE_METAL_ROUGH_MAP ? `
   var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
   metallic = metallic * metallicRoughness.b;
   roughness = roughness * metallicRoughness.g;
-#endif
+` : ``}
 
-#ifdef USE_NORMAL_MAP
-#  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
-#  N = normalize(vTBN * (2.0 * N - 1.0));
-#else
-  var vec3<f32> N = normalize(vNorm);
-#endif
+${defines.USE_NORMAL_MAP ? `
+  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
+  N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+` : `
+  var N : vec3<f32> = normalize(vNorm);
+`}
 
   var V : vec3<f32> = normalize(vView);
 
-  var vec3<f32> F0  = vec3<f32>(0.04, 0.04, 0.04);
-  F0 = mix(F0, albedo, vec3<f32>(metallic, metallic, metallic));
-  # F0 = albedo * metallic;
+  var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
 
   # reflectance equation
   var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-  for (var i : i32 = 0; i < LIGHT_COUNT; i = i + 1) {
+  for (var i : i32 = 0; i < ${defines.LIGHT_COUNT}; i = i + 1) {
     # calculate per-light radiance
     var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
     var H : vec3<f32> = normalize(V + L);
@@ -231,9 +226,8 @@ fn main() -> void {
     var G : f32   = GeometrySmith(N, V, L, roughness);
     var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
 
-    var kS : vec3<f32> = F;
-    var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - kS;
-    kD = kD * vec3<f32>(1.0, 1.0, 1.0) - vec3<f32>(metallic, metallic, metallic);
+    var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
+    kD = kD * (1.0 - metallic);
 
     var numerator : vec3<f32>    = NDF * G * F;
     var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
@@ -242,22 +236,22 @@ fn main() -> void {
 
     # add to outgoing radiance Lo
     var NdotL : f32 = max(dot(N, L), 0.0);
-    Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * vec3<f32>(NdotL, NdotL, NdotL);
+    Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
   }
 
-#ifdef USE_OCCLUSION
-#  var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
-#else
+${defines.USE_OCCLUSION ? `
+  var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
+` : `
   var ao : f32 = 1.0;
-#endif
+`}
 
-  var ambient : vec3<f32> = vec3<f32>(light.lightAmbient, light.lightAmbient, light.lightAmbient) * albedo * ao;
+  var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
   var color : vec3<f32> = ambient + Lo;
 
   var emissive : vec3<f32> = material.emissiveFactor;
-#ifdef USE_EMISSIVE_TEXTURE
+${defines.USE_EMISSIVE_TEXTURE ? `
   emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
-#endif
+` : ``}
   color = color + emissive;
 
   color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
@@ -267,27 +261,6 @@ fn main() -> void {
   return;
 }
 `;
-
-function DEFINES(defines = {}) {
-  let definesString = '';
-  for (let define in defines) {
-    definesString += `#define ${define} ${defines[define]}\n`;
-  }
-  return definesString;
-}
-
-export function WEBGPU_VERTEX_SOURCE(defines) {
-  return `
-  ${DEFINES(defines)}
-  ${PBR_VERTEX_MAIN}
-  `;
-}
-
-export function WEBGPU_FRAGMENT_SOURCE(defines) {
-  return `
-  ${DEFINES(defines)}
-  ${PBR_FRAGMENT_MAIN}
-  `;
 }
 
 export function GetDefinesForPrimitive(primitive) {
