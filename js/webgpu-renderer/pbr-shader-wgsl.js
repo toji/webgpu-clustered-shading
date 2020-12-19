@@ -162,8 +162,9 @@ struct Light {
 };
 
 [[block]] struct LightUniforms {
-  [[offset(0)]] lights : [[stride(32)]] array<Light, ${defines.LIGHT_COUNT}>;
-  [[offset(${defines.LIGHT_COUNT * 32})]] lightAmbient : f32;
+  [[offset(0)]] lightAmbient : vec3<f32>;
+  [[offset(12)]] lightCount : u32;
+  [[offset(16)]] lights : [[stride(32)]] array<Light, ${defines.MAX_LIGHT_COUNT}>;
 };
 [[set(${UNIFORM_BLOCKS.LightUniforms}), binding(0)]] var<uniform> light : LightUniforms;
 
@@ -213,7 +214,7 @@ ${defines.USE_NORMAL_MAP ? `
   # reflectance equation
   var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-  for (var i : i32 = 0; i < ${defines.LIGHT_COUNT}; i = i + 1) {
+  for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
     # calculate per-light radiance
     var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
     var H : vec3<f32> = normalize(V + L);

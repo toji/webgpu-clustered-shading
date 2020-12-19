@@ -24,9 +24,31 @@ const lightFloatCount = 8;
 const lightByteSize = lightFloatCount * 4;
 
 class Light {
-  constructor(buffer, offset) {
-    this.position = new Float32Array(buffer, offset, 4);
-    this.color = new Float32Array(buffer, offset + 4 * 4, 4);
+  static floatSize = 8;
+  static byteSize = Light.floatSize * 4;
+
+  constructor(buffer, byteOffset) {
+    this.position = new Float32Array(buffer, byteOffset, 4);
+    this.color = new Float32Array(buffer, byteOffset + 16, 4);
+  }
+}
+
+class LightManager {
+  constructor(lightCount) {
+    this.uniformArray = new Float32Array(4 + Light.floatSize * lightCount);
+
+    this.ambientColor = new Float32Array(this.uniformArray.buffer, 0, 3);
+    this.lightCountArray = new Uint32Array(this.uniformArray.buffer, 12, 1);
+    this.lightCountArray[0] = lightCount;
+
+    this.lights = new Array(lightCount);
+    for (let i = 0; i < lightCount; ++i) {
+      this.lights[i] = new Light(this.uniformArray.buffer, 16 + lightByteSize * i);
+    }
+  }
+
+  get lightCount() {
+    return this.lightCountArray[0];
   }
 }
 
@@ -45,35 +67,27 @@ export class Renderer {
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
 
-    this.lightCount = 5;
+    this.lightManager = new LightManager(5); // Allocate space for 5 lights
 
-    this.lightUniforms = new Float32Array(lightFloatCount * this.lightCount + 4);
-
-    this.lights = new Array(this.lightCount);
-    for (let i = 0; i < this.lightCount; ++i) {
-      this.lights[i] = new Light(this.lightUniforms.buffer, lightByteSize * i);
-    }
-
-    this.lightAmbient = new Float32Array(this.lightUniforms.buffer, (lightByteSize * this.lightCount), 4);
+    // Ambient color
+    vec3.set(this.lightManager.ambientColor, 0.01, 0.01, 0.01);
 
     // Central wandering light
-    vec3.set(this.lights[0].position, 0, 1.5, 0);
-    vec3.set(this.lights[0].color, 10, 10, 10);
+    vec3.set(this.lightManager.lights[0].position, 0, 1.5, 0);
+    vec3.set(this.lightManager.lights[0].color, 10, 10, 10);
 
     // Lights in each corner over the birdbath things.
-    vec3.set(this.lights[1].position, 8.95, 1, -3.55);
-    vec3.set(this.lights[1].color, 5, 1, 1);
+    vec3.set(this.lightManager.lights[1].position, 8.95, 1, -3.55);
+    vec3.set(this.lightManager.lights[1].color, 5, 1, 1);
 
-    vec3.set(this.lights[2].position, 8.95, 1, 3.2);
-    vec3.set(this.lights[2].color, 5, 1, 1);
+    vec3.set(this.lightManager.lights[2].position, 8.95, 1, 3.2);
+    vec3.set(this.lightManager.lights[2].color, 5, 1, 1);
 
-    vec3.set(this.lights[3].position, -9.65, 1, -3.55);
-    vec3.set(this.lights[3].color, 1, 1, 5);
+    vec3.set(this.lightManager.lights[3].position, -9.65, 1, -3.55);
+    vec3.set(this.lightManager.lights[3].color, 1, 1, 5);
 
-    vec3.set(this.lights[4].position, -9.65, 1, 3.2);
-    vec3.set(this.lights[4].color, 1, 1, 5);
-
-    this.lightAmbient[0] = 0.01;
+    vec3.set(this.lightManager.lights[4].position, -9.65, 1, 3.2);
+    vec3.set(this.lightManager.lights[4].color, 1, 1, 5);
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
@@ -141,13 +155,13 @@ export class Renderer {
     vec3.copy(this.cameraPosition, this.camera.position);
 
     // Update the lights
-    vec3.set(this.lights[0].position,
+    vec3.set(this.lightManager.lights[0].position,
       Math.sin(timestamp / 1500) * 4,
       Math.cos(timestamp / 600) * 0.25 + 1.5,
       Math.cos(timestamp / 500) * 0.75);
 
     for (let i = 1; i < 5; ++i) {
-      this.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 800) * 0.1;
+      this.lightManager.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 800) * 0.1;
     }
   }
 

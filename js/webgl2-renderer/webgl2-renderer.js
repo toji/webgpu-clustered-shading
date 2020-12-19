@@ -20,7 +20,7 @@
 
 import { Renderer } from '../renderer.js';
 import { ShaderProgram } from './shader-program.js';
-import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
+import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGLTextureTool } from '../third-party/web-texture-tool/build/webgl-texture-tool.js';
 
@@ -63,8 +63,9 @@ const LightSprite = {
   };
 
   layout(std140) uniform LightUniforms {
+    vec3 lightAmbient;
+    int lightCount;
     Light lights[5];
-    float lightAmbient;
   };
 
   const float lightSize = 0.2;
@@ -148,7 +149,7 @@ export class WebGL2Renderer extends Renderer {
     this.lightProgram = new ShaderProgram(gl, {
       vertexSource: LightSprite.vertexSource,
       fragmentSource: LightSprite.fragmentSource,
-      defines: { LIGHT_COUNT: this.lightCount }
+      defines: { LIGHT_COUNT: this.lightManager.lightCount }
     });
     gl.uniformBlockBinding(this.lightProgram.program, this.lightProgram.uniformBlock.LightUniforms, UNIFORM_BLOCKS.LightUniforms);
 
@@ -255,7 +256,7 @@ export class WebGL2Renderer extends Renderer {
   initPrimitive(primitive) {
     const gl = this.gl;
     const defines = GetDefinesForPrimitive(primitive);
-    defines.LIGHT_COUNT = this.lightCount;
+    defines.LIGHT_COUNT = this.lightManager.lightCount;
     const material = primitive.material;
 
     primitive.renderData.instances = [];
@@ -395,7 +396,7 @@ export class WebGL2Renderer extends Renderer {
 
     // Update the light unforms as well
     gl.bindBuffer(gl.UNIFORM_BUFFER, this.lightUniformBuffer);
-    gl.bufferData(gl.UNIFORM_BUFFER, this.lightUniforms, gl.DYNAMIC_DRAW);
+    gl.bufferData(gl.UNIFORM_BUFFER, this.lightManager.uniformArray, gl.DYNAMIC_DRAW);
 
     // Loop through the render tree to bind and render every primitive instance
 
@@ -418,7 +419,7 @@ export class WebGL2Renderer extends Renderer {
     // Last, render a sprite for all of the lights
     this.lightProgram.use();
     gl.bindVertexArray(this.lightVertexArray);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightCount);
+    gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightManager.lightCount);
   }
 
   drawRenderTree(program, materialList) {

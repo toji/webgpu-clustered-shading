@@ -24,7 +24,7 @@ import { createShaderModuleDebug } from './wgsl-utils.js';
 const LightSpriteShader = {
   vertexCount: 4,
 
-  vertexSource: `
+  vertexSource: (maxLightCount) => { return `
   var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
     vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
   );
@@ -42,8 +42,9 @@ const LightSpriteShader = {
   };
 
   [[block]] struct LightUniforms {
-    [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
-    [[offset(160)]] lightAmbient : f32;
+    [[offset(0)]] lightAmbient : vec3<f32>;
+    [[offset(12)]] lightCount : u32;
+    [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
   [[set(1), binding(0)]] var<uniform> light : LightUniforms;
 
@@ -80,7 +81,7 @@ const LightSpriteShader = {
 
     outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
     return;
-  }`,
+  }`},
 
   fragmentSource: `
   [[location(0)]] var<out> outColor : vec4<f32>;
@@ -98,11 +99,9 @@ const LightSpriteShader = {
 };
 
 export class LightGroup {
-  constructor(device, maxLightCount,
-    /* TODO: Refactor this */
-    lightUniforms, frameBindGroupLayout, SWAP_CHAIN_FORMAT, DEPTH_FORMAT, SAMPLE_COUNT) {
+  constructor(device, lightManager, frameBindGroupLayout, renderBundleDescriptor) {
     this.device = device;
-    this.lightCount = maxLightCount;
+    this.lightManager = lightManager;
 
     this.bindGroupLayout = this.device.createBindGroupLayout({
       entries: [{
@@ -113,7 +112,7 @@ export class LightGroup {
     });
 
     this.uniformsBuffer = this.device.createBuffer({
-      size: lightUniforms.byteLength,
+      size: lightManager.uniformArray.byteLength,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
@@ -137,7 +136,7 @@ export class LightGroup {
     this.spritePipeline = this.device.createRenderPipeline({
       layout: this.spritePipelineLayout,
       vertexStage: {
-        module: createShaderModuleDebug(this.device, LightSpriteShader.vertexSource),
+        module: createShaderModuleDebug(this.device, LightSpriteShader.vertexSource(lightManager.lightCount)),
         entryPoint: 'main'
       },
       fragmentStage: {
@@ -149,7 +148,7 @@ export class LightGroup {
         indexFormat: 'uint32'
       },
       colorStates: [{
-        format: SWAP_CHAIN_FORMAT,
+        format: renderBundleDescriptor.colorFormats[0],
         colorBlend: {
           srcFactor: 'src-alpha',
           dstFactor: 'one-minus-src-alpha',
@@ -158,14 +157,19 @@ export class LightGroup {
       depthStencilState: {
         depthWriteEnabled: true,
         depthCompare: 'less',
-        format: DEPTH_FORMAT,
+        format: renderBundleDescriptor.depthStencilFormat,
       },
-      sampleCount: SAMPLE_COUNT,
+      sampleCount: renderBundleDescriptor.sampleCount,
     });
+  }
+
+  updateUniforms() {
+    // Update the light unform buffer with the latest values
+    this.device.defaultQueue.writeBuffer(this.uniformsBuffer, 0, this.lightManager.uniformArray);
   }
 
   renderSprites(encoder) {
     encoder.setPipeline(this.spritePipeline);
-    encoder.draw(LightSpriteShader.vertexCount, this.lightCount, 0, 0);
+    encoder.draw(LightSpriteShader.vertexCount, this.lightManager.lightCount, 0, 0);
   }
 }

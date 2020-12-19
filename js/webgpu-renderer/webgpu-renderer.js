@@ -78,6 +78,12 @@ export class WebGPURenderer extends Renderer {
       format: this.swapChainFormat
     });
 
+    this.renderBundleDescriptor = {
+      colorFormats: [ this.swapChainFormat ],
+      depthStencilFormat: DEPTH_FORMAT,
+      sampleCount: SAMPLE_COUNT
+    };
+
     this.textureTool = new WebGPUTextureTool(this.device);
 
     this.colorAttachment = {
@@ -110,9 +116,8 @@ export class WebGPURenderer extends Renderer {
       }]
     });
 
-    this.lightGroup = new LightGroup(this.device, this.lightCount,
-        this.lightUniforms, this.frameUniformsBindGroupLayout,
-        this.swapChainFormat, DEPTH_FORMAT, SAMPLE_COUNT);
+    this.lightGroup = new LightGroup(this.device, this.lightManager,
+        this.frameUniformsBindGroupLayout, this.renderBundleDescriptor);
 
     this.materialUniformsBindGroupLayout = this.device.createBindGroupLayout({
       entries: [{
@@ -238,11 +243,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     // Create a bundle we can use to replay our scene drawing each frame
-    const renderBundleEncoder = this.device.createRenderBundleEncoder({
-      colorFormats: [ this.swapChainFormat ],
-      depthStencilFormat: DEPTH_FORMAT,
-      sampleCount: SAMPLE_COUNT
-    });
+    const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
 
     renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
     renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightGroup.uniformBindGroup);
@@ -473,12 +474,8 @@ export class WebGPURenderer extends Renderer {
       primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
     }
 
-    /*if (primitive.indices && primitive.indices.type == GL.UNSIGNED_SHORT) {
-      primitive.renderData.gpuVertexState.indexFormat = 'uint16';
-    }*/
-
     const defines = GetDefinesForPrimitive(primitive);
-    defines.LIGHT_COUNT = this.lightGroup.lightCount;
+    defines.MAX_LIGHT_COUNT = this.lightManager.lightCount;
 
     let key = '';
     for (let define in defines) {
@@ -590,16 +587,15 @@ export class WebGPURenderer extends Renderer {
         // Everything below here is (currently) identical for each pipeline
         layout: this.pipelineLayout,
         colorStates: [{
-          format: this.swapChainFormat,
-          colorBlend
-          // TODO: Blend mode goes here
+          format: this.renderBundleDescriptor.colorFormats[0],
+          colorBlend,
         }],
         depthStencilState: {
           depthWriteEnabled: true,
           depthCompare: 'less',
-          format: DEPTH_FORMAT,
+          format: this.renderBundleDescriptor.depthStencilFormat,
         },
-        sampleCount: SAMPLE_COUNT,
+        sampleCount: this.renderBundleDescriptor.sampleCount,
       });
 
       this.pipelines.set(pipelineKey, pipeline);
@@ -645,7 +641,7 @@ export class WebGPURenderer extends Renderer {
     this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
 
     // Update the light unforms as well
-    this.device.defaultQueue.writeBuffer(this.lightGroup.uniformsBuffer, 0, this.lightUniforms);
+    this.lightGroup.updateUniforms();
 
     const commandEncoder = this.device.createCommandEncoder({});
 

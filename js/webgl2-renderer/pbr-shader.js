@@ -76,14 +76,6 @@ ${type} vec3 vNorm;
 `;
 }
 
-const WEBGL_VERTEX_UNIFORMS = `
-uniform mat4 projectionMatrix;
-uniform mat4 viewMatrix;
-uniform vec3 cameraPosition;
-
-uniform mat4 modelMatrix;
-`;
-
 const WEBGL2_VERTEX_UNIFORMS = `
 layout(std140) uniform FrameUniforms
 {
@@ -93,27 +85,6 @@ layout(std140) uniform FrameUniforms
 };
 
 uniform mat4 modelMatrix;
-`;
-
-const WEBGL_FRAGMENT_UNIFORMS = `
-uniform vec4 baseColorFactor;
-uniform vec2 metallicRoughnessFactor;
-uniform vec3 emissiveFactor;
-uniform float occlusionStrength;
-
-uniform sampler2D baseColorTexture;
-uniform sampler2D normalTexture;
-uniform sampler2D metallicRoughnessTexture;
-uniform sampler2D occlusionTexture;
-uniform sampler2D emissiveTexture;
-
-struct Light {
-  vec4 position;
-  vec4 color;
-};
-
-uniform Light lights[LIGHT_COUNT];
-uniform float lightAmbient;
 `;
 
 const WEBGL2_FRAGMENT_UNIFORMS = `
@@ -136,14 +107,11 @@ struct Light {
 };
 
 layout(std140) uniform LightUniforms {
+  vec3 lightAmbient;
+  int lightCount;
   Light lights[LIGHT_COUNT];
-  float lightAmbient;
 };
 `;
-
-function WEBGL_TEXTURE(texture, texcoord) {
-  return `texture2D(${texture}, ${texcoord})`;
-}
 
 function WEBGL2_TEXTURE(texture, texcoord) {
   return `texture(${texture}, ${texcoord})`;
@@ -258,7 +226,7 @@ vec4 computeColor() {
   // reflectance equation
   vec3 Lo = vec3(0.0);
 
-  for (int i = 0; i < LIGHT_COUNT; ++i) {
+  for (int i = 0; i < lightCount; ++i) {
     // calculate per-light radiance
     vec3 L = normalize(lights[i].position.xyz - vWorldPos);
     vec3 H = normalize(V + L);
@@ -312,29 +280,6 @@ function DEFINES(defines = {}) {
     definesString += `#define ${define} ${defines[define]}\n`;
   }
   return definesString;
-}
-
-export function WEBGL_VERTEX_SOURCE(defines) {
-  return `
-  ${DEFINES(defines)}
-  ${WEBGL_ATTRIBUTES}
-  ${WEBGL_VARYINGS()}
-  ${WEBGL_VERTEX_UNIFORMS}
-  ${PBR_VERTEX_MAIN}
-  `;
-}
-
-export function WEBGL_FRAGMENT_SOURCE(defines) {
-  return `precision highp float;
-  ${DEFINES(defines)}
-  ${WEBGL_VARYINGS()}
-  ${WEBGL_FRAGMENT_UNIFORMS}
-  ${PBR_FRAGMENT_MAIN(WEBGL_TEXTURE)}
-
-  void main() {
-    gl_FragColor = computeColor();
-  }
-  `;
 }
 
 export function WEBGL2_VERTEX_SOURCE(defines) {
