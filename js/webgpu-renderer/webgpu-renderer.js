@@ -20,8 +20,11 @@
 
 import { Renderer } from '../renderer.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
+import { LightGroup } from './light-group.js';
+import { createShaderModuleDebug } from './wgsl-utils.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
+
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
@@ -31,65 +34,6 @@ const GENERATE_MIPMAPS = true;
 const GL = WebGLRenderingContext;
 
 let NEXT_SHADER_ID = 0;
-
-const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
-
-function createShaderModuleDebug(device, code) {
-  device.pushErrorScope('validation');
-
-  const shaderModule = device.createShaderModule({ code });
-
-  device.popErrorScope().then((error) => {
-    if (error) {
-      const codeLines = code.split('\n');
-
-      // Find every line in the error that matches a known format. (line:char: message)
-      const errorList = error.message.matchAll(SHADER_ERROR_REGEX);
-
-      // Loop through the parsed error messages and show the relevant source code for each message.
-      let errorMessage = '';
-      let errorStyles = [];
-
-      let lastIndex = 0;
-
-      for (const errorMatch of errorList) {
-        // Include out any content between the parsable lines
-        if (errorMatch.index > lastIndex+1) {
-          errorMessage += error.message.substring(lastIndex, errorMatch.index);
-        }
-        lastIndex = errorMatch.index + errorMatch[0].length;
-
-        // Show the correlated line with an arrow that points at the indicated error position.
-        const errorLine = parseInt(errorMatch[1], 10)-1;
-        const errorChar = parseInt(errorMatch[2], 10);
-        const errorPointer = '-'.repeat(errorChar-1) + '^';
-        errorMessage += `${errorMatch[0]}\n%c${codeLines[errorLine]}\n%c${errorPointer}%c\n`;
-        errorStyles.push(
-          'color: grey;',
-          'color: green; font-weight: bold;',
-          'color: default;',
-        );
-
-      }
-
-      // If no parsable errors were found, just print the whole message.
-      if (lastIndex == 0) {
-        console.error(error.message);
-        return;
-      }
-
-      // Otherwise append any trailing message content.
-      if (error.message.length > lastIndex+1) {
-        errorMessage += error.message.substring(lastIndex+1, error.message.length);
-      }
-
-      // Finally, log to console as an error.
-      console.error(errorMessage, ...errorStyles);
-    }
-  });
-
-  return shaderModule;
-}
 
 class PBRShaderModule {
   constructor(device, glslang, defines) {
@@ -106,82 +50,6 @@ class PBRShaderModule {
     };
   }
 }
-
-const LightSprite = {
-  vertexCount: 4,
-
-  vertexSource: `
-  var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
-  );
-
-  [[block]] struct FrameUniforms {
-    [[offset(0)]] projectionMatrix : mat4x4<f32>;
-    [[offset(64)]] viewMatrix : mat4x4<f32>;
-    [[offset(128)]] cameraPosition : vec3<f32>;
-  };
-  [[binding(0), set(0)]] var<uniform> frame : FrameUniforms;
-
-  struct Light {
-    [[offset(0)]] position : vec3<f32>;
-    [[offset(16)]] color : vec3<f32>;
-  };
-
-  [[block]] struct LightUniforms {
-    [[offset(0)]] lights : [[stride(32)]] array<Light, 5>;
-    [[offset(160)]] lightAmbient : f32;
-  };
-  [[binding(1), set(0)]] var<uniform> light : LightUniforms;
-
-  [[location(0)]] var<out> vPos : vec2<f32>;
-  [[location(1)]] var<out> vColor : vec3<f32>;
-
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
-  [[builtin(vertex_idx)]] var<in> vertexIndex : i32;
-  [[builtin(instance_idx)]] var<in> instanceIndex : i32;
-
-  [[stage(vertex)]]
-  fn main() -> void {
-    const lightSize : f32 = 0.2;
-
-    vPos = pos[vertexIndex];
-    vColor = light.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * lightSize;
-
-    # Generate a billboarded model view matrix
-    var bbModelViewMatrix : mat4x4<f32>;
-    bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
-    bbModelViewMatrix = frame.viewMatrix * bbModelViewMatrix;
-    bbModelViewMatrix[0][0] = 1.0;
-    bbModelViewMatrix[0][1] = 0.0;
-    bbModelViewMatrix[0][2] = 0.0;
-
-    bbModelViewMatrix[1][0] = 0.0;
-    bbModelViewMatrix[1][1] = 1.0;
-    bbModelViewMatrix[1][2] = 0.0;
-
-    bbModelViewMatrix[2][0] = 0.0;
-    bbModelViewMatrix[2][1] = 0.0;
-    bbModelViewMatrix[2][2] = 1.0;
-
-    outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
-    return;
-  }`,
-
-  fragmentSource: `
-  [[location(0)]] var<out> outColor : vec4<f32>;
-
-  [[location(0)]] var<in> vPos : vec2<f32>;
-  [[location(1)]] var<in> vColor : vec3<f32>;
-
-  [[stage(fragment)]]
-  fn main() -> void {
-    var distToCenter : f32 = length(vPos);
-    var fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    outColor = vec4<f32>(vColor * fade, fade);
-    return;
-  }`,
-};
 
 export class WebGPURenderer extends Renderer {
   constructor() {
@@ -242,6 +110,10 @@ export class WebGPURenderer extends Renderer {
       }]
     });
 
+    this.lightGroup = new LightGroup(this.device, this.lightCount,
+        this.lightUniforms, this.frameUniformsBindGroupLayout,
+        this.swapChainFormat, DEPTH_FORMAT, SAMPLE_COUNT);
+
     this.materialUniformsBindGroupLayout = this.device.createBindGroupLayout({
       entries: [{
         binding: 0,
@@ -288,30 +160,17 @@ export class WebGPURenderer extends Renderer {
       }]
     });
 
-    this.lightUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
-      }]
-    });
-
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.frameUniformsBindGroupLayout, // set 0
-        this.materialUniformsBindGroupLayout, // set 1
-        this.primitiveUniformsBindGroupLayout, // set 2
-        this.lightUniformsBindGroupLayout, // set 3
+        this.lightGroup.bindGroupLayout, // set 1
+        this.materialUniformsBindGroupLayout, // set 2
+        this.primitiveUniformsBindGroupLayout, // set 3
       ]
     });
 
     this.frameUniformsBuffer = this.device.createBuffer({
       size: this.frameUniforms.byteLength,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
-    });
-
-    this.lightUniformsBuffer = this.device.createBuffer({
-      size: this.lightUniforms.byteLength,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
@@ -325,80 +184,9 @@ export class WebGPURenderer extends Renderer {
       }],
     });
 
-    this.lightUniformBindGroup = this.device.createBindGroup({
-      layout: this.lightUniformsBindGroupLayout,
-      entries: [{
-        binding: 0,
-        resource: {
-          buffer: this.lightUniformsBuffer,
-        },
-      }],
-    });
-
     this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
     this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
     this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
-
-    this.buildLightSprite();
-  }
-
-  buildLightSprite() {
-    const lightSpriteBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
-      }, {
-        binding: 1,
-        visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
-      }]
-    });
-
-    this.lightSpriteBindGroup = this.device.createBindGroup({
-      layout: lightSpriteBindGroupLayout,
-      entries: [{
-        binding: 0,
-        resource: {
-          buffer: this.frameUniformsBuffer,
-        },
-      }, {
-        binding: 1,
-        resource: {
-          buffer: this.lightUniformsBuffer,
-        },
-      }],
-    });
-
-    this.lightSpritePipeline = this.device.createRenderPipeline({
-      layout: this.device.createPipelineLayout({ bindGroupLayouts: [lightSpriteBindGroupLayout] }),
-      vertexStage: {
-        module: createShaderModuleDebug(this.device, LightSprite.vertexSource),
-        entryPoint: 'main'
-      },
-      fragmentStage: {
-        module: createShaderModuleDebug(this.device, LightSprite.fragmentSource),
-        entryPoint: 'main'
-      },
-      primitiveTopology: 'triangle-strip',
-      vertexState: {
-        indexFormat: 'uint32'
-      },
-      colorStates: [{
-        format: this.swapChainFormat,
-        colorBlend: {
-          srcFactor: 'src-alpha',
-          dstFactor: 'one-minus-src-alpha',
-        }
-        // TODO: Bend mode goes here
-      }],
-      depthStencilState: {
-        depthWriteEnabled: true,
-        depthCompare: 'less',
-        format: DEPTH_FORMAT,
-      },
-      sampleCount: SAMPLE_COUNT,
-    });
   }
 
   onResize(width, height) {
@@ -457,7 +245,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
-    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightUniformBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightGroup.uniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -469,10 +257,9 @@ export class WebGPURenderer extends Renderer {
       this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
     }
 
-    // Last, render a sprite for all of the lights
-    renderBundleEncoder.setPipeline(this.lightSpritePipeline);
-    renderBundleEncoder.setBindGroup(0, this.lightSpriteBindGroup);
-    renderBundleEncoder.draw(4, this.lightCount, 0, 0);
+    // Last, render a sprite for all of the lights.
+    // (Uses the frame and light bind groups that are already set).
+    this.lightGroup.renderSprites(renderBundleEncoder);
 
     this.renderBundle = renderBundleEncoder.finish();
   }
@@ -587,21 +374,6 @@ export class WebGPURenderer extends Renderer {
 
     this.device.defaultQueue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
 
-    // FYI: This is how you'd do it without using writeBuffer
-    /*const materialUniformsSrcBuffer = this.device.createBuffer({
-      size: materialUniforms.byteLength,
-      usage: GPUBufferUsage.COPY_SRC,
-      mappedAtCreation: true,
-    });
-
-    materialUniformsSrcArray = new Float32Array(materialUniformsSrcBuffer.getMappedRange());
-    materialUniformsSrcArray.set(materialUniforms);
-    materialUniformsSrcBuffer.unmap();
-
-    const commandEncoder = this.device.createCommandEncoder({});
-    commandEncoder.copyBufferToBuffer(materialUniformsSrcBuffer, 0, materialUniformsBuffer, 0, materialUniforms.byteLength);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);*/
-
     const materialBindGroup = this.device.createBindGroup({
       layout: this.materialUniformsBindGroupLayout,
       entries: [{
@@ -706,7 +478,7 @@ export class WebGPURenderer extends Renderer {
     }*/
 
     const defines = GetDefinesForPrimitive(primitive);
-    defines.LIGHT_COUNT = this.lightCount;
+    defines.LIGHT_COUNT = this.lightGroup.lightCount;
 
     let key = '';
     for (let define in defines) {
@@ -873,7 +645,7 @@ export class WebGPURenderer extends Renderer {
     this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
 
     // Update the light unforms as well
-    this.device.defaultQueue.writeBuffer(this.lightUniformsBuffer, 0, this.lightUniforms);
+    this.device.defaultQueue.writeBuffer(this.lightGroup.uniformsBuffer, 0, this.lightUniforms);
 
     const commandEncoder = this.device.createCommandEncoder({});
 

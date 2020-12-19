@@ -40,8 +40,8 @@
   <body>
     <select id='api'>
       <option value=''>- Choose an API -</option>
+      <option value='webgpu' selected>WebGPU</option>
       <option value='webgl2'>WebGL 2.0</option>
-      <option value='webgpu'>WebGPU</option>
     </select>
     <script type="module">
       import Stats from './js/third-party/stats.module.js';
@@ -109,6 +109,7 @@
         }
       }
       apiSelect.addEventListener('change', onApiChange);
+      onApiChange();
 
       async function initGltf() {
         const gltfLoader = new Gltf2Loader();

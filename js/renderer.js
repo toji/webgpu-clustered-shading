@@ -73,7 +73,7 @@ export class Renderer {
     vec3.set(this.lights[4].position, -9.65, 1, 3.2);
     vec3.set(this.lights[4].color, 1, 1, 5);
 
-    this.lightAmbient[0] = 0.05;
+    this.lightAmbient[0] = 0.01;
 
     this.frameCallback = (timestamp) => {
       this.rafId = requestAnimationFrame(this.frameCallback);
