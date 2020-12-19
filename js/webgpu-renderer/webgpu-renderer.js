@@ -19,9 +19,9 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { GPUTextureHelper } from './webgpu-texture-helper.js';
 import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
@@ -210,6 +210,8 @@ export class WebGPURenderer extends Renderer {
       format: this.swapChainFormat
     });
 
+    this.textureTool = new WebGPUTextureTool(this.device);
+
     this.colorAttachment = {
       // attachment is acquired and set in onResize.
       attachment: undefined,
@@ -333,12 +335,9 @@ export class WebGPURenderer extends Renderer {
       }],
     });
 
-    // TODO: Will probably need to be per-material later
-    this.textureHelper = new GPUTextureHelper(this.device, this.glslang);
-
-    this.blackTextureView = this.textureHelper.generateColorTexture(0, 0, 0, 0).createView();
-    this.whiteTextureView = this.textureHelper.generateColorTexture(1.0, 1.0, 1.0, 1.0).createView();
-    this.blueTextureView = this.textureHelper.generateColorTexture(0, 0, 1.0, 0).createView();
+    this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
+    this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
+    this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
 
     this.buildLightSprite();
   }
@@ -520,14 +519,8 @@ export class WebGPURenderer extends Renderer {
   }
 
   async initImage(image) {
-    //await image.decode();
-    const imageBitmap = await createImageBitmap(image);
-
-    if (GENERATE_MIPMAPS) {
-      image.gpuTextureView = this.textureHelper.generateMipmappedTexture(imageBitmap).createView();
-    } else {
-      image.gpuTextureView = this.textureHelper.generateTexture(imageBitmap).createView();
-    }
+    const result = await this.textureTool.loadTextureFromElement(image);
+    image.gpuTextureView = result.texture.createView();
   }
 
   initSampler(sampler) {

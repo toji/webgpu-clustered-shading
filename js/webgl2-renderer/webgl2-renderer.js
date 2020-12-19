@@ -19,9 +19,10 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { ShaderProgram } from '../webgl-renderer/shader-program.js';
+import { ShaderProgram } from './shader-program.js';
 import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from '../pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { WebGLTextureTool } from '../third-party/web-texture-tool/build/webgl-texture-tool.js';
 
 export class PBRShaderProgram extends ShaderProgram {
   constructor(gl, defines) {
@@ -121,6 +122,8 @@ export class WebGL2Renderer extends Renderer {
     gl.enable(gl.DEPTH_TEST);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
+    this.textureTool = new WebGLTextureTool(gl);
+
     this.programs = new Map();
 
     this.frameUniformBuffer = gl.createBuffer();
@@ -207,15 +210,8 @@ export class WebGL2Renderer extends Renderer {
   }
 
   async initImage(image) {
-    const gl = this.gl;
-    const glTexture = gl.createTexture();
-    image.glTexture = glTexture;
-
-    //await image.decode();
-    const imgBitmap = await createImageBitmap(image);
-    gl.bindTexture(gl.TEXTURE_2D, glTexture);
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, imgBitmap);
-    gl.generateMipmap(gl.TEXTURE_2D);
+    const result = await this.textureTool.loadTextureFromElement(image);
+    image.glTexture = result.texture;
   }
 
   initSampler(sampler) {
