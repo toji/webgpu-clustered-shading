@@ -59,6 +59,7 @@ const LightSprite = {
 
     struct Light {
       vec3 position;
+      float range;
       vec3 color;
     };
 
@@ -68,15 +69,13 @@ const LightSprite = {
       Light lights[${maxLights}];
     };
 
-    const float lightSize = 0.2;
-
     out vec2 vPos;
     out vec3 vColor;
 
     void main() {
       vPos = POSITION;
       vColor = lights[gl_InstanceID].color;
-      vec3 worldPos = vec3(POSITION, 0.0) * lightSize;
+      vec3 worldPos = vec3(POSITION, 0.0) * lights[gl_InstanceID].range * 0.1;
 
       // Generate a billboarded model view matrix
       mat4 bbModelViewMatrix = mat4(1.0);

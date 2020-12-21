@@ -29,10 +29,19 @@ class Light {
 
   constructor(buffer, byteOffset) {
     this.position = new Float32Array(buffer, byteOffset, 4);
+    this.rangeArray = new Float32Array(buffer, byteOffset + 12, 1);
     this.color = new Float32Array(buffer, byteOffset + 16, 4);
     this.velocity = new Float32Array(3);
     this.destination = new Float32Array(3);
     this.travelTime = 0;
+  }
+
+  get range() {
+    return this.rangeArray[0];
+  }
+
+  set range(value) {
+    this.rangeArray[0] = value;
   }
 }
 
@@ -86,7 +95,7 @@ export class Renderer {
     this.lightManager = new LightManager(500);
 
     // Ambient color
-    vec3.set(this.lightManager.ambientColor, 0.00, 0.00, 0.00);
+    vec3.set(this.lightManager.ambientColor, 0.002, 0.002, 0.002);
 
     // Initialize positions and colors for all the lights
     for (let i = 0; i < this.lightManager.maxLightCount; ++i) {
@@ -99,6 +108,8 @@ export class Renderer {
       light.position[0] = randomBetween(-11, 10);
       light.position[1] = randomBetween(0.2, 6.5);
       light.position[2] = randomBetween(-4.5, 4.0);
+
+      light.range = randomBetween(0.5, 5);
 
       vec3.set(light.color,
         randomBetween(0.1, 1),

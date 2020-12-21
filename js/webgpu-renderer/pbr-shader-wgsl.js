@@ -158,6 +158,7 @@ ${PBR_FUNCTIONS}
 
 struct Light {
   [[offset(0)]] position : vec3<f32>;
+  [[offset(12)]] range : f32;
   [[offset(16)]] color : vec3<f32>;
 };
 
@@ -219,7 +220,10 @@ ${defines.USE_NORMAL_MAP ? `
     var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
     var H : vec3<f32> = normalize(V + L);
     var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
-    var attenuation : f32 = 1.0 / (1.0 + distance * distance);
+
+    var lightRange : f32 = light.lights[i].range;
+    var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
+    # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
     var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
 
     # cook-torrance brdf

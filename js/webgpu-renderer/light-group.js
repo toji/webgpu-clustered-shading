@@ -38,6 +38,7 @@ const LightSpriteShader = {
 
   struct Light {
     [[offset(0)]] position : vec3<f32>;
+    [[offset(12)]] range : f32;
     [[offset(16)]] color : vec3<f32>;
   };
 
@@ -61,7 +62,7 @@ const LightSpriteShader = {
 
     vPos = pos[vertexIndex];
     vColor = light.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * lightSize;
+    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * light.lights[instanceIndex].range * 0.1;
 
     # Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;

@@ -102,8 +102,9 @@ uniform sampler2D occlusionTexture;
 uniform sampler2D emissiveTexture;
 
 struct Light {
-  vec4 position;
-  vec4 color;
+  vec3 position;
+  float range;
+  vec3 color;
 };
 
 layout(std140) uniform LightUniforms {
@@ -231,7 +232,9 @@ vec4 computeColor() {
     vec3 L = normalize(lights[i].position.xyz - vWorldPos);
     vec3 H = normalize(V + L);
     float distance    = length(lights[i].position.xyz - vWorldPos);
-    float attenuation = 1.0 / (1.0 + distance * distance);
+    float lightRange = lights[i].range;
+    float attenuation = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
+    //float attenuation = 1.0 / (1.0 + distance * distance);
     vec3 radiance     = lights[i].color.rgb * attenuation;
 
     // cook-torrance brdf
