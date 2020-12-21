@@ -29,20 +29,16 @@
         touch-action: none;
       }
 
-      select {
+      .dg.main {
         position: absolute;
-        z-index: 1;
+        z-index: 100;
         top: 1em;
         right: 1em;
       }
     </style>
   </head>
   <body>
-    <select id='api'>
-      <option value=''>- Choose an API -</option>
-      <option value='webgpu' selected>WebGPU</option>
-      <option value='webgl2'>WebGL 2.0</option>
-    </select>
+    <script src='js/third-party/dat.gui.min.js'></script>
     <script type="module">
       import Stats from './js/third-party/stats.module.js';
 
@@ -62,7 +58,26 @@
       camera.position = [0, 1.5, 0];
       camera.rotateView(-Math.PI * 0.5, 0);
 
-      const apiSelect = document.getElementById('api');
+      let appSettings = {
+        renderer: 'WebGPU',
+        lightCount: 10,
+      };
+
+      let gui = new dat.GUI();
+
+      gui.add(appSettings, 'renderer', {
+        WebGL2: 'WebGL2',
+        WebGPU: 'WebGPU'
+      }).onChange(onApiChange);
+
+      gui.add(appSettings, 'lightCount', 0, 500).onFinishChange(() => {
+        if (renderer) {
+          renderer.lightManager.lightCount = appSettings.lightCount;
+        }
+      });
+
+      document.body.appendChild(gui.domElement);
+
       async function onApiChange() {
         let prevCanvas;
         if (renderer) {
@@ -71,11 +86,11 @@
           camera.element = null;
         }
 
-        switch(apiSelect.value) {
-          case 'webgl2':
+        switch(appSettings.renderer) {
+          case 'WebGL2':
             renderer = new WebGL2Renderer();
             break;
-          case 'webgpu':
+          case 'WebGPU':
             renderer = new WebGPURenderer();
             break;
           default:
@@ -99,6 +114,7 @@
             }
             document.body.appendChild(renderer.canvas);
             camera.element = renderer.canvas;
+            renderer.lightManager.lightCount = appSettings.lightCount;
 
             renderer.start();
           } catch (err) {
@@ -108,7 +124,6 @@
           }
         }
       }
-      apiSelect.addEventListener('change', onApiChange);
       onApiChange();
 
       async function initGltf() {

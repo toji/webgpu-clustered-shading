@@ -30,11 +30,18 @@ class Light {
   constructor(buffer, byteOffset) {
     this.position = new Float32Array(buffer, byteOffset, 4);
     this.color = new Float32Array(buffer, byteOffset + 16, 4);
+    this.velocity = new Float32Array(3);
+    this.destination = new Float32Array(3);
+    this.travelTime = 0;
   }
 }
 
-class LightManager {
+class LightManager extends EventTarget {
   constructor(lightCount) {
+    super();
+
+    this.maxLightCount = lightCount;
+
     this.uniformArray = new Float32Array(4 + Light.floatSize * lightCount);
 
     this.ambientColor = new Float32Array(this.uniformArray.buffer, 0, 3);
@@ -50,6 +57,14 @@ class LightManager {
   get lightCount() {
     return this.lightCountArray[0];
   }
+
+  set lightCount(value) {
+    this.lightCountArray[0] = Math.min(value, this.maxLightCount);
+  }
+}
+
+function randomBetween(min, max) {
+  return Math.random() * (max - min) + min;
 }
 
 export class Renderer {
@@ -67,29 +82,35 @@ export class Renderer {
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
 
-    this.lightManager = new LightManager(5); // Allocate space for 5 lights
+    // Allocate all the scene's lights
+    this.lightManager = new LightManager(500);
 
     // Ambient color
-    vec3.set(this.lightManager.ambientColor, 0.01, 0.01, 0.01);
+    vec3.set(this.lightManager.ambientColor, 0.00, 0.00, 0.00);
 
-    // Central wandering light
-    vec3.set(this.lightManager.lights[0].position, 0, 1.5, 0);
-    vec3.set(this.lightManager.lights[0].color, 10, 10, 10);
+    // Initialize positions and colors for all the lights
+    for (let i = 0; i < this.lightManager.maxLightCount; ++i) {
+      let light = this.lightManager.lights[i];
 
-    // Lights in each corner over the birdbath things.
-    vec3.set(this.lightManager.lights[1].position, 8.95, 1, -3.55);
-    vec3.set(this.lightManager.lights[1].color, 5, 1, 1);
+      // Sponza scene approximate bounds:
+      // X [-11, 10]
+      // Y [0.2, 6.5]
+      // Z [-4.5, 4.0]
+      light.position[0] = randomBetween(-11, 10);
+      light.position[1] = randomBetween(0.2, 6.5);
+      light.position[2] = randomBetween(-4.5, 4.0);
 
-    vec3.set(this.lightManager.lights[2].position, 8.95, 1, 3.2);
-    vec3.set(this.lightManager.lights[2].color, 5, 1, 1);
+      vec3.set(light.color,
+        randomBetween(0.1, 1),
+        randomBetween(0.1, 1),
+        randomBetween(0.1, 1)
+      );
+    }
 
-    vec3.set(this.lightManager.lights[3].position, -9.65, 1, -3.55);
-    vec3.set(this.lightManager.lights[3].color, 1, 1, 5);
-
-    vec3.set(this.lightManager.lights[4].position, -9.65, 1, 3.2);
-    vec3.set(this.lightManager.lights[4].color, 1, 1, 5);
-
+    let lastTimestamp = -1;
     this.frameCallback = (timestamp) => {
+      const timeDelta = lastTimestamp == -1 ? 0 : timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
       this.rafId = requestAnimationFrame(this.frameCallback);
       this.frameCount++;
       if (this.frameCount % 200 == 0) { return; }
@@ -98,9 +119,9 @@ export class Renderer {
         this.stats.begin();
       }
 
-      this.beforeFrame(timestamp);
+      this.beforeFrame(timestamp, timeDelta);
 
-      this.onFrame(timestamp);
+      this.onFrame(timestamp, timeDelta);
 
       if (this.stats) {
         this.stats.end();
@@ -149,19 +170,34 @@ export class Renderer {
   }
 
   // Handles frame logic that's common to all renderers.
-  beforeFrame(timestamp) {
+  beforeFrame(timestamp, timeDelta) {
     // Copy values from the camera into our frame uniform buffers
     mat4.copy(this.viewMatrix, this.camera.viewMatrix);
     vec3.copy(this.cameraPosition, this.camera.position);
 
-    // Update the lights
-    vec3.set(this.lightManager.lights[0].position,
-      Math.sin(timestamp / 1500) * 4,
-      Math.cos(timestamp / 600) * 0.25 + 1.5,
-      Math.cos(timestamp / 500) * 0.75);
+    // Update each light position with a wandering pattern.
+    for (let i = 0; i < this.lightManager.lightCount; ++i) {
+      let light = this.lightManager.lights[i];
 
-    for (let i = 1; i < 5; ++i) {
-      this.lightManager.lights[i].position[1] = 1.25 + Math.sin((timestamp + i * 250) / 800) * 0.1;
+      light.travelTime -= timeDelta;
+
+      if (light.travelTime <= 0) {
+        light.travelTime = randomBetween(500, 2000);
+        light.destination[0] = randomBetween(-11, 10);
+        light.destination[1] = randomBetween(0.2, 6.5);
+        light.destination[2] = randomBetween(-4.5, 4.0);
+      }
+
+      light.velocity[0] += (light.destination[0] - light.position[0]) * 0.000005 * timeDelta;
+      light.velocity[1] += (light.destination[1] - light.position[1]) * 0.000005 * timeDelta;
+      light.velocity[2] += (light.destination[2] - light.position[2]) * 0.000005 * timeDelta;
+
+      // Clamp the velocity
+      if (vec3.length(light.velocity) > 0.05) {
+        vec3.scale(light.velocity, vec3.normalize(light.velocity, light.velocity), 0.05);
+      }
+
+      vec3.add(light.position, light.position, light.velocity);
     }
   }
 

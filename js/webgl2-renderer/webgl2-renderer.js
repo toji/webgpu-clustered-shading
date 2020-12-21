@@ -48,55 +48,56 @@ const LightSprite = {
      1, -1,
     -1, -1,
   ]),
-  vertexSource: `#version 300 es
-  layout(location = ${ATTRIB_MAP.POSITION}) in vec2 POSITION;
+  vertexSource: (maxLights) => { return `#version 300 es
+    layout(location = ${ATTRIB_MAP.POSITION}) in vec2 POSITION;
 
-  layout(std140) uniform FrameUniforms {
-    mat4 projectionMatrix;
-    mat4 viewMatrix;
-    vec3 cameraPosition;
-  };
+    layout(std140) uniform FrameUniforms {
+      mat4 projectionMatrix;
+      mat4 viewMatrix;
+      vec3 cameraPosition;
+    };
 
-  struct Light {
-    vec3 position;
-    vec3 color;
-  };
+    struct Light {
+      vec3 position;
+      vec3 color;
+    };
 
-  layout(std140) uniform LightUniforms {
-    vec3 lightAmbient;
-    int lightCount;
-    Light lights[5];
-  };
+    layout(std140) uniform LightUniforms {
+      vec3 lightAmbient;
+      int lightCount;
+      Light lights[${maxLights}];
+    };
 
-  const float lightSize = 0.2;
+    const float lightSize = 0.2;
 
-  out vec2 vPos;
-  out vec3 vColor;
+    out vec2 vPos;
+    out vec3 vColor;
 
-  void main() {
-    vPos = POSITION;
-    vColor = lights[gl_InstanceID].color;
-    vec3 worldPos = vec3(POSITION, 0.0) * lightSize;
+    void main() {
+      vPos = POSITION;
+      vColor = lights[gl_InstanceID].color;
+      vec3 worldPos = vec3(POSITION, 0.0) * lightSize;
 
-    // Generate a billboarded model view matrix
-    mat4 bbModelViewMatrix = mat4(1.0);
-    bbModelViewMatrix[3] = vec4(lights[gl_InstanceID].position, 1.0);
+      // Generate a billboarded model view matrix
+      mat4 bbModelViewMatrix = mat4(1.0);
+      bbModelViewMatrix[3] = vec4(lights[gl_InstanceID].position, 1.0);
 
-    bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
-    bbModelViewMatrix[0][0] = 1.0;
-    bbModelViewMatrix[0][1] = 0.0;
-    bbModelViewMatrix[0][2] = 0.0;
+      bbModelViewMatrix = viewMatrix * bbModelViewMatrix;
+      bbModelViewMatrix[0][0] = 1.0;
+      bbModelViewMatrix[0][1] = 0.0;
+      bbModelViewMatrix[0][2] = 0.0;
 
-    bbModelViewMatrix[1][0] = 0.0;
-    bbModelViewMatrix[1][1] = 1.0;
-    bbModelViewMatrix[1][2] = 0.0;
+      bbModelViewMatrix[1][0] = 0.0;
+      bbModelViewMatrix[1][1] = 1.0;
+      bbModelViewMatrix[1][2] = 0.0;
 
-    bbModelViewMatrix[2][0] = 0.0;
-    bbModelViewMatrix[2][1] = 0.0;
-    bbModelViewMatrix[2][2] = 1.0;
+      bbModelViewMatrix[2][0] = 0.0;
+      bbModelViewMatrix[2][1] = 0.0;
+      bbModelViewMatrix[2][2] = 1.0;
 
-    gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
-  }`,
+      gl_Position = projectionMatrix * bbModelViewMatrix * vec4(worldPos, 1.0);
+    }`;
+  },
   fragmentSource: `#version 300 es
   precision highp float;
 
@@ -147,9 +148,8 @@ export class WebGL2Renderer extends Renderer {
     gl.bufferData(gl.ARRAY_BUFFER, LightSprite.vertexArray, gl.STATIC_DRAW);
 
     this.lightProgram = new ShaderProgram(gl, {
-      vertexSource: LightSprite.vertexSource,
-      fragmentSource: LightSprite.fragmentSource,
-      defines: { LIGHT_COUNT: this.lightManager.lightCount }
+      vertexSource: LightSprite.vertexSource(this.lightManager.lightCount),
+      fragmentSource: LightSprite.fragmentSource
     });
     gl.uniformBlockBinding(this.lightProgram.program, this.lightProgram.uniformBlock.LightUniforms, UNIFORM_BLOCKS.LightUniforms);
 
@@ -412,14 +412,18 @@ export class WebGL2Renderer extends Renderer {
     for (let program of this.programs.values()) {
       if (program.blendedMaterials.size) {
         gl.enable(gl.BLEND);
+        gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
         this.drawRenderTree(program, program.blendedMaterials);
       }
     }
 
     // Last, render a sprite for all of the lights
     this.lightProgram.use();
+    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+    gl.depthMask(false);
     gl.bindVertexArray(this.lightVertexArray);
     gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightManager.lightCount);
+    gl.depthMask(true);
   }
 
   drawRenderTree(program, materialList) {

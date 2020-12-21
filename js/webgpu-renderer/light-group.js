@@ -136,7 +136,7 @@ export class LightGroup {
     this.spritePipeline = this.device.createRenderPipeline({
       layout: this.spritePipelineLayout,
       vertexStage: {
-        module: createShaderModuleDebug(this.device, LightSpriteShader.vertexSource(lightManager.lightCount)),
+        module: createShaderModuleDebug(this.device, LightSpriteShader.vertexSource(lightManager.maxLightCount)),
         entryPoint: 'main'
       },
       fragmentStage: {
@@ -151,11 +151,11 @@ export class LightGroup {
         format: renderBundleDescriptor.colorFormats[0],
         colorBlend: {
           srcFactor: 'src-alpha',
-          dstFactor: 'one-minus-src-alpha',
+          dstFactor: 'one',
         }
       }],
       depthStencilState: {
-        depthWriteEnabled: true,
+        depthWriteEnabled: false,
         depthCompare: 'less',
         format: renderBundleDescriptor.depthStencilFormat,
       },

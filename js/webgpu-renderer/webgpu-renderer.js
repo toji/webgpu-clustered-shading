@@ -260,7 +260,7 @@ export class WebGPURenderer extends Renderer {
 
     // Last, render a sprite for all of the lights.
     // (Uses the frame and light bind groups that are already set).
-    this.lightGroup.renderSprites(renderBundleEncoder);
+    //this.lightGroup.renderSprites(renderBundleEncoder);
 
     this.renderBundle = renderBundleEncoder.finish();
   }
@@ -475,7 +475,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     const defines = GetDefinesForPrimitive(primitive);
-    defines.MAX_LIGHT_COUNT = this.lightManager.lightCount;
+    defines.MAX_LIGHT_COUNT = this.lightManager.maxLightCount;
 
     let key = '';
     for (let define in defines) {
@@ -650,6 +650,11 @@ export class WebGPURenderer extends Renderer {
     if (this.renderBundle) {
       passEncoder.executeBundles([this.renderBundle]);
     }
+
+    // Last, render a sprite for all of the lights.
+    passEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
+    passEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightGroup.uniformBindGroup);
+    this.lightGroup.renderSprites(passEncoder);
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
