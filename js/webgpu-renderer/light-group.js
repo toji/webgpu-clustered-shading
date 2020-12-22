@@ -18,87 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/light-sprite.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
 
 // Renders a billboarded sprite for a point light that uses no buffers or textures.
-const LightSpriteShader = {
-  vertexCount: 4,
-
-  vertexSource: (maxLightCount) => { return `
-  var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
-  );
-
-  [[block]] struct FrameUniforms {
-    [[offset(0)]] projectionMatrix : mat4x4<f32>;
-    [[offset(64)]] viewMatrix : mat4x4<f32>;
-    [[offset(128)]] cameraPosition : vec3<f32>;
-  };
-  [[set(0), binding(0)]] var<uniform> frame : FrameUniforms;
-
-  struct Light {
-    [[offset(0)]] position : vec3<f32>;
-    [[offset(12)]] range : f32;
-    [[offset(16)]] color : vec3<f32>;
-  };
-
-  [[block]] struct LightUniforms {
-    [[offset(0)]] lightAmbient : vec3<f32>;
-    [[offset(12)]] lightCount : u32;
-    [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
-  };
-  [[set(1), binding(0)]] var<uniform> light : LightUniforms;
-
-  [[location(0)]] var<out> vPos : vec2<f32>;
-  [[location(1)]] var<out> vColor : vec3<f32>;
-
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
-  [[builtin(vertex_idx)]] var<in> vertexIndex : i32;
-  [[builtin(instance_idx)]] var<in> instanceIndex : i32;
-
-  [[stage(vertex)]]
-  fn main() -> void {
-    const lightSize : f32 = 0.2;
-
-    vPos = pos[vertexIndex];
-    vColor = light.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * light.lights[instanceIndex].range * 0.1;
-
-    # Generate a billboarded model view matrix
-    var bbModelViewMatrix : mat4x4<f32>;
-    bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
-    bbModelViewMatrix = frame.viewMatrix * bbModelViewMatrix;
-    bbModelViewMatrix[0][0] = 1.0;
-    bbModelViewMatrix[0][1] = 0.0;
-    bbModelViewMatrix[0][2] = 0.0;
-
-    bbModelViewMatrix[1][0] = 0.0;
-    bbModelViewMatrix[1][1] = 1.0;
-    bbModelViewMatrix[1][2] = 0.0;
-
-    bbModelViewMatrix[2][0] = 0.0;
-    bbModelViewMatrix[2][1] = 0.0;
-    bbModelViewMatrix[2][2] = 1.0;
-
-    outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
-    return;
-  }`},
-
-  fragmentSource: `
-  [[location(0)]] var<out> outColor : vec4<f32>;
-
-  [[location(0)]] var<in> vPos : vec2<f32>;
-  [[location(1)]] var<in> vColor : vec3<f32>;
-
-  [[stage(fragment)]]
-  fn main() -> void {
-    var distToCenter : f32 = length(vPos);
-    var fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    outColor = vec4<f32>(vColor * fade, fade);
-    return;
-  }`,
-};
-
 export class LightGroup {
   constructor(device, lightManager, frameBindGroupLayout, renderBundleDescriptor) {
     this.device = device;
@@ -137,11 +60,11 @@ export class LightGroup {
     this.spritePipeline = this.device.createRenderPipeline({
       layout: this.spritePipelineLayout,
       vertexStage: {
-        module: createShaderModuleDebug(this.device, LightSpriteShader.vertexSource(lightManager.maxLightCount)),
+        module: createShaderModuleDebug(this.device, LightSpriteVertexSource(lightManager.maxLightCount)),
         entryPoint: 'main'
       },
       fragmentStage: {
-        module: createShaderModuleDebug(this.device, LightSpriteShader.fragmentSource),
+        module: createShaderModuleDebug(this.device, LightSpriteFragmentSource),
         entryPoint: 'main'
       },
       primitiveTopology: 'triangle-strip',
@@ -171,6 +94,6 @@ export class LightGroup {
 
   renderSprites(encoder) {
     encoder.setPipeline(this.spritePipeline);
-    encoder.draw(LightSpriteShader.vertexCount, this.lightManager.lightCount, 0, 0);
+    encoder.draw(4, this.lightManager.lightCount, 0, 0);
   }
 }

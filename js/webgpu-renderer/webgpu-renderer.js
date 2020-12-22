@@ -19,7 +19,8 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { WEBGPU_VERTEX_SOURCE, WEBGPU_FRAGMENT_SOURCE, ATTRIB_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader-wgsl.js';
+import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
+import { PBRVertexSource, PBRFragmentSource, PRBDefinesForPrimitive } from './shaders/pbr.js';
 import { LightGroup } from './light-group.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
@@ -28,7 +29,6 @@ import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
-const GENERATE_MIPMAPS = true;
 
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
@@ -36,16 +36,16 @@ const GL = WebGLRenderingContext;
 let NEXT_SHADER_ID = 0;
 
 class PBRShaderModule {
-  constructor(device, glslang, defines) {
+  constructor(device, defines) {
     this.id = NEXT_SHADER_ID++;
 
     this.vertexStage = {
-      module: createShaderModuleDebug(device, WEBGPU_VERTEX_SOURCE(defines)),
+      module: createShaderModuleDebug(device, PBRVertexSource(defines)),
       entryPoint: 'main'
     };
 
     this.fragmentStage = {
-      module: createShaderModuleDebug(device, WEBGPU_FRAGMENT_SOURCE(defines)),
+      module: createShaderModuleDebug(device, PBRFragmentSource(defines)),
       entryPoint: 'main'
     };
   }
@@ -245,8 +245,8 @@ export class WebGPURenderer extends Renderer {
     // Create a bundle we can use to replay our scene drawing each frame
     const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
 
-    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
-    renderBundleEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightGroup.uniformBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
 
     // Opaque primitives first
     for (let pipeline of this.opaquePipelines) {
@@ -474,7 +474,7 @@ export class WebGPURenderer extends Renderer {
       primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
     }
 
-    const defines = GetDefinesForPrimitive(primitive);
+    const defines = PRBDefinesForPrimitive(primitive);
     defines.MAX_LIGHT_COUNT = this.lightManager.maxLightCount;
 
     let key = '';
@@ -484,7 +484,7 @@ export class WebGPURenderer extends Renderer {
 
     let program = this.programs.get(key);
     if (!program) {
-      program = new PBRShaderModule(this.device, this.glslang, defines);
+      program = new PBRShaderModule(this.device, defines);
       this.programs.set(key, program);
     }
 
@@ -631,6 +631,34 @@ export class WebGPURenderer extends Renderer {
     }
   }
 
+  renderNaiveForward(encoder) {
+    if (this.renderBundle) {
+      encoder.executeBundles([this.renderBundle]);
+    }
+
+    // Last, render a sprite for all of the lights.
+    encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+    encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+    this.lightGroup.renderSprites(encoder);
+  }
+
+  renderDepthSlices(encoder) {
+    encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+    encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+
+    for (let pipeline of this.opaquePipelines) {
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    }
+
+    // Blended primitives next
+    for (let pipeline of this.blendedPipelines) {
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    }
+
+    // Last, render a sprite for all of the lights.
+    //this.lightGroup.renderSprites(encoder);
+  }
+
   onFrame(timestamp) {
     // TODO: If we want multisampling this should attach to the resolveTarget,
     // but there seems to be a bug with that right now?
@@ -647,14 +675,11 @@ export class WebGPURenderer extends Renderer {
 
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
-    if (this.renderBundle) {
-      passEncoder.executeBundles([this.renderBundle]);
+    switch (this.outputType) {
+      case "naive-forward":
+        this.renderNaiveForward(passEncoder);
+        break;
     }
-
-    // Last, render a sprite for all of the lights.
-    passEncoder.setBindGroup(UNIFORM_BLOCKS.FrameUniforms, this.frameUniformBindGroup);
-    passEncoder.setBindGroup(UNIFORM_BLOCKS.LightUniforms, this.lightGroup.uniformBindGroup);
-    this.lightGroup.renderSprites(passEncoder);
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
@@ -664,10 +689,10 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(pipeline);
     const materialPrimitives = this.pipelineMaterials.get(pipeline);
     for (let [material, primitives] of materialPrimitives) {
-      passEncoder.setBindGroup(UNIFORM_BLOCKS.MaterialUniforms, material.renderData.gpuBindGroup);
+      passEncoder.setBindGroup(UNIFORM_SET.Material, material.renderData.gpuBindGroup);
 
       for (let primitive of primitives) {
-        passEncoder.setBindGroup(UNIFORM_BLOCKS.PrimitiveUniforms, primitive.renderData.gpuBindGroup);
+        passEncoder.setBindGroup(UNIFORM_SET.Primitive, primitive.renderData.gpuBindGroup);
 
         let i = 0;
         for (let bufferView of primitive.attributeBuffers.keys()) {

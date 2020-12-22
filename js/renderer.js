@@ -85,11 +85,15 @@ export class Renderer {
 
     // Storage for global uniforms.
     // These can either be used individually or as a uniform buffer.
-    this.frameUniforms = new Float32Array(16 + 16 + 4);
+    this.frameUniforms = new Float32Array(16 + 16 + 4 + 2);
 
     this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
     this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
+    this.zRange = new Float32Array(this.frameUniforms.buffer, 36 * 4, 2);
+
+    this.zRange[0] = 0.1; // Near
+    this.zRange[1] = 1000.0; // Far
 
     // Allocate all the scene's lights
     this.lightManager = new LightManager(500);
@@ -144,7 +148,7 @@ export class Renderer {
       this.canvas.height = this.canvas.clientHeight * devicePixelRatio;
 
       const aspect = this.canvas.width / this.canvas.height;
-      mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, 0.1, 1000.0);
+      mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, this.zRange[0], this.zRange[1]);
 
       this.onResize(this.canvas.width, this.canvas.height);
     };
@@ -164,6 +168,10 @@ export class Renderer {
 
   setViewMatrix(viewMatrix) {
     mat4.copy(this.viewMatrix, viewMatrix);
+  }
+
+  setOutputType(output) {
+    this.outputType = output;
   }
 
   start() {

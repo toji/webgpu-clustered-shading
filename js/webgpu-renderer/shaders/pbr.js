@@ -18,20 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-export const ATTRIB_MAP = {
-  POSITION: 1,
-  NORMAL: 2,
-  TANGENT: 3,
-  TEXCOORD_0: 4,
-  COLOR_0: 5,
-};
-
-export const UNIFORM_BLOCKS = {
-  FrameUniforms: 0,
-  LightUniforms: 1,
-  MaterialUniforms: 2,
-  PrimitiveUniforms: 3,
-};
+import { FrameUniforms, LightUniforms, ATTRIB_MAP, UNIFORM_SET } from './common.js';
 
 function PBR_VARYINGS(defines, dir) { return `
 [[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
@@ -46,7 +33,7 @@ ${defines.USE_NORMAL_MAP ? `
 `}`;
 }
 
-export function WEBGPU_VERTEX_SOURCE(defines) { return `
+export function PBRVertexSource(defines) { return `
 [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
 [[location(${ATTRIB_MAP.NORMAL})]] var<in> NORMAL : vec3<f32>;
 ${defines.USE_NORMAL_MAP ? `
@@ -57,17 +44,12 @@ ${defines.USE_VERTEX_COLOR ? `
 [[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
 ` : ``}
 
-[[block]] struct FrameUniforms {
-  [[offset(0)]] projectionMatrix : mat4x4<f32>;
-  [[offset(64)]] viewMatrix : mat4x4<f32>;
-  [[offset(128)]] cameraPosition : vec3<f32>;
-};
-[[set(${UNIFORM_BLOCKS.FrameUniforms}), binding(0)]] var<uniform> frame : FrameUniforms;
+${FrameUniforms}
 
 [[block]] struct PrimitiveUniforms {
   [[offset(0)]] modelMatrix : mat4x4<f32>;
 };
-[[set(${UNIFORM_BLOCKS.PrimitiveUniforms}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
+[[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
 
 ${PBR_VARYINGS(defines, 'out')}
 
@@ -138,7 +120,7 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
   return ggx1 * ggx2;
 }`;
 
-export function WEBGPU_FRAGMENT_SOURCE(defines) { return `
+export function PBRFragmentSource(defines) { return `
 ${PBR_FUNCTIONS}
 
 [[block]] struct MaterialUniforms {
@@ -147,27 +129,16 @@ ${PBR_FUNCTIONS}
   [[offset(32)]] emissiveFactor : vec3<f32>;
   [[offset(44)]] occlusionStrength : f32;
 };
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(0)]] var<uniform> material : MaterialUniforms;
+[[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
 
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-[[set(${UNIFORM_BLOCKS.MaterialUniforms}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+[[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
 
-struct Light {
-  [[offset(0)]] position : vec3<f32>;
-  [[offset(12)]] range : f32;
-  [[offset(16)]] color : vec3<f32>;
-};
-
-[[block]] struct LightUniforms {
-  [[offset(0)]] lightAmbient : vec3<f32>;
-  [[offset(12)]] lightCount : u32;
-  [[offset(16)]] lights : [[stride(32)]] array<Light, ${defines.MAX_LIGHT_COUNT}>;
-};
-[[set(${UNIFORM_BLOCKS.LightUniforms}), binding(0)]] var<uniform> light : LightUniforms;
+${LightUniforms(defines.MAX_LIGHT_COUNT)}
 
 ${PBR_VARYINGS(defines, 'in')}
 
@@ -268,7 +239,7 @@ ${defines.USE_EMISSIVE_TEXTURE ? `
 `;
 }
 
-export function GetDefinesForPrimitive(primitive) {
+export function PRBDefinesForPrimitive(primitive) {
   const attributes = primitive.enabledAttributes;
   const material = primitive.material;
   const programDefines = {};

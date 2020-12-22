@@ -59,16 +59,22 @@
       camera.rotateView(-Math.PI * 0.5, 0);
 
       let appSettings = {
-        renderer: 'WebGPU',
+        renderer: 'webGPU',
+        output: 'naive-forward',
         lightCount: 10,
       };
 
       let gui = new dat.GUI();
 
       gui.add(appSettings, 'renderer', {
-        WebGL2: 'WebGL2',
-        WebGPU: 'WebGPU'
+        webGL2: 'webGL2',
+        webGPU: 'webGPU'
       }).onChange(onApiChange);
+
+      gui.add(appSettings, 'output', {
+        naiveForward: 'naive-forward',
+        depthSlice: 'depth-slices',
+      }).onChange(onOutputChange);
 
       gui.add(appSettings, 'lightCount', 0, 500).onFinishChange(() => {
         if (renderer) {
@@ -87,10 +93,10 @@
         }
 
         switch(appSettings.renderer) {
-          case 'WebGL2':
+          case 'webGL2':
             renderer = new WebGL2Renderer();
             break;
-          case 'WebGPU':
+          case 'webGPU':
             renderer = new WebGPURenderer();
             break;
           default:
@@ -116,6 +122,8 @@
             camera.element = renderer.canvas;
             renderer.lightManager.lightCount = appSettings.lightCount;
 
+            onOutputChange();
+
             renderer.start();
           } catch (err) {
             console.error('renderer init failed', err);
@@ -125,6 +133,12 @@
         }
       }
       onApiChange();
+
+      function onOutputChange() {
+        if (renderer) {
+          renderer.setOutputType(appSettings.output);
+        }
+      }
 
       async function initGltf() {
         const gltfLoader = new Gltf2Loader();
