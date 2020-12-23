@@ -75,9 +75,6 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
   return ggx1 * ggx2;
 }`;
 
-export function PBRFragmentSource(defines) {
-}
-
 export class PBRTechnique extends WebGPURenderTechnique {
   constructor(device, renderBundleDescriptor, pipelineLayout, maxLights) {
     super(device, renderBundleDescriptor, pipelineLayout);

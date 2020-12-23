@@ -93,7 +93,7 @@ export class Renderer {
     this.zRange = new Float32Array(this.frameUniforms.buffer, 36 * 4, 2);
 
     this.zRange[0] = 0.1; // Near
-    this.zRange[1] = 1000.0; // Far
+    this.zRange[1] = 50.0; // Far
 
     // Allocate all the scene's lights
     this.lightManager = new LightManager(500);

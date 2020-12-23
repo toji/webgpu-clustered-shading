@@ -21,6 +21,8 @@
 import { Renderer } from '../renderer.js';
 import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
 import { PBRTechnique } from './techniques/pbr-technique.js';
+import { DepthSliceTechnique } from './techniques/depth-slice-technique.js';
+import { DepthTechnique } from './techniques/depth-technique.js';
 import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
@@ -45,6 +47,8 @@ export class WebGPURenderer extends Renderer {
 
     this.opaquePipelines = [];
     this.blendedPipelines = [];
+
+    this.primitives = null;
   }
 
   async init() {
@@ -92,7 +96,7 @@ export class WebGPURenderer extends Renderer {
     this.frameUniformsBindGroupLayout = this.device.createBindGroupLayout({
       entries: [{
         binding: 0,
-        visibility: GPUShaderStage.VERTEX,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         type: 'uniform-buffer'
       }]
     });
@@ -173,9 +177,6 @@ export class WebGPURenderer extends Renderer {
     this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
     this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
     this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
-
-    this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
-        this.pipelineLayout, this.lightManager.maxLightCount);
   }
 
   onResize(width, height) {
@@ -226,29 +227,7 @@ export class WebGPURenderer extends Renderer {
       this.initPrimitive(primitive);
     }
 
-    this.renderBundle = this.pbrTechnique.createRenderBundle(gltf.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
-
-    // Create a bundle we can use to replay our scene drawing each frame
-    /*const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
-
-    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-    renderBundleEncoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-
-    // Opaque primitives first
-    for (let pipeline of this.opaquePipelines) {
-      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
-    }
-
-    // Blended primitives next
-    for (let pipeline of this.blendedPipelines) {
-      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
-    }
-
-    // Last, render a sprite for all of the lights.
-    // (Uses the frame and light bind groups that are already set).
-    //this.lightGroup.renderSprites(renderBundleEncoder);
-
-    this.renderBundle = renderBundleEncoder.finish();*/
+    this.primitives = gltf.primitives;
   }
 
   async initBufferView(bufferView) {
@@ -480,9 +459,6 @@ export class WebGPURenderer extends Renderer {
       });
 
       primitive.renderData.gpuBindGroup = primitiveBindGroup;
-
-      // TODO: This needs some SERIOUS de-duping
-      //this.createPipeline(primitive);
     }
   }
 
@@ -500,8 +476,38 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderNaiveForward(encoder) {
-    if (this.renderBundle) {
-      encoder.executeBundles([this.renderBundle]);
+    if (!this.pbrTechnique) {
+      this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
+        this.pipelineLayout, this.lightManager.maxLightCount);
+    }
+
+    if (!this.pbrRenderBundle && this.primitives) {
+      this.pbrRenderBundle = this.pbrTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+    }
+
+    if (this.pbrRenderBundle) {
+      encoder.executeBundles([this.pbrRenderBundle]);
+    }
+
+    if (this.lightManager.render) {
+      // Last, render a sprite for all of the lights.
+      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+      this.lightGroup.renderSprites(encoder);
+    }
+  }
+
+  renderDepth(encoder) {
+    if (!this.depthTechnique) {
+      this.depthTechnique = new DepthTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
+    }
+
+    if (!this.depthRenderBundle && this.primitives) {
+      this.depthRenderBundle = this.depthTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+    }
+
+    if (this.depthRenderBundle) {
+      encoder.executeBundles([this.depthRenderBundle]);
     }
 
     if (this.lightManager.render) {
@@ -513,20 +519,24 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderDepthSlices(encoder) {
-    encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-    encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-
-    for (let pipeline of this.opaquePipelines) {
-      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    if (!this.depthSliceTechnique) {
+      this.depthSliceTechnique = new DepthSliceTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
     }
 
-    // Blended primitives next
-    for (let pipeline of this.blendedPipelines) {
-      this.drawPipelinePrimitives(renderBundleEncoder, pipeline);
+    if (!this.depthSliceRenderBundle && this.primitives) {
+      this.depthSliceRenderBundle = this.depthSliceTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
     }
 
-    // Last, render a sprite for all of the lights.
-    //this.lightGroup.renderSprites(encoder);
+    if (this.depthSliceRenderBundle) {
+      encoder.executeBundles([this.depthSliceRenderBundle]);
+    }
+
+    if (this.lightManager.render) {
+      // Last, render a sprite for all of the lights.
+      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+      this.lightGroup.renderSprites(encoder);
+    }
   }
 
   onFrame(timestamp) {
@@ -548,6 +558,12 @@ export class WebGPURenderer extends Renderer {
     switch (this.outputType) {
       case "naive-forward":
         this.renderNaiveForward(passEncoder);
+        break;
+      case "depth":
+        this.renderDepth(passEncoder);
+        break;
+      case "depth-slices":
+        this.renderDepthSlices(passEncoder);
         break;
     }
 
