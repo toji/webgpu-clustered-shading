@@ -153,6 +153,8 @@ export class Gltf2Loader {
           gltf.buffers.push(fetch(uri).then((response) => response.arrayBuffer()));
         }
       }
+
+      resourcePromises.push(...gltf.buffers);
     }
 
     // Buffer Views
@@ -168,28 +170,29 @@ export class Gltf2Loader {
     // Images
     if (json.images) {
       for (let image of json.images) {
-        let imgElement = new Image();
-        gltf.images.push(imgElement);
-
-        resourcePromises.push(new Promise((resolve, reject) => {
-          imgElement.addEventListener('load', resolve);
-          imgElement.addEventListener('error', reject);
-        }));
-
         if (image.uri) {
           if (isDataUri(image.uri)) {
-            imgElement.src = image.uri;
+            //imgElement.src = image.uri;
+            gltf.images.push(fetch(`${image.uri}`).then(async (response) => {
+              return createImageBitmap(await response.blob());
+            }));
           } else {
-            imgElement.src = `${baseUrl}${image.uri}`;
+            gltf.images.push(fetch(`${baseUrl}${image.uri}`).then(async (response) => {
+              return createImageBitmap(await response.blob());
+            }));
           }
         } else {
           let bufferView = gltf.bufferViews[image.bufferView];
           bufferView.usage.add('image');
-          bufferView.dataView().then((dataView) => {
-            imgElement.src = URL.createObjectURL(new Blob([dataView], {type: image.mimeType}));
-          });
+          gltf.images.push(bufferView.dataView().then((dataView) => {
+            const imgBlob = new Blob([dataView], {type: image.mimeType});
+            return createImageBitmap(imgBlob);
+            //imgElement.src = URL.createObjectURL(new Blob([dataView], {type: image.mimeType}));
+          }));
         }
       }
+
+      resourcePromises.push(...gltf.images);
     }
 
     // Samplers

@@ -1,0 +1,249 @@
+// Copyright 2020 Brandon Jones
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+
+import { createShaderModuleDebug } from '../wgsl-utils.js';
+import { UNIFORM_SET } from '../shaders/common.js';
+
+// Only used for comparing values from glTF, which uses WebGL enums natively.
+const GL = WebGLRenderingContext;
+
+export class WebGPURenderTechnique {
+  constructor(device, renderBundleDescriptor, pipelineLayout) {
+    this.device = device;
+    this.renderBundleDescriptor = renderBundleDescriptor;
+    this.pipelineLayout = pipelineLayout;
+
+    this.nextShaderModuleId = 0;
+    this.shaderModuleCache = new Map(); // Map<String -> ShaderModule>
+
+    this.nextPipelineId = 0;
+    this.pipelineCache = new Map(); // Map<String -> GPURenderPipeline>
+  }
+
+  getDefinesForPrimitive(primitive) {
+    return {}; // Override per-technique
+  }
+
+  getVertexSource(defines) {
+    return null; // Override per-technique
+  }
+
+  getFragmentSource(defines) {
+    return null; // Override per-technique
+  }
+
+  getShaderModules(primitive) {
+    const programDefines = this.getDefinesForPrimitive(primitive);
+    let shaderModuleKey = '';
+    for (let define in programDefines) {
+      shaderModuleKey += `${define}=${programDefines[define]},`;
+    }
+
+    let shaderModule = this.shaderModuleCache.get(shaderModuleKey);
+    if (!shaderModule) {
+      const vertexSource = this.getVertexSource(programDefines);
+      const fragmentSource = this.getFragmentSource(programDefines);
+      if (!vertexSource) {
+        throw new Error('Render technique did not supply a valid vertex shader.');
+      }
+      shaderModule = {
+        id: this.nextShaderModuleId++,
+        vertexStage: { module: createShaderModuleDebug(this.device, vertexSource), entryPoint: 'main' },
+        fragmentStage: fragmentSource ? { module: createShaderModuleDebug(this.device, fragmentSource), entryPoint: 'main' } : null,
+      };
+      this.shaderModuleCache.set(shaderModuleKey, shaderModule);
+    }
+    return shaderModule;
+  }
+
+  getPrimitivePipeline(primitive) {
+    const material = primitive.material;
+    const shaderModule = this.getShaderModules(primitive);
+    const vertexState = {
+      vertexBuffers: primitive.renderData.vertexBuffers,
+    };
+
+    let primitiveTopology;
+    switch (primitive.mode) {
+      case GL.TRIANGLES:
+        primitiveTopology = 'triangle-list';
+        break;
+      case GL.TRIANGLE_STRIP:
+        primitiveTopology = 'triangle-strip';
+        vertexState.indexFormat = primitive.indices.gpuType;
+        break;
+      case GL.LINES:
+        primitiveTopology = 'line-list';
+        break;
+      case GL.LINE_STRIP:
+        primitiveTopology = 'line-strip';
+        vertexState.indexFormat = primitive.indices.gpuType;
+        break;
+      case GL.POINTS:
+        primitiveTopology = 'point-list';
+        break;
+      default:
+        // LINE_LOOP and TRIANGLE_FAN are straight up unsupported.
+        return;
+    }
+    const cullMode = material.cullFace ? 'back' : 'none';
+    const colorBlend = {};
+    if (material.blend) {
+      colorBlend.srcFactor = 'src-alpha';
+      colorBlend.dstFactor = 'one-minus-src-alpha';
+    }
+
+    // Generate a key that describes this pipeline's layout/state
+    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
+    let i = 0;
+    for (const vertexBuffer of vertexState.vertexBuffers) {
+      pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
+      for (let attribute of vertexBuffer.attributes) {
+        pipelineKey += `:${attribute.shaderLocation},${attribute.offset},${attribute.format}`;
+      }
+      pipelineKey += '|'
+      i++;
+    }
+    if (vertexState.indexFormat) {
+      pipelineKey += `${vertexState.indexFormat}`;
+    }
+
+    let cachedPipeline = this.pipelineCache.get(pipelineKey);
+
+    if (!cachedPipeline) {
+      const pipeline = this.device.createRenderPipeline({
+        vertexStage: shaderModule.vertexStage,
+        fragmentStage: shaderModule.fragmentStage,
+
+        primitiveTopology,
+
+        vertexState,
+
+        rasterizationState: {
+          cullMode,
+        },
+
+        // Everything below here is (currently) identical for each pipeline
+        layout: this.pipelineLayout,
+        colorStates: [{
+          format: this.renderBundleDescriptor.colorFormats[0],
+          colorBlend,
+        }],
+        depthStencilState: {
+          depthWriteEnabled: true,
+          depthCompare: 'less',
+          format: this.renderBundleDescriptor.depthStencilFormat,
+        },
+        sampleCount: this.renderBundleDescriptor.sampleCount,
+      });
+
+      cachedPipeline = {
+        id: this.nextPipelineId++,
+        opaque: !material.blend,
+        pipeline
+      };
+
+      this.pipelineCache.set(pipelineKey, cachedPipeline);
+    }
+
+    return cachedPipeline;
+  }
+
+  createRenderBundle(primitives, frameBindGroup, lightBindGroup) {
+    // Generate a render bundle that draws all the given primitives with the specified technique.
+    // The sort up front is a bit heavy, but that's OK because the end result is a render bundle
+    // will excute very quickly.
+    const opaquePipelines = new Map(); // Map<id -> CachedPipeline>;
+    const blendedPipelines = new Map(); // Map<id -> CachedPipeline>;
+    const pipelineMaterials = new Map(); // WeakMap<id -> Map<Material -> Primitive[]>>
+
+    for (const primitive of primitives) {
+      const cachedPipeline = this.getPrimitivePipeline(primitive);
+
+      if (cachedPipeline.opaque) {
+        opaquePipelines.set(cachedPipeline.id, cachedPipeline.pipeline);
+      } else {
+        blendedPipelines.set(cachedPipeline.id, cachedPipeline.pipeline);
+      }
+
+      let materialPrimitiveMap = pipelineMaterials.get(cachedPipeline.pipeline);
+      if (!materialPrimitiveMap) {
+        materialPrimitiveMap = new Map(); // Map<Material -> Primitive[]>
+        pipelineMaterials.set(cachedPipeline.pipeline, materialPrimitiveMap);
+      }
+
+      const materialBindGroup = primitive.material.renderData.gpuBindGroup;
+
+      let materialPrimitives = materialPrimitiveMap.get(materialBindGroup);
+      if (!materialPrimitives) {
+        materialPrimitives = [];
+        materialPrimitiveMap.set(materialBindGroup, materialPrimitives);
+      }
+
+      materialPrimitives.push(primitive);
+    }
+
+    // Create a bundle we can use to replay our scene drawing each frame
+    const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
+
+    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, frameBindGroup);
+    renderBundleEncoder.setBindGroup(UNIFORM_SET.Light, lightBindGroup);
+
+    // Opaque primitives first
+    for (let pipeline of opaquePipelines.values()) {
+      const materialPrimitives = pipelineMaterials.get(pipeline);
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline, materialPrimitives);
+    }
+
+    // Blended primitives next
+    for (let pipeline of blendedPipelines.values()) {
+      const materialPrimitives = pipelineMaterials.get(pipeline);
+      this.drawPipelinePrimitives(renderBundleEncoder, pipeline, materialPrimitives);
+    }
+
+    return renderBundleEncoder.finish();
+  }
+
+  drawPipelinePrimitives(encoder, pipeline, materialPrimitives) {
+    encoder.setPipeline(pipeline);
+
+    for (let [materialBindGroup, primitives] of materialPrimitives) {
+      encoder.setBindGroup(UNIFORM_SET.Material, materialBindGroup);
+
+      for (let primitive of primitives) {
+        encoder.setBindGroup(UNIFORM_SET.Primitive, primitive.renderData.gpuBindGroup);
+
+        let i = 0;
+        for (let bufferView of primitive.attributeBuffers.keys()) {
+          encoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
+          i++;
+        }
+
+        if (primitive.indices) {
+          encoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer,
+                                     primitive.indices.gpuType, primitive.indices.byteOffset);
+                                     encoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
+        } else {
+          encoder.draw(primitive.elementCount, 1, 0, 0);
+        }
+      }
+    }
+  }
+}

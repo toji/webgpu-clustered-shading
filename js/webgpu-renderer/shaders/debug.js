@@ -39,6 +39,10 @@ export const DepthSliceVertexSource = `
 `;
 
 export const DepthSliceFragmentSource = `
+  var<private> colorSet : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
+    vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
+  );
+
   ${FrameUniforms}
 
   [[location(0)]] var<in> vPos : vec2<f32>;

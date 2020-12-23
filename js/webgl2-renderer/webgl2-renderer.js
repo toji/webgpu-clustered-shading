@@ -210,7 +210,7 @@ export class WebGL2Renderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureTool.loadTextureFromElement(image);
+    const result = await this.textureTool.loadTextureFromImageBitmap(await image);
     image.glTexture = result.texture;
   }
 
@@ -416,13 +416,15 @@ export class WebGL2Renderer extends Renderer {
       }
     }
 
-    // Last, render a sprite for all of the lights
-    this.lightProgram.use();
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    gl.depthMask(false);
-    gl.bindVertexArray(this.lightVertexArray);
-    gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightManager.lightCount);
-    gl.depthMask(true);
+    if (this.lightManager.render) {
+      // Last, render a sprite for all of the lights
+      this.lightProgram.use();
+      gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
+      gl.depthMask(false);
+      gl.bindVertexArray(this.lightVertexArray);
+      gl.drawArraysInstanced(gl.TRIANGLES, 0, LightSprite.vertexCount, this.lightManager.lightCount);
+      gl.depthMask(true);
+    }
   }
 
   drawRenderTree(program, materialList) {

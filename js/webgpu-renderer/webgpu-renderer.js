@@ -20,10 +20,9 @@
 
 import { Renderer } from '../renderer.js';
 import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
-import { PBRVertexSource, PBRFragmentSource, PRBDefinesForPrimitive } from './shaders/pbr.js';
+import { PBRTechnique } from './techniques/pbr-technique.js';
 import { LightGroup } from './light-group.js';
-import { createShaderModuleDebug } from './wgsl-utils.js';
-import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
 
@@ -32,24 +31,6 @@ const DEPTH_FORMAT = "depth24plus";
 
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
-
-let NEXT_SHADER_ID = 0;
-
-class PBRShaderModule {
-  constructor(device, defines) {
-    this.id = NEXT_SHADER_ID++;
-
-    this.vertexStage = {
-      module: createShaderModuleDebug(device, PBRVertexSource(defines)),
-      entryPoint: 'main'
-    };
-
-    this.fragmentStage = {
-      module: createShaderModuleDebug(device, PBRFragmentSource(defines)),
-      entryPoint: 'main'
-    };
-  }
-}
 
 export class WebGPURenderer extends Renderer {
   constructor() {
@@ -192,6 +173,9 @@ export class WebGPURenderer extends Renderer {
     this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
     this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
     this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
+
+    this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
+        this.pipelineLayout, this.lightManager.maxLightCount);
   }
 
   onResize(width, height) {
@@ -242,8 +226,10 @@ export class WebGPURenderer extends Renderer {
       this.initPrimitive(primitive);
     }
 
+    this.renderBundle = this.pbrTechnique.createRenderBundle(gltf.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+
     // Create a bundle we can use to replay our scene drawing each frame
-    const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
+    /*const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
 
     renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
     renderBundleEncoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
@@ -262,7 +248,7 @@ export class WebGPURenderer extends Renderer {
     // (Uses the frame and light bind groups that are already set).
     //this.lightGroup.renderSprites(renderBundleEncoder);
 
-    this.renderBundle = renderBundleEncoder.finish();
+    this.renderBundle = renderBundleEncoder.finish();*/
   }
 
   async initBufferView(bufferView) {
@@ -307,7 +293,7 @@ export class WebGPURenderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureTool.loadTextureFromElement(image);
+    const result = await this.textureTool.loadTextureFromImageBitmap(await image);
     image.gpuTextureView = result.texture.createView();
   }
 
@@ -466,29 +452,11 @@ export class WebGPURenderer extends Renderer {
       });
     }
 
-    primitive.renderData.gpuVertexState = {
-      vertexBuffers
-    };
+    primitive.renderData.vertexBuffers = vertexBuffers;
 
     if (primitive.indices) {
       primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
     }
-
-    const defines = PRBDefinesForPrimitive(primitive);
-    defines.MAX_LIGHT_COUNT = this.lightManager.maxLightCount;
-
-    let key = '';
-    for (let define in defines) {
-      key += `${define}=${defines[define]},`;
-    }
-
-    let program = this.programs.get(key);
-    if (!program) {
-      program = new PBRShaderModule(this.device, defines);
-      this.programs.set(key, program);
-    }
-
-    primitive.renderData.gpuShaderModule = program;
 
     const bufferSize = 16 * 4;
 
@@ -514,108 +482,8 @@ export class WebGPURenderer extends Renderer {
       primitive.renderData.gpuBindGroup = primitiveBindGroup;
 
       // TODO: This needs some SERIOUS de-duping
-      this.createPipeline(primitive);
+      //this.createPipeline(primitive);
     }
-  }
-
-  createPipeline(primitive) {
-    const material = primitive.material;
-    const shaderModule = primitive.renderData.gpuShaderModule;
-    const vertexState = primitive.renderData.gpuVertexState;
-
-    let primitiveTopology;
-    switch (primitive.mode) {
-      case GL.TRIANGLES:
-        primitiveTopology = 'triangle-list';
-        break;
-      case GL.TRIANGLE_STRIP:
-        primitiveTopology = 'triangle-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
-        break;
-      case GL.LINES:
-        primitiveTopology = 'line-list';
-        break;
-      case GL.LINE_STRIP:
-        primitiveTopology = 'line-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
-        break;
-      case GL.POINTS:
-        primitiveTopology = 'point-list';
-        break;
-      default:
-        // LINE_LOOP and TRIANGLE_FAN are straight up unsupported.
-        return;
-    }
-    const cullMode = material.cullFace ? 'back' : 'none';
-    const colorBlend = {};
-    if (material.blend) {
-      colorBlend.srcFactor = 'src-alpha';
-      colorBlend.dstFactor = 'one-minus-src-alpha';
-    }
-
-    // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
-    let i = 0;
-    for (let vertexBuffer of vertexState.vertexBuffers) {
-      pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
-      for (let attribute of vertexBuffer.attributes) {
-        pipelineKey += `:${attribute.shaderLocation},${attribute.offset},${attribute.format}`;
-      }
-      pipelineKey += '|'
-      i++;
-    }
-
-    if (vertexState.indexFormat) {
-      pipelineKey += `${vertexState.indexFormat}`;
-    }
-
-    let pipeline = this.pipelines.get(pipelineKey);
-
-    if (!pipeline) {
-      pipeline = this.device.createRenderPipeline({
-        vertexStage: shaderModule.vertexStage,
-        fragmentStage: shaderModule.fragmentStage,
-
-        primitiveTopology,
-
-        vertexState,
-
-        rasterizationState: {
-          cullMode,
-        },
-
-        // Everything below here is (currently) identical for each pipeline
-        layout: this.pipelineLayout,
-        colorStates: [{
-          format: this.renderBundleDescriptor.colorFormats[0],
-          colorBlend,
-        }],
-        depthStencilState: {
-          depthWriteEnabled: true,
-          depthCompare: 'less',
-          format: this.renderBundleDescriptor.depthStencilFormat,
-        },
-        sampleCount: this.renderBundleDescriptor.sampleCount,
-      });
-
-      this.pipelines.set(pipelineKey, pipeline);
-      if (material.blend) {
-        this.blendedPipelines.push(pipeline);
-      } else {
-        this.opaquePipelines.push(pipeline);
-      }
-      this.pipelineMaterials.set(pipeline, new Map());
-    }
-
-    let pipelineMaterialPrimitives = this.pipelineMaterials.get(pipeline);
-
-    let materialPrimitives = pipelineMaterialPrimitives.get(primitive.material);
-    if (!materialPrimitives) {
-      materialPrimitives = [];
-      pipelineMaterialPrimitives.set(primitive.material, materialPrimitives);
-    }
-
-    materialPrimitives.push(primitive);
   }
 
   initNode(node) {
@@ -636,10 +504,12 @@ export class WebGPURenderer extends Renderer {
       encoder.executeBundles([this.renderBundle]);
     }
 
-    // Last, render a sprite for all of the lights.
-    encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-    encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-    this.lightGroup.renderSprites(encoder);
+    if (this.lightManager.render) {
+      // Last, render a sprite for all of the lights.
+      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+      this.lightGroup.renderSprites(encoder);
+    }
   }
 
   renderDepthSlices(encoder) {

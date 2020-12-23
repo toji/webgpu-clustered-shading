@@ -61,6 +61,7 @@
       let appSettings = {
         renderer: 'webGPU',
         output: 'naive-forward',
+        renderLightSprites: true,
         lightCount: 10,
       };
 
@@ -75,6 +76,12 @@
         naiveForward: 'naive-forward',
         depthSlice: 'depth-slices',
       }).onChange(onOutputChange);
+
+      gui.add(appSettings, 'renderLightSprites').onChange(() => {
+        if (renderer) {
+          renderer.lightManager.render = appSettings.renderLightSprites;
+        }
+      });
 
       gui.add(appSettings, 'lightCount', 0, 500).onFinishChange(() => {
         if (renderer) {
@@ -121,6 +128,7 @@
             document.body.appendChild(renderer.canvas);
             camera.element = renderer.canvas;
             renderer.lightManager.lightCount = appSettings.lightCount;
+            renderer.lightManager.render = appSettings.renderLightSprites;
 
             onOutputChange();
 
