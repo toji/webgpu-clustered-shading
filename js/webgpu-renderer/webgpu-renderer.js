@@ -33,6 +33,8 @@ import { createShaderModuleDebug } from './wgsl-utils.js';
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 
+const TILE_COUNT = [16, 10, 24];
+
 // Only used for comparing values from glTF, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;
 
@@ -152,12 +154,21 @@ export class WebGPURenderer extends Renderer {
       }]
     });
 
+    this.clusterReadOnlyStorageBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [{
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'readonly-storage-buffer'
+      }]
+    });
+
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.frameUniformsBindGroupLayout, // set 0
         this.lightGroup.bindGroupLayout, // set 1
         this.materialUniformsBindGroupLayout, // set 2
         this.primitiveUniformsBindGroupLayout, // set 3
+        //this.clusterReadOnlyStorageBindGroupLayout, // set 4
       ]
     });
 
@@ -219,13 +230,13 @@ export class WebGPURenderer extends Renderer {
       this.clusterPipeline = this.device.createComputePipeline({
         layout: clusterPipelineLayout,
         computeStage: {
-          module: createShaderModuleDebug(this.device, ClusteredAABBSource(16, 10, 24)),
+          module: createShaderModuleDebug(this.device, ClusteredAABBSource(...TILE_COUNT)),
           entryPoint: 'main',
         }
       });
 
       this.clusterBuffer = this.device.createBuffer({
-        size: 16 * 10 * 24 * 32, // Cluster x, y, z size * 32 bytes per cluster.
+        size: TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2] * 16, // Cluster x, y, z size * 16 bytes per cluster.
         usage: GPUBufferUsage.STORAGE
       });
 
@@ -238,17 +249,31 @@ export class WebGPURenderer extends Renderer {
           },
         }],
       });
+
+      this.clusterReadonlyBindGroup = this.device.createBindGroup({
+        layout: this.clusterReadOnlyStorageBindGroupLayout,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.clusterBuffer,
+          },
+        }],
+      });
     }
 
+    // Update the FrameUniforms buffer with the values that are used by every
+    // program and don't change for the duration of the frame.
+    this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
+
     // Crashing! Yay!
-    /*const commandEncoder = this.device.createCommandEncoder();
+    const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.clusterPipeline);
     passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
-    passEncoder.dispatch(16, 10, 24);
+    passEncoder.dispatch(...TILE_COUNT);
     passEncoder.endPass();
-    this.device.defaultQueue.submit([commandEncoder.finish()]);*/
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
   }
 
   async setGltf(gltf) {
@@ -570,6 +595,20 @@ export class WebGPURenderer extends Renderer {
     }
   }
 
+  renderClusterDistance(encoder) {
+    if (!this.clusterDistanceTechnique) {
+      this.clusterDistanceTechnique = new ClusterDistanceTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
+    }
+
+    if (!this.clusterDistanceRenderBundle && this.primitives) {
+      this.clusterDistanceRenderBundle = this.clusterDistanceTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+    }
+
+    if (this.clusterDistanceRenderBundle) {
+      encoder.executeBundles([this.clusterDistanceRenderBundle]);
+    }
+  }
+
   computeClusteredForward(commandEncoder) {
 
   }
@@ -622,7 +661,7 @@ export class WebGPURenderer extends Renderer {
         this.renderDepthSlices(passEncoder);
         break;
       case "clustered-forward":
-        this.renderClusteredForward(passEncoder);
+        this.renderClusterDistance(passEncoder);
         break;
     }
 

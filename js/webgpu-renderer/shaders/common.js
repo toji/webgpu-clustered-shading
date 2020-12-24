@@ -74,7 +74,8 @@ export const SimpleVertexSource = `
 
   [[stage(vertex)]]
   fn main() -> void {
-    outPosition = frame.projectionMatrix * frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
+    const viewPosition : vec4<f32> = frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
+    outPosition = frame.projectionMatrix * viewPosition;
     return;
   }
 `;

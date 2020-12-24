@@ -112,3 +112,42 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
     }
   `; }
 }
+
+/**
+ * Technique visualizes distance to the center of each cluster.
+ */
+export class ClusterDistanceTechnique extends WebGPURenderTechnique {
+  constructor(device, renderBundleDescriptor, pipelineLayout) {
+    super(device, renderBundleDescriptor, pipelineLayout);
+  }
+
+  getVertexSource(defines) { return SimpleVertexSource; }
+
+  getFragmentSource(defines) { return `
+    ${FrameUniforms}
+    ${TileFunctions}
+
+    var<private> colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+      vec3<f32>(1.0, 0.0, 0.0),
+      vec3<f32>(1.0, 0.5, 0.0),
+      vec3<f32>(0.5, 1.0, 0.0),
+      vec3<f32>(0.0, 1.0, 0.0),
+      vec3<f32>(0.0, 1.0, 0.5),
+      vec3<f32>(0.0, 0.5, 1.0),
+      vec3<f32>(0.0, 0.0, 1.0),
+      vec3<f32>(0.5, 0.0, 1.0),
+      vec3<f32>(1.0, 0.0, 0.5)
+    );
+
+    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
+
+    [[location(0)]] var<out> outColor : vec4<f32>;
+
+    [[stage(fragment)]]
+    fn main() -> void {
+      var tile : vec3<i32> = getTile(fragCoord);
+      outColor = vec4<f32>(colorSet[tile.z % 9], 1.0);
+      return;
+    }
+  `; }
+}

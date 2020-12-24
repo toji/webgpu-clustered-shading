@@ -23,16 +23,26 @@
 
 import { FrameUniforms } from './common.js';
 
+// Trying something possibly very silly here: I'm going to store the cluster bounds as spheres
+// (center + radius) instead of AABBs to reduce storage/intersection complexity. This will result
+// in more overlap between clusters to ensure we don't have any gaps, and that may not be a good
+// tradeoff, but I'll give it a try and see where the bottlenecks are.
 export function ClusteredAABBSource(x, y, z) { return `
   ${FrameUniforms}
 
   [[builtin(local_invocation_id)]] var<in> local_id : vec3<u32>;
 
-  [[block]] struct Cluster {
-    [[offset(0)]] minPoint : vec3<f32>;
-    [[offset(16)]] maxPoint : vec3<f32>;
+  [[block]] struct ClusterBounds {
+    [[offset(0)]] center : vec3<f32>;
+    [[offset(12)]] radius : f32;
   };
-  [[set(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${x * y * z}>;
+  [[block]] struct Clusters {
+    [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${x * y * z}>;
+  };
+  [[set(1), binding(0)]] var<storage_buffer> clusters : Clusters;
+
+  # THIS CRASHES:
+  # [[set(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${x * y * z}>;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
       const normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
@@ -42,6 +52,7 @@ export function ClusteredAABBSource(x, y, z) { return `
   }
 
   fn clipToView(clip : vec4<f32>) -> vec4<f32> {
+      # TODO: Start passing an inverse projection matrix here.
       const inverseProjection : mat4x4<f32> = frame.projectionMatrix;
       const view : vec4<f32> = inverseProjection * clip;
       return view / vec4<f32>(view.w, view.w, view.w, view.w);
@@ -86,8 +97,10 @@ export function ClusteredAABBSource(x, y, z) { return `
     const minPointAABB : vec3<f32> = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
     const maxPointAABB : vec3<f32> = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
 
-    clusters[tileIndex].minPoint = minPointAABB;
-    clusters[tileIndex].maxPoint = maxPointAABB;
+    const midPoint : vec3<f32> = (maxPointAABB - minPointAABB) / vec3<f32>(2.0, 2.0, 2.0);
+
+    clusters.bounds[tileIndex].center = minPointAABB + midPoint;
+    clusters.bounds[tileIndex].radius = length(midPoint);
 
     return;
   }
