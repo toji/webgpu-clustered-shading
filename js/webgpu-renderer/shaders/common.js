@@ -38,8 +38,9 @@ export const FrameUniforms = `
     [[offset(0)]] projectionMatrix : mat4x4<f32>;
     [[offset(64)]] viewMatrix : mat4x4<f32>;
     [[offset(128)]] cameraPosition : vec3<f32>;
-    [[offset(144)]] zNear : f32;
-    [[offset(148)]] zFar : f32;
+    [[offset(144)]] outputSize : vec2<f32>;
+    [[offset(152)]] zNear : f32;
+    [[offset(156)]] zFar : f32;
   };
   [[set(${UNIFORM_SET.Frame}), binding(0)]] var<uniform> frame : FrameUniforms;
 `;
@@ -58,3 +59,22 @@ export function LightUniforms(maxLightCount) { return `
   };
   [[set(${UNIFORM_SET.Light}), binding(0)]] var<uniform> light : LightUniforms;
 `};
+
+export const SimpleVertexSource = `
+  ${FrameUniforms}
+
+  [[block]] struct PrimitiveUniforms {
+    [[offset(0)]] modelMatrix : mat4x4<f32>;
+  };
+  [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
+
+  [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
+
+  [[builtin(position)]] var<out> outPosition : vec4<f32>;
+
+  [[stage(vertex)]]
+  fn main() -> void {
+    outPosition = frame.projectionMatrix * frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
+    return;
+  }
+`;

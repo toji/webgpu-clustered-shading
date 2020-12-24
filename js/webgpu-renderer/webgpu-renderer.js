@@ -21,8 +21,7 @@
 import { Renderer } from '../renderer.js';
 import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
 import { PBRTechnique } from './techniques/pbr-technique.js';
-import { DepthSliceTechnique } from './techniques/depth-slice-technique.js';
-import { DepthTechnique } from './techniques/depth-technique.js';
+import { DepthTechnique, DepthSliceTechnique } from './techniques/tile-debug-techniques.js';
 import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
