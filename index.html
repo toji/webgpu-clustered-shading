@@ -60,7 +60,7 @@
 
       let appSettings = {
         renderer: 'webGPU',
-        output: 'naive-forward',
+        output: 'depth-slice',
         renderLightSprites: true,
         lightCount: 10,
       };
@@ -75,7 +75,7 @@
       gui.add(appSettings, 'output', {
         naiveForward: 'naive-forward',
         depth: 'depth',
-        depthSlice: 'depth-slices',
+        depthSlice: 'depth-slice',
       }).onChange(onOutputChange);
 
       gui.add(appSettings, 'renderLightSprites').onChange(() => {

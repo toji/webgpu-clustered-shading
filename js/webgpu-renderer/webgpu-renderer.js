@@ -562,7 +562,7 @@ export class WebGPURenderer extends Renderer {
       case "depth":
         this.renderDepth(passEncoder);
         break;
-      case "depth-slices":
+      case "depth-slice":
         this.renderDepthSlices(passEncoder);
         break;
     }

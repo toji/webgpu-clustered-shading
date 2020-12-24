@@ -73,9 +73,13 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
       return linear;
     }
 
+    const tileCount : vec3<i32> = vec3<i32>(32, 32, 32);
+
     [[stage(fragment)]]
     fn main() -> void {
-      var zTile : i32 = i32(max(log2(linearDepth(vPos.z / vPos.w)), 0.0));
+      var sliceScale : f32 = f32(tileCount.z) / log2(frame.zFar / frame.zNear);
+      var sliceBias : f32 = -(f32(tileCount.z) * log2(frame.zNear) / log2(frame.zFar / frame.zNear));
+      var zTile : i32 = i32(max(log2(linearDepth(vPos.z / vPos.w)) * sliceScale + sliceBias, 0.0));
       outColor = vec4<f32>(colorSet[zTile % 9], 1.0);
       return;
     }
