@@ -26,6 +26,9 @@ import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
+import { ClusteredAABBSource } from './shaders/clustered-compute.js';
+import { createShaderModuleDebug } from './wgsl-utils.js';
+
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
@@ -95,7 +98,7 @@ export class WebGPURenderer extends Renderer {
     this.frameUniformsBindGroupLayout = this.device.createBindGroupLayout({
       entries: [{
         binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
         type: 'uniform-buffer'
       }]
     });
@@ -196,6 +199,56 @@ export class WebGPURenderer extends Renderer {
       usage: GPUTextureUsage.OUTPUT_ATTACHMENT
     });
     this.depthAttachment.attachment = depthTexture.createView();
+
+    // On every size change we need to re-compute the cluster grid.
+    if (!this.clusterPipeline) {
+      const clusterStorageBindGroupLayout = this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          type: 'storage-buffer'
+        }]
+      });
+      const clusterPipelineLayout = this.device.createPipelineLayout({
+        bindGroupLayouts: [
+          this.frameUniformsBindGroupLayout, // set 0
+          clusterStorageBindGroupLayout, // set 1
+        ]
+      });
+
+      this.clusterPipeline = this.device.createComputePipeline({
+        layout: clusterPipelineLayout,
+        computeStage: {
+          module: createShaderModuleDebug(this.device, ClusteredAABBSource(16, 10, 24)),
+          entryPoint: 'main',
+        }
+      });
+
+      this.clusterBuffer = this.device.createBuffer({
+        size: 16 * 10 * 24 * 32, // Cluster x, y, z size * 32 bytes per cluster.
+        usage: GPUBufferUsage.STORAGE
+      });
+
+      this.clusterStorageBindGroup = this.device.createBindGroup({
+        layout: this.clusterPipeline.getBindGroupLayout(1),
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.clusterBuffer,
+          },
+        }],
+      });
+    }
+
+    // Crashing! Yay!
+    /*const commandEncoder = this.device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(this.clusterPipeline);
+    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+    passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
+    passEncoder.dispatch(16, 10, 24);
+    passEncoder.endPass();
+    this.device.defaultQueue.submit([commandEncoder.finish()]);*/
   }
 
   async setGltf(gltf) {
@@ -477,7 +530,7 @@ export class WebGPURenderer extends Renderer {
   renderNaiveForward(encoder) {
     if (!this.pbrTechnique) {
       this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
-        this.pipelineLayout, this.lightManager.maxLightCount);
+          this.pipelineLayout, this.lightManager.maxLightCount);
     }
 
     if (!this.pbrRenderBundle && this.primitives) {
@@ -486,13 +539,6 @@ export class WebGPURenderer extends Renderer {
 
     if (this.pbrRenderBundle) {
       encoder.executeBundles([this.pbrRenderBundle]);
-    }
-
-    if (this.lightManager.render) {
-      // Last, render a sprite for all of the lights.
-      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-      this.lightGroup.renderSprites(encoder);
     }
   }
 
@@ -508,13 +554,6 @@ export class WebGPURenderer extends Renderer {
     if (this.depthRenderBundle) {
       encoder.executeBundles([this.depthRenderBundle]);
     }
-
-    if (this.lightManager.render) {
-      // Last, render a sprite for all of the lights.
-      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-      this.lightGroup.renderSprites(encoder);
-    }
   }
 
   renderDepthSlices(encoder) {
@@ -529,12 +568,24 @@ export class WebGPURenderer extends Renderer {
     if (this.depthSliceRenderBundle) {
       encoder.executeBundles([this.depthSliceRenderBundle]);
     }
+  }
 
-    if (this.lightManager.render) {
-      // Last, render a sprite for all of the lights.
-      encoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-      encoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
-      this.lightGroup.renderSprites(encoder);
+  computeClusteredForward(commandEncoder) {
+
+  }
+
+  renderClusteredForward(encoder) {
+    if (!this.pbrClusteredTechnique) {
+      this.pbrClusteredTechnique = new PBRClusteredTechnique(this.device, this.renderBundleDescriptor,
+          this.pipelineLayout, this.lightManager.maxLightCount);
+    }
+
+    if (!this.pbrClusteredRenderBundle && this.primitives) {
+      this.pbrClusteredRenderBundle = this.pbrClusteredTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+    }
+
+    if (this.pbrClusteredRenderBundle) {
+      encoder.executeBundles([this.pbrClusteredRenderBundle]);
     }
   }
 
@@ -552,6 +603,12 @@ export class WebGPURenderer extends Renderer {
 
     const commandEncoder = this.device.createCommandEncoder({});
 
+    switch (this.outputType) {
+      case "clustered-forward":
+        this.computeClusteredForward(commandEncoder);
+        break;
+    }
+
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
     switch (this.outputType) {
@@ -564,35 +621,19 @@ export class WebGPURenderer extends Renderer {
       case "depth-slice":
         this.renderDepthSlices(passEncoder);
         break;
+      case "clustered-forward":
+        this.renderClusteredForward(passEncoder);
+        break;
+    }
+
+    if (this.lightManager.render) {
+      // Last, render a sprite for all of the lights.
+      passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+      passEncoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
+      this.lightGroup.renderSprites(passEncoder);
     }
 
     passEncoder.endPass();
     this.device.defaultQueue.submit([commandEncoder.finish()]);
-  }
-
-  drawPipelinePrimitives(passEncoder, pipeline) {
-    passEncoder.setPipeline(pipeline);
-    const materialPrimitives = this.pipelineMaterials.get(pipeline);
-    for (let [material, primitives] of materialPrimitives) {
-      passEncoder.setBindGroup(UNIFORM_SET.Material, material.renderData.gpuBindGroup);
-
-      for (let primitive of primitives) {
-        passEncoder.setBindGroup(UNIFORM_SET.Primitive, primitive.renderData.gpuBindGroup);
-
-        let i = 0;
-        for (let bufferView of primitive.attributeBuffers.keys()) {
-          passEncoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
-          i++;
-        }
-
-        if (primitive.indices) {
-          passEncoder.setIndexBuffer(primitive.indices.bufferView.renderData.gpuBuffer,
-                                     primitive.indices.gpuType, primitive.indices.byteOffset);
-          passEncoder.drawIndexed(primitive.elementCount, 1, 0, 0, 0);
-        } else {
-          passEncoder.draw(primitive.elementCount, 1, 0, 0);
-        }
-      }
-    }
   }
 }
