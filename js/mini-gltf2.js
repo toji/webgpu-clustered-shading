@@ -20,6 +20,9 @@
 
 import { vec2, vec3, vec4, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
 
+// Used for comparing values from glTF files, which uses WebGL enums natively.
+const GL = WebGLRenderingContext;
+
 const GLB_MAGIC = 0x46546C67;
 const CHUNK_TYPE = {
   JSON: 0x4E4F534A,
@@ -60,12 +63,12 @@ function getComponentCount(type) {
 
 function getComponentTypeSize(componentType) {
   switch (componentType) {
-    case 5120: return 1; // gl.BYTE
-    case 5121: return 1; // gl.UNSIGNED_BYTE
-    case 5122: return 2; // gl.SHORT
-    case 5123: return 2; // gl.UNSIGNED_SHORT
-    case 5125: return 4; // gl.UNSIGNED_INT
-    case 5126: return 4; // gl.FLOAT
+    case GL.BYTE: return 1;
+    case GL.UNSIGNED_BYTE: return 1;
+    case GL.SHORT: return 2;
+    case GL.UNSIGNED_SHORT: return 2;
+    case GL.UNSIGNED_INT: return 4;
+    case GL.FLOAT: return 4;
     default: return 0;
   }
 }
@@ -418,7 +421,7 @@ class Node {
 class PrimitiveAttribute {
   constructor(componentCount, componentType, byteOffset, normalized) {
     this.componentCount = componentCount || 3;
-    this.componentType = componentType || 5126; // gl.FLOAT;
+    this.componentType = componentType || GL.FLOAT;
     this.byteOffset = byteOffset || 0;
     this.normalized = normalized || false;
   }
@@ -426,13 +429,37 @@ class PrimitiveAttribute {
   get packedByteStride() {
     return getComponentTypeSize(this.componentType) * this.componentCount;
   }
+
+  get gpuFormat() {
+    const count = this.componentCount > 1 ? `${this.componentCount}` : '';
+    const norm = this.normalized ? 'norm' : '';
+
+    switch(this.componentType) {
+      case GL.BYTE:
+        return `char${count}${norm}`;
+      case GL.UNSIGNED_BYTE:
+        return `uchar${count}${norm}`;
+      case GL.SHORT:
+        return `short${count}${norm}`;
+      case GL.UNSIGNED_SHORT:
+        return `ushort${count}${norm}`;
+      case GL.UNSIGNED_INT:
+        return `uint${count}`;
+      case GL.FLOAT:
+        return `float${count}`;
+    }
+  }
 }
 
 class PrimitiveIndices {
   constructor(bufferView, byteOffset, type) {
     this.bufferView = bufferView;
     this.byteOffset = byteOffset || 0;
-    this.type = type || 5123; // gl.UNSIGNED_SHORT;
+    this.type = type || GL.UNSIGNED_SHORT;
+  }
+
+  get gpuType() {
+    return this.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
   }
 }
 
@@ -441,7 +468,7 @@ class Primitive {
     this.attributeBuffers = attributeBuffers; // Map<BufferView -> PrimitiveAttribute{}>
     this.indices = indices || null;
     this.elementCount = elementCount || 0;
-    this.mode = mode || 4; // gl.TRIANGLES;
+    this.mode = mode || GL.TRIANGLES;
     this.material = material;
 
     this.enabledAttributes = new Set();
@@ -454,17 +481,83 @@ class Primitive {
     // For renderer-specific data;
     this.renderData = {};
   }
+
+  get gpuPrimitiveTopology() {
+    switch (this.mode) {
+      case GL.TRIANGLES:
+        return 'triangle-list';
+      case GL.TRIANGLE_STRIP:
+        return 'triangle-strip';
+      case GL.LINES:
+        return 'line-list';
+      case GL.LINE_STRIP:
+        return 'line-strip';
+      case GL.POINTS:
+        return 'point-list';
+      default:
+        // LINE_LOOP and TRIANGLE_FAN are unsupported.
+        throw new Error('Unsupported primitive topology.');
+    }
+  }
 }
 
 class Sampler {
   constructor(magFilter, minFilter, wrapS, wrapT) {
+    // WebGL-compatible definition
     this.magFilter = magFilter;
     this.minFilter = minFilter;
-    this.wrapS = wrapS || 10497; // gl.REPEAT;
-    this.wrapT = wrapT || 10497; // gl.REPEAT;
+    this.wrapS = wrapS || GL.REPEAT;
+    this.wrapT = wrapT || GL.REPEAT;
 
     // For renderer-specific data;
     this.renderData = {};
+  }
+
+  get gpuSamplerDescriptor() {
+    // WebGPU-compatible definition
+    const descriptor = {};
+
+    if (!this.magFilter || this.magFilter == GL.LINEAR) {
+      descriptor.magFilter = 'linear';
+    }
+
+    switch (this.minFilter) {
+      case undefined:
+        descriptor.minFilter = 'linear';
+        descriptor.mipmapFilter = 'linear';
+        break;
+      case GL.LINEAR:
+      case GL.LINEAR_MIPMAP_NEAREST:
+        descriptor.minFilter = 'linear';
+        break;
+      case GL.NEAREST_MIPMAP_LINEAR:
+        descriptor.mipmapFilter = 'linear';
+        break;
+      case GL.LINEAR_MIPMAP_LINEAR:
+        descriptor.minFilter = 'linear';
+        descriptor.mipmapFilter = 'linear';
+        break;
+    }
+
+    switch (this.wrapS) {
+      case GL.REPEAT:
+        descriptor.addressModeU = 'repeat';
+        break;
+      case GL.MIRRORED_REPEAT:
+        descriptor.addressModeU = 'mirror-repeat';
+        break;
+    }
+
+    switch (this.wrapT) {
+      case GL.REPEAT:
+        descriptor.addressModeV = 'repeat';
+        break;
+      case GL.MIRRORED_REPEAT:
+        descriptor.addressModeV = 'mirror-repeat';
+        break;
+    }
+
+    return descriptor;
   }
 }
 

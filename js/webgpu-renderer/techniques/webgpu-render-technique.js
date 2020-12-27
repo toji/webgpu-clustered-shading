@@ -21,9 +21,6 @@
 import { createShaderModuleDebug } from '../wgsl-utils.js';
 import { UNIFORM_SET } from '../shaders/common.js';
 
-// Only used for comparing values from glTF, which uses WebGL enums natively.
-const GL = WebGLRenderingContext;
-
 export class WebGPURenderTechnique {
   constructor(device, renderBundleDescriptor, pipelineLayout) {
     this.device = device;
@@ -76,33 +73,16 @@ export class WebGPURenderTechnique {
   getPrimitivePipeline(primitive) {
     const material = primitive.material;
     const shaderModule = this.getShaderModules(primitive);
+    const primitiveTopology = primitive.gpuPrimitiveTopology;
+
     const vertexState = {
       vertexBuffers: primitive.renderData.vertexBuffers,
     };
 
-    let primitiveTopology;
-    switch (primitive.mode) {
-      case GL.TRIANGLES:
-        primitiveTopology = 'triangle-list';
-        break;
-      case GL.TRIANGLE_STRIP:
-        primitiveTopology = 'triangle-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
-        break;
-      case GL.LINES:
-        primitiveTopology = 'line-list';
-        break;
-      case GL.LINE_STRIP:
-        primitiveTopology = 'line-strip';
-        vertexState.indexFormat = primitive.indices.gpuType;
-        break;
-      case GL.POINTS:
-        primitiveTopology = 'point-list';
-        break;
-      default:
-        // LINE_LOOP and TRIANGLE_FAN are straight up unsupported.
-        return;
+    if (primitiveTopology == 'triangle-strip' || primitiveTopology == 'line-strip') {
+      vertexState.indexFormat = primitive.indices.gpuType;
     }
+
     const cullMode = material.cullFace ? 'back' : 'none';
     const colorBlend = {};
     if (material.blend) {

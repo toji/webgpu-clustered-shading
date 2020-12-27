@@ -35,9 +35,6 @@ const DEPTH_FORMAT = "depth24plus";
 
 const TILE_COUNT = [16, 10, 24];
 
-// Only used for comparing values from glTF, which uses WebGL enums natively.
-const GL = WebGLRenderingContext;
-
 export class WebGPURenderer extends Renderer {
   constructor() {
     super();
@@ -275,7 +272,6 @@ export class WebGPURenderer extends Renderer {
   }
 
   async setGltf(gltf) {
-    const gl = this.gl;
     const resourcePromises = [];
 
     for (let bufferView of gltf.bufferViews) {
@@ -352,49 +348,7 @@ export class WebGPURenderer extends Renderer {
   }
 
   initSampler(sampler) {
-    const samplerDescriptor = {};
-
-    switch (sampler.minFilter) {
-      case undefined:
-        samplerDescriptor.minFilter = 'linear';
-        samplerDescriptor.mipmapFilter = 'linear';
-        break;
-      case GL.LINEAR:
-      case GL.LINEAR_MIPMAP_NEAREST:
-        samplerDescriptor.minFilter = 'linear';
-        break;
-      case GL.NEAREST_MIPMAP_LINEAR:
-        samplerDescriptor.mipmapFilter = 'linear';
-        break;
-      case GL.LINEAR_MIPMAP_LINEAR:
-        samplerDescriptor.minFilter = 'linear';
-        samplerDescriptor.mipmapFilter = 'linear';
-        break;
-    }
-
-    if (!sampler.magFilter || sampler.magFilter == GL.LINEAR) {
-      samplerDescriptor.magFilter = 'linear';
-    }
-
-    switch (sampler.wrapS) {
-      case GL.REPEAT:
-        samplerDescriptor.addressModeU = 'repeat';
-        break;
-      case GL.MIRRORED_REPEAT:
-        samplerDescriptor.addressModeU = 'mirror-repeat';
-        break;
-    }
-
-    switch (sampler.wrapT) {
-      case GL.REPEAT:
-        samplerDescriptor.addressModeV = 'repeat';
-        break;
-      case GL.MIRRORED_REPEAT:
-        samplerDescriptor.addressModeV = 'mirror-repeat';
-        break;
-    }
-
-    sampler.renderData.gpuSampler = this.device.createSampler(samplerDescriptor);
+    sampler.renderData.gpuSampler = this.device.createSampler(sampler.gpuSamplerDescriptor);
   }
 
   initMaterial(material) {
@@ -464,35 +418,10 @@ export class WebGPURenderer extends Renderer {
       for (let attribName in attributes) {
         const attribute = attributes[attribName];
 
-        const count = attribute.componentCount > 1 ? `${attribute.componentCount}` : '';
-        const norm = attribute.normalized ? 'norm' : '';
-
-        let format;
-        switch(attribute.componentType) {
-          case GL.BYTE:
-            format = `char${count}${norm}`;
-            break;
-          case GL.UNSIGNED_BYTE:
-            format = `uchar${count}${norm}`;
-            break;
-          case GL.SHORT:
-            format = `short${count}${norm}`;
-            break;
-          case GL.UNSIGNED_SHORT:
-            format = `ushort${count}${norm}`;
-            break;
-          case GL.UNSIGNED_INT:
-            format = `uint${count}`;
-            break;
-          case GL.FLOAT:
-            format = `float${count}`;
-            break;
-        }
-
         attributeLayouts.push({
           shaderLocation: ATTRIB_MAP[attribName],
           offset: attribute.byteOffset,
-          format
+          format: attribute.gpuFormat,
         });
 
         if (!bufferView.byteStride) {
@@ -507,10 +436,6 @@ export class WebGPURenderer extends Renderer {
     }
 
     primitive.renderData.vertexBuffers = vertexBuffers;
-
-    if (primitive.indices) {
-      primitive.indices.gpuType = primitive.indices.type == GL.UNSIGNED_SHORT ? 'uint16' : 'uint32';
-    }
 
     const bufferSize = 16 * 4;
 
