@@ -28,9 +28,8 @@ export const ATTRIB_MAP = {
 
 export const UNIFORM_SET = {
   Frame: 0,
-  Light: 1,
-  Material: 2,
-  Primitive: 3,
+  Material: 1,
+  Primitive: 2,
 };
 
 export const FrameUniforms = `
@@ -57,7 +56,7 @@ export function LightUniforms(maxLightCount) { return `
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
-  [[set(${UNIFORM_SET.Light}), binding(0)]] var<uniform> light : LightUniforms;
+  [[set(${UNIFORM_SET.Frame}), binding(1)]] var<uniform> light : LightUniforms;
 `};
 
 export const SimpleVertexSource = `

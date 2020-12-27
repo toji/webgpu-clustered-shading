@@ -166,7 +166,7 @@ export class WebGPURenderTechnique {
     return cachedPipeline;
   }
 
-  createRenderBundle(primitives, frameBindGroup, lightBindGroup) {
+  createRenderBundle(primitives, frameBindGroups) {
     // Generate a render bundle that draws all the given primitives with the specified technique.
     // The sort up front is a bit heavy, but that's OK because the end result is a render bundle
     // will excute very quickly.
@@ -203,8 +203,9 @@ export class WebGPURenderTechnique {
     // Create a bundle we can use to replay our scene drawing each frame
     const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
 
-    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, frameBindGroup);
-    renderBundleEncoder.setBindGroup(UNIFORM_SET.Light, lightBindGroup);
+    for (let bindGroupSet in frameBindGroups) {
+      renderBundleEncoder.setBindGroup(bindGroupSet, frameBindGroups[bindGroupSet]);
+    }
 
     // Opaque primitives first
     for (let pipeline of opaquePipelines.values()) {

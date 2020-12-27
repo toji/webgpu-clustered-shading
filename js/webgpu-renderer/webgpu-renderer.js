@@ -43,16 +43,6 @@ export class WebGPURenderer extends Renderer {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
-
-    this.programs = new Map();
-
-    this.pipelines = new Map(); // Map<String -> GPURenderPipeline>
-    this.pipelineMaterials = new WeakMap(); // WeakMap<GPURenderPipeline, Map<Material, Primitive[]>>
-
-    this.opaquePipelines = [];
-    this.blendedPipelines = [];
-
-    this.primitives = null;
   }
 
   async init() {
@@ -101,6 +91,10 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+        type: 'uniform-buffer'
+      }, {
+        binding: 1,
+        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
         type: 'uniform-buffer'
       }]
     });
@@ -165,10 +159,9 @@ export class WebGPURenderer extends Renderer {
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.frameUniformsBindGroupLayout, // set 0
-        this.lightGroup.bindGroupLayout, // set 1
-        this.materialUniformsBindGroupLayout, // set 2
-        this.primitiveUniformsBindGroupLayout, // set 3
-        //this.clusterReadOnlyStorageBindGroupLayout, // set 4
+        this.materialUniformsBindGroupLayout, // set 1
+        this.primitiveUniformsBindGroupLayout, // set 2
+        //this.clusterReadOnlyStorageBindGroupLayout, // set 3
       ]
     });
 
@@ -183,6 +176,11 @@ export class WebGPURenderer extends Renderer {
         binding: 0,
         resource: {
           buffer: this.frameUniformsBuffer,
+        },
+      }, {
+        binding: 1,
+        resource: {
+          buffer: this.lightGroup.uniformsBuffer,
         },
       }],
     });
@@ -559,7 +557,9 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (!this.pbrRenderBundle && this.primitives) {
-      this.pbrRenderBundle = this.pbrTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+      this.pbrRenderBundle = this.pbrTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup
+      });
     }
 
     if (this.pbrRenderBundle) {
@@ -573,7 +573,9 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (!this.depthRenderBundle && this.primitives) {
-      this.depthRenderBundle = this.depthTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+      this.depthRenderBundle = this.depthTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup
+      });
     }
 
     if (this.depthRenderBundle) {
@@ -587,7 +589,9 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (!this.depthSliceRenderBundle && this.primitives) {
-      this.depthSliceRenderBundle = this.depthSliceTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+      this.depthSliceRenderBundle = this.depthSliceTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup
+      });
     }
 
     if (this.depthSliceRenderBundle) {
@@ -601,7 +605,10 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (!this.clusterDistanceRenderBundle && this.primitives) {
-      this.clusterDistanceRenderBundle = this.clusterDistanceTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+      this.clusterDistanceRenderBundle = this.clusterDistanceTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup,
+        3: this.clusterReadonlyBindGroup
+      });
     }
 
     if (this.clusterDistanceRenderBundle) {
@@ -620,7 +627,9 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (!this.pbrClusteredRenderBundle && this.primitives) {
-      this.pbrClusteredRenderBundle = this.pbrClusteredTechnique.createRenderBundle(this.primitives, this.frameUniformBindGroup, this.lightGroup.uniformBindGroup);
+      this.pbrClusteredRenderBundle = this.pbrClusteredTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup
+      });
     }
 
     if (this.pbrClusteredRenderBundle) {
@@ -668,7 +677,6 @@ export class WebGPURenderer extends Renderer {
     if (this.lightManager.render) {
       // Last, render a sprite for all of the lights.
       passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-      passEncoder.setBindGroup(UNIFORM_SET.Light, this.lightGroup.uniformBindGroup);
       this.lightGroup.renderSprites(passEncoder);
     }
 

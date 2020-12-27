@@ -27,33 +27,14 @@ export class LightGroup {
     this.device = device;
     this.lightManager = lightManager;
 
-    this.bindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
-      }]
-    });
-
     this.uniformsBuffer = this.device.createBuffer({
       size: lightManager.uniformArray.byteLength,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
-    this.uniformBindGroup = this.device.createBindGroup({
-      layout: this.bindGroupLayout,
-      entries: [{
-        binding: 0,
-        resource: {
-          buffer: this.uniformsBuffer,
-        },
-      }],
-    });
-
     this.spritePipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         frameBindGroupLayout, // set 0
-        this.bindGroupLayout, // set 1
       ]
     });
 
