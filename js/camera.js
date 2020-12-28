@@ -163,7 +163,7 @@ export class FlyingCamera {
     if (this._pressedKeys[32]) { // Space, moves up
       DIR[1] += speed;
     }
-    if (this._pressedKeys[17]) { // Ctrl, moves down
+    if (this._pressedKeys[16]) { // Shift, moves down
       DIR[1] -= speed;
     }
 

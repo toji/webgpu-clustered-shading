@@ -60,7 +60,7 @@
 
       let appSettings = {
         renderer: 'webGPU',
-        output: 'naive-forward',
+        output: 'cluster-distance',
         renderLightSprites: true,
         lightCount: 10,
       };
@@ -76,6 +76,7 @@
         naiveForward: 'naive-forward',
         depth: 'depth',
         depthSlice: 'depth-slice',
+        clusterDistance: 'cluster-distance',
         clusteredForward: 'clustered-forward',
       }).onChange(onOutputChange);
 

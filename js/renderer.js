@@ -85,13 +85,14 @@ export class Renderer {
 
     // Storage for global uniforms.
     // These can either be used individually or as a uniform buffer.
-    this.frameUniforms = new Float32Array(16 + 16 + 4 + 4);
+    this.frameUniforms = new Float32Array(16 + 16 + 16 + 4 + 4);
 
     this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
-    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
-    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 32 * 4, 3);
-    this.outputSize = new Float32Array(this.frameUniforms.buffer, 36 * 4, 2);
-    this.zRange = new Float32Array(this.frameUniforms.buffer, 38 * 4, 2);
+    this.inverseProjectionMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
+    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 32 * 4, 16);
+    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 48 * 4, 3);
+    this.outputSize = new Float32Array(this.frameUniforms.buffer, 52 * 4, 2);
+    this.zRange = new Float32Array(this.frameUniforms.buffer, 54 * 4, 2);
 
     this.zRange[0] = 0.2; // Near
     this.zRange[1] = 100.0; // Far
@@ -153,6 +154,7 @@ export class Renderer {
 
       const aspect = this.canvas.width / this.canvas.height;
       mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, this.zRange[0], this.zRange[1]);
+      mat4.invert(this.inverseProjectionMatrix, this.projectionMatrix);
 
       this.onResize(this.canvas.width, this.canvas.height);
     };

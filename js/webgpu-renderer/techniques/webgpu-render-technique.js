@@ -22,16 +22,27 @@ import { createShaderModuleDebug } from '../wgsl-utils.js';
 import { UNIFORM_SET } from '../shaders/common.js';
 
 export class WebGPURenderTechnique {
-  constructor(device, renderBundleDescriptor, pipelineLayout) {
+  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
     this.device = device;
     this.renderBundleDescriptor = renderBundleDescriptor;
-    this.pipelineLayout = pipelineLayout;
+    this.pipelineLayout = this.createPipelineLayout(bindGroupLayouts);
 
     this.nextShaderModuleId = 0;
     this.shaderModuleCache = new Map(); // Map<String -> ShaderModule>
 
     this.nextPipelineId = 0;
     this.pipelineCache = new Map(); // Map<String -> GPURenderPipeline>
+  }
+
+  createPipelineLayout(bindGroupLayouts) {
+    // Override per-technique if needed
+    return this.device.createPipelineLayout({
+      bindGroupLayouts: [
+        bindGroupLayouts.frame,
+        bindGroupLayouts.material,
+        bindGroupLayouts.primitive,
+      ]
+    });
   }
 
   getDefinesForPrimitive(primitive) {

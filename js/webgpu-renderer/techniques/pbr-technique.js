@@ -76,8 +76,8 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
 }`;
 
 export class PBRTechnique extends WebGPURenderTechnique {
-  constructor(device, renderBundleDescriptor, pipelineLayout, maxLights) {
-    super(device, renderBundleDescriptor, pipelineLayout);
+  constructor(device, renderBundleDescriptor, bindGroupLayouts, maxLights) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
     this.maxLights = maxLights;
   }
 

@@ -80,6 +80,7 @@ const WEBGL2_VERTEX_UNIFORMS = `
 layout(std140) uniform FrameUniforms
 {
   mat4 projectionMatrix;
+  mat4 inverseProjectionMatrix;
   mat4 viewMatrix;
   vec3 cameraPosition;
 };

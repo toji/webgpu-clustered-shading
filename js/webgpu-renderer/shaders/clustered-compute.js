@@ -30,7 +30,7 @@ import { FrameUniforms } from './common.js';
 export function ClusteredAABBSource(x, y, z) { return `
   ${FrameUniforms}
 
-  [[builtin(local_invocation_id)]] var<in> local_id : vec3<u32>;
+  [[builtin(global_invocation_id)]] var<in> local_id : vec3<u32>;
 
   [[block]] struct ClusterBounds {
     [[offset(0)]] center : vec3<f32>;
@@ -52,9 +52,7 @@ export function ClusteredAABBSource(x, y, z) { return `
   }
 
   fn clipToView(clip : vec4<f32>) -> vec4<f32> {
-      # TODO: Start passing an inverse projection matrix here.
-      const inverseProjection : mat4x4<f32> = frame.projectionMatrix;
-      const view : vec4<f32> = inverseProjection * clip;
+      const view : vec4<f32> = frame.inverseProjectionMatrix * clip;
       return view / vec4<f32>(view.w, view.w, view.w, view.w);
   }
 

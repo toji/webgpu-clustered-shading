@@ -19,14 +19,14 @@
 // SOFTWARE.
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
-import { FrameUniforms, SimpleVertexSource } from '../shaders/common.js';
+import { FrameUniforms, SimpleVertexSource, UNIFORM_SET, ATTRIB_MAP } from '../shaders/common.js';
 
 /**
  * Technique visualizes simple depth info as greyscale range.
  */
 export class DepthTechnique extends WebGPURenderTechnique {
-  constructor(device, renderBundleDescriptor, pipelineLayout) {
-    super(device, renderBundleDescriptor, pipelineLayout);
+  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
   }
 
   getVertexSource(defines) { return SimpleVertexSource; }
@@ -78,8 +78,8 @@ fn getClusterIndex(fragCoord : vec4<f32>) -> i32 {
  * Technique visualizes which depth slice a given fragment would be assigned to.
  */
 export class DepthSliceTechnique extends WebGPURenderTechnique {
-  constructor(device, renderBundleDescriptor, pipelineLayout) {
-    super(device, renderBundleDescriptor, pipelineLayout);
+  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
   }
 
   getVertexSource(defines) { return SimpleVertexSource; }
@@ -116,37 +116,98 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
 /**
  * Technique visualizes distance to the center of each cluster.
  */
+const TILE_COUNT = [16, 10, 24];
 export class ClusterDistanceTechnique extends WebGPURenderTechnique {
-  constructor(device, renderBundleDescriptor, pipelineLayout) {
-    super(device, renderBundleDescriptor, pipelineLayout);
+  constructor(device, renderBundleDescriptor, bindGroupLayouts, clusterBuffer) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
+
+    this.clusterBindGroup = this.device.createBindGroup({
+      layout: this.clusterBindGroupLayout,
+      entries: [{
+        binding: 0,
+        resource: {
+          buffer: clusterBuffer,
+        },
+      }],
+    });
   }
 
-  getVertexSource(defines) { return SimpleVertexSource; }
+  createPipelineLayout(bindGroupLayouts) {
+    this.clusterBindGroupLayout = this.device.createBindGroupLayout({
+      entries: [{
+        binding: 0,
+        visibility: GPUShaderStage.FRAGMENT,
+        type: 'readonly-storage-buffer'
+      }]
+    });
+
+    // Override per-technique if needed
+    return this.device.createPipelineLayout({
+      bindGroupLayouts: [
+        bindGroupLayouts.frame,
+        bindGroupLayouts.material,
+        bindGroupLayouts.primitive,
+        this.clusterBindGroupLayout,
+      ]
+    });
+  }
+
+  createRenderBundle(primitives, frameBindGroups) {
+    frameBindGroups[3] = this.clusterBindGroup;
+    return super.createRenderBundle(primitives, frameBindGroups);
+  }
+
+  getVertexSource(defines) { return `
+    ${FrameUniforms}
+
+    [[block]] struct PrimitiveUniforms {
+      [[offset(0)]] modelMatrix : mat4x4<f32>;
+    };
+    [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
+
+    [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
+
+    [[location(0)]] var<out> viewPosition : vec4<f32>;
+    [[builtin(position)]] var<out> outPosition : vec4<f32>;
+
+    [[stage(vertex)]]
+    fn main() -> void {
+      viewPosition = frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
+      outPosition = frame.projectionMatrix * viewPosition;
+      return;
+    }
+  `}
 
   getFragmentSource(defines) { return `
     ${FrameUniforms}
     ${TileFunctions}
 
-    var<private> colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
-      vec3<f32>(1.0, 0.0, 0.0),
-      vec3<f32>(1.0, 0.5, 0.0),
-      vec3<f32>(0.5, 1.0, 0.0),
-      vec3<f32>(0.0, 1.0, 0.0),
-      vec3<f32>(0.0, 1.0, 0.5),
-      vec3<f32>(0.0, 0.5, 1.0),
-      vec3<f32>(0.0, 0.0, 1.0),
-      vec3<f32>(0.5, 0.0, 1.0),
-      vec3<f32>(1.0, 0.0, 0.5)
-    );
+    [[block]] struct ClusterBounds {
+      [[offset(0)]] center : vec3<f32>;
+      [[offset(12)]] radius : f32;
+    };
+
+    [[block]] struct Clusters {
+      [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2]}>;
+    };
+    [[set(3), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
 
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
 
+    [[location(0)]] var<in> viewPosition : vec4<f32>;
     [[location(0)]] var<out> outColor : vec4<f32>;
 
     [[stage(fragment)]]
     fn main() -> void {
-      var tile : vec3<i32> = getTile(fragCoord);
-      outColor = vec4<f32>(colorSet[tile.z % 9], 1.0);
+      var tileIndex : i32 = getClusterIndex(fragCoord);
+
+      # THIS CRASHES:
+      # var clusterBounds : ClusterBounds = clusters.bounds[tileIndex];
+
+      var distToTileCenter : f32 = length(viewPosition.xyz - clusters.bounds[tileIndex].center);
+      var normDist : f32 = distToTileCenter / clusters.bounds[tileIndex].radius;
+
+      outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
       return;
     }
   `; }

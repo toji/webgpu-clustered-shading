@@ -53,6 +53,7 @@ const LightSprite = {
 
     layout(std140) uniform FrameUniforms {
       mat4 projectionMatrix;
+      mat4 inverseProjectionMatrix;
       mat4 viewMatrix;
       vec3 cameraPosition;
     };
@@ -75,7 +76,7 @@ const LightSprite = {
     void main() {
       vPos = POSITION;
       vColor = lights[gl_InstanceID].color;
-      vec3 worldPos = vec3(POSITION, 0.0) * lights[gl_InstanceID].range * 0.1;
+      vec3 worldPos = vec3(POSITION, 0.0) * lights[gl_InstanceID].range * 0.025;
 
       // Generate a billboarded model view matrix
       mat4 bbModelViewMatrix = mat4(1.0);

@@ -21,7 +21,7 @@
 import { Renderer } from '../renderer.js';
 import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
 import { PBRTechnique } from './techniques/pbr-technique.js';
-import { DepthTechnique, DepthSliceTechnique } from './techniques/tile-debug-techniques.js';
+import { DepthTechnique, DepthSliceTechnique, ClusterDistanceTechnique } from './techniques/tile-debug-techniques.js';
 import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
@@ -84,80 +84,83 @@ export class WebGPURenderer extends Renderer {
       depthStencilAttachment: this.depthAttachment
     };
 
-    this.frameUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-        type: 'uniform-buffer'
-      }, {
-        binding: 1,
-        visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
-      }]
-    });
+    this.bindGroupLayouts = {
+      frame: this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0, // Frame uniforms
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
+          type: 'uniform-buffer'
+        }, {
+
+          binding: 1, // Light uniforms
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          type: 'uniform-buffer'
+        }]
+      }),
+
+      material: this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'uniform-buffer'
+        },
+        {
+          binding: 1, // defaultSampler
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampler'
+        },
+        {
+          binding: 2, // baseColorTexture
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampled-texture'
+        },
+        {
+          binding: 3, // normalTexture
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampled-texture'
+        },
+        {
+          binding: 4, // metallicRoughnessTexture
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampled-texture'
+        },
+        {
+          binding: 5, // occlusionTexture
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampled-texture'
+        },
+        {
+          binding: 6, // emissiveTexture
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'sampled-texture'
+        }]
+      }),
+
+      primitive: this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.VERTEX,
+          type: 'uniform-buffer'
+        }]
+      }),
+
+      cluster: this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.FRAGMENT,
+          type: 'readonly-storage-buffer'
+        }]
+      }),
+    };
 
     this.lightGroup = new LightGroup(this.device, this.lightManager,
-        this.frameUniformsBindGroupLayout, this.renderBundleDescriptor);
-
-    this.materialUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'uniform-buffer'
-      },
-      {
-        binding: 1, // defaultSampler
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampler'
-      },
-      {
-        binding: 2, // baseColorTexture
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      },
-      {
-        binding: 3, // normalTexture
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      },
-      {
-        binding: 4, // metallicRoughnessTexture
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      },
-      {
-        binding: 5, // occlusionTexture
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      },
-      {
-        binding: 6, // emissiveTexture
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'sampled-texture'
-      }]
-    });
-
-    this.primitiveUniformsBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.VERTEX,
-        type: 'uniform-buffer'
-      }]
-    });
-
-    this.clusterReadOnlyStorageBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'readonly-storage-buffer'
-      }]
-    });
+      this.bindGroupLayouts.frame, this.renderBundleDescriptor);
 
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
-        this.frameUniformsBindGroupLayout, // set 0
-        this.materialUniformsBindGroupLayout, // set 1
-        this.primitiveUniformsBindGroupLayout, // set 2
+        this.bindGroupLayouts.frame, // set 0
+        this.bindGroupLayouts.material, // set 1
+        this.bindGroupLayouts.primitive, // set 2
         //this.clusterReadOnlyStorageBindGroupLayout, // set 3
       ]
     });
@@ -168,7 +171,7 @@ export class WebGPURenderer extends Renderer {
     });
 
     this.frameUniformBindGroup = this.device.createBindGroup({
-      layout: this.frameUniformsBindGroupLayout,
+      layout: this.bindGroupLayouts.frame,
       entries: [{
         binding: 0,
         resource: {
@@ -217,7 +220,7 @@ export class WebGPURenderer extends Renderer {
       });
       const clusterPipelineLayout = this.device.createPipelineLayout({
         bindGroupLayouts: [
-          this.frameUniformsBindGroupLayout, // set 0
+          this.bindGroupLayouts.frame, // set 0
           clusterStorageBindGroupLayout, // set 1
         ]
       });
@@ -244,23 +247,12 @@ export class WebGPURenderer extends Renderer {
           },
         }],
       });
-
-      this.clusterReadonlyBindGroup = this.device.createBindGroup({
-        layout: this.clusterReadOnlyStorageBindGroupLayout,
-        entries: [{
-          binding: 0,
-          resource: {
-            buffer: this.clusterBuffer,
-          },
-        }],
-      });
     }
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
     this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
 
-    // Crashing! Yay!
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.clusterPipeline);
@@ -370,7 +362,7 @@ export class WebGPURenderer extends Renderer {
     this.device.defaultQueue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
 
     const materialBindGroup = this.device.createBindGroup({
-      layout: this.materialUniformsBindGroupLayout,
+      layout: this.bindGroupLayouts.material,
       entries: [{
         binding: 0,
         resource: {
@@ -449,7 +441,7 @@ export class WebGPURenderer extends Renderer {
       this.device.defaultQueue.writeBuffer(primitiveUniformsBuffer, 0, primitive.renderData.instances[0]);
 
       const primitiveBindGroup = this.device.createBindGroup({
-        layout: this.primitiveUniformsBindGroupLayout,
+        layout: this.bindGroupLayouts.primitive,
         entries: [{
           binding: 0,
           resource: {
@@ -478,7 +470,7 @@ export class WebGPURenderer extends Renderer {
   renderNaiveForward(encoder) {
     if (!this.pbrTechnique) {
       this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
-          this.pipelineLayout, this.lightManager.maxLightCount);
+          this.bindGroupLayouts, this.lightManager.maxLightCount);
     }
 
     if (!this.pbrRenderBundle && this.primitives) {
@@ -494,7 +486,7 @@ export class WebGPURenderer extends Renderer {
 
   renderDepth(encoder) {
     if (!this.depthTechnique) {
-      this.depthTechnique = new DepthTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
+      this.depthTechnique = new DepthTechnique(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
     }
 
     if (!this.depthRenderBundle && this.primitives) {
@@ -510,7 +502,7 @@ export class WebGPURenderer extends Renderer {
 
   renderDepthSlices(encoder) {
     if (!this.depthSliceTechnique) {
-      this.depthSliceTechnique = new DepthSliceTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
+      this.depthSliceTechnique = new DepthSliceTechnique(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
     }
 
     if (!this.depthSliceRenderBundle && this.primitives) {
@@ -526,7 +518,8 @@ export class WebGPURenderer extends Renderer {
 
   renderClusterDistance(encoder) {
     if (!this.clusterDistanceTechnique) {
-      this.clusterDistanceTechnique = new ClusterDistanceTechnique(this.device, this.renderBundleDescriptor, this.pipelineLayout);
+      this.clusterDistanceTechnique = new ClusterDistanceTechnique(this.device, this.renderBundleDescriptor,
+          this.bindGroupLayouts, this.clusterBuffer);
     }
 
     if (!this.clusterDistanceRenderBundle && this.primitives) {
@@ -548,7 +541,7 @@ export class WebGPURenderer extends Renderer {
   renderClusteredForward(encoder) {
     if (!this.pbrClusteredTechnique) {
       this.pbrClusteredTechnique = new PBRClusteredTechnique(this.device, this.renderBundleDescriptor,
-          this.pipelineLayout, this.lightManager.maxLightCount);
+          this.bindGroupLayouts, this.lightManager.maxLightCount);
     }
 
     if (!this.pbrClusteredRenderBundle && this.primitives) {
@@ -594,7 +587,7 @@ export class WebGPURenderer extends Renderer {
       case "depth-slice":
         this.renderDepthSlices(passEncoder);
         break;
-      case "clustered-forward":
+      case "cluster-distance":
         this.renderClusterDistance(passEncoder);
         break;
     }

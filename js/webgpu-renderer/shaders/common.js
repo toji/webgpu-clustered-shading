@@ -35,11 +35,12 @@ export const UNIFORM_SET = {
 export const FrameUniforms = `
   [[block]] struct FrameUniforms {
     [[offset(0)]] projectionMatrix : mat4x4<f32>;
-    [[offset(64)]] viewMatrix : mat4x4<f32>;
-    [[offset(128)]] cameraPosition : vec3<f32>;
-    [[offset(144)]] outputSize : vec2<f32>;
-    [[offset(152)]] zNear : f32;
-    [[offset(156)]] zFar : f32;
+    [[offset(64)]] inverseProjectionMatrix : mat4x4<f32>;
+    [[offset(128)]] viewMatrix : mat4x4<f32>;
+    [[offset(192)]] cameraPosition : vec3<f32>;
+    [[offset(208)]] outputSize : vec2<f32>;
+    [[offset(216)]] zNear : f32;
+    [[offset(220)]] zFar : f32;
   };
   [[set(${UNIFORM_SET.Frame}), binding(0)]] var<uniform> frame : FrameUniforms;
 `;
