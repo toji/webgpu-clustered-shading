@@ -24,33 +24,69 @@
 import { FrameUniforms } from './common.js';
 
 export const TILE_COUNT = [16, 9, 24];
+export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
+
+export const TileFunctions = `
+const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
+
+fn linearDepth(depthSample : f32) -> f32 {
+  # This is only for OpenGL!
+  #var depthRange : f32 = 2.0 * depthSample - 1.0;
+  # WebGPU uses a [0-1] normalized depth range.
+  var depthRange : f32 = depthSample;
+  var linear : f32 = 2.0 * frame.zNear * frame.zFar / (frame.zFar + frame.zNear - depthRange * (frame.zFar - frame.zNear));
+  return linear;
+}
+
+fn getTile(fragCoord : vec4<f32>) -> vec3<i32> {
+  # TODO: scale and bias calculation can be moved outside the shader to save cycles.
+  var sliceScale : f32 = f32(tileCount.z) / log2(frame.zFar / frame.zNear);
+  var sliceBias : f32 = -(f32(tileCount.z) * log2(frame.zNear) / log2(frame.zFar / frame.zNear));
+  var zTile : i32 = i32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
+
+  return vec3<i32>(i32(fragCoord.x / (frame.outputSize.x / f32(tileCount.x))),
+                   i32(fragCoord.y / (frame.outputSize.y / f32(tileCount.y))),
+                   zTile);
+}
+
+fn getClusterIndex(fragCoord : vec4<f32>) -> i32 {
+  const tile : vec3<i32> = getTile(fragCoord);
+  return tile.x +
+         tile.y * tileCount.x +
+         tile.z * tileCount.x * tileCount.y;
+}
+`;
 
 // Trying something possibly very silly here: I'm going to store the cluster bounds as spheres
 // (center + radius) instead of AABBs to reduce storage/intersection complexity. This will result
 // in more overlap between clusters to ensure we don't have any gaps, and that may not be a good
 // tradeoff, but I'll give it a try and see where the bottlenecks are.
-export function ClusteredAABBSource(x, y, z) { return `
+export const ClusterStructs = `
+  [[block]] struct ClusterBounds {
+    [[offset(0)]] center : vec3<f32>;
+    [[offset(12)]] squaredRadius : f32;
+  };
+  [[block]] struct Clusters {
+    [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TOTAL_TILES}>;
+  };
+`;
+
+
+export const ClusterBoundsSource = `
   ${FrameUniforms}
+  ${ClusterStructs}
+  [[set(1), binding(0)]] var<storage_buffer> clusters : Clusters;
 
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
-  [[block]] struct ClusterBounds {
-    [[offset(0)]] center : vec3<f32>;
-    [[offset(12)]] radius : f32;
-  };
-  [[block]] struct Clusters {
-    [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${x * y * z}>;
-  };
-  [[set(1), binding(0)]] var<storage_buffer> clusters : Clusters;
-
   # THIS CRASHES:
-  # [[set(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${x * y * z}>;
+  # [[set(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${TOTAL_TILES}>;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
       const normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
       const ab : vec3<f32> =  b - a;
       const t : f32 = (zDistance - dot(normal, a)) / dot(normal, ab);
-      return a + (t * ab);
+      return a + t * ab;
   }
 
   fn clipToView(clip : vec4<f32>) -> vec4<f32> {
@@ -60,11 +96,12 @@ export function ClusteredAABBSource(x, y, z) { return `
 
   fn screen2View(screen : vec4<f32>) -> vec4<f32> {
       const texCoord : vec2<f32> = screen.xy / frame.outputSize.xy;
-      const clip : vec4<f32> = vec4<f32>(texCoord * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
+      const clip : vec4<f32> = vec4<f32>(vec2<f32>(texCoord.x, 1.0 - texCoord.y) * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
+      #const clip : vec4<f32> = vec4<f32>(texCoord * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
       return clipToView(clip);
   }
 
-  const tileCount : vec3<i32> = vec3<i32>(${x}, ${y}, ${z});
+  const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
   const eyePos : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
   [[stage(compute)]]
@@ -76,12 +113,9 @@ export function ClusteredAABBSource(x, y, z) { return `
     const tileSize : vec2<f32> = vec2<f32>(frame.outputSize.x / f32(tileCount.x),
                                            frame.outputSize.y / f32(tileCount.y));
 
-    var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(global_id.xy) * tileSize,
-                                            -1.0, 1.0);
-    var maxPoint_sS : vec4<f32> = vec4<f32>(
-                                      vec2<f32>(global_id.x + 1,
-                                                global_id.y + 1) * tileSize,
-                                      -1.0, 1.0);
+    var maxPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x+1), f32(global_id.y+1)) * tileSize, -1.0, 1.0);
+    var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, -1.0, 1.0);
+
 
     var maxPoint_vS : vec3<f32> = screen2View(maxPoint_sS).xyz;
     var minPoint_vS : vec3<f32> = screen2View(minPoint_sS).xyz;
@@ -94,14 +128,14 @@ export function ClusteredAABBSource(x, y, z) { return `
     const maxPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileNear);
     const maxPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileFar);
 
-    const minPointAABB : vec3<f32> = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
-    const maxPointAABB : vec3<f32> = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
+    const minAABB : vec3<f32> = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
+    const maxAABB : vec3<f32> = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
 
-    const midPoint : vec3<f32> = (maxPointAABB - minPointAABB) / vec3<f32>(2.0, 2.0, 2.0);
+    const midPoint : vec3<f32> = (maxAABB - minAABB) / vec3<f32>(2.0, 2.0, 2.0);
 
-    clusters.bounds[tileIndex].center = minPointAABB + midPoint;
-    clusters.bounds[tileIndex].radius = length(midPoint);
+    clusters.bounds[tileIndex].center = minAABB + midPoint;
+    clusters.bounds[tileIndex].squaredRadius = dot(midPoint, midPoint);
 
     return;
   }
-`; }
+`;

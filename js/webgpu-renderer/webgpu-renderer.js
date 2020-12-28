@@ -26,7 +26,7 @@ import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
-import { ClusteredAABBSource, TILE_COUNT } from './shaders/clustered-compute.js';
+import { ClusterBoundsSource, TILE_COUNT, TOTAL_TILES } from './shaders/clustered-compute.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
 
 const SAMPLE_COUNT = 4;
@@ -225,13 +225,13 @@ export class WebGPURenderer extends Renderer {
       this.clusterPipeline = this.device.createComputePipeline({
         layout: clusterPipelineLayout,
         computeStage: {
-          module: createShaderModuleDebug(this.device, ClusteredAABBSource(...TILE_COUNT)),
+          module: createShaderModuleDebug(this.device, ClusterBoundsSource),
           entryPoint: 'main',
         }
       });
 
       this.clusterBuffer = this.device.createBuffer({
-        size: TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2] * 16, // Cluster x, y, z size * 16 bytes per cluster.
+        size: TOTAL_TILES * 16, // Cluster x, y, z size * 16 bytes per cluster.
         usage: GPUBufferUsage.STORAGE
       });
 

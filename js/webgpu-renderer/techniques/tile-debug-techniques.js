@@ -20,7 +20,7 @@
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
 import { FrameUniforms, SimpleVertexSource, UNIFORM_SET, ATTRIB_MAP } from '../shaders/common.js';
-import { TILE_COUNT } from '../shaders/clustered-compute.js';
+import { TileFunctions, ClusterStructs } from '../shaders/clustered-compute.js';
 
 /**
  * Technique visualizes simple depth info as greyscale range.
@@ -46,34 +46,6 @@ export class DepthTechnique extends WebGPURenderTechnique {
     }
   `; }
 }
-
-const TileFunctions = `
-const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
-
-fn linearDepth(depthSample : f32) -> f32 {
-  var depthRange : f32 = 2.0 * depthSample - 1.0;
-  var linear : f32 = 2.0 * frame.zNear * frame.zFar / (frame.zFar + frame.zNear - depthRange * (frame.zFar - frame.zNear));
-  return linear;
-}
-
-fn getTile(fragCoord : vec4<f32>) -> vec3<i32> {
-  # TODO: scale and bias calculation can be moved outside the shader to save cycles.
-  var sliceScale : f32 = f32(tileCount.z) / log2(frame.zFar / frame.zNear);
-  var sliceBias : f32 = -(f32(tileCount.z) * log2(frame.zNear) / log2(frame.zFar / frame.zNear));
-  var zTile : i32 = i32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
-
-  return vec3<i32>(i32(fragCoord.x / (frame.outputSize.x / f32(tileCount.x))),
-                   i32(fragCoord.y / (frame.outputSize.y / f32(tileCount.y))),
-                   zTile);
-}
-
-fn getClusterIndex(fragCoord : vec4<f32>) -> i32 {
-  const tile : vec3<i32> = getTile(fragCoord);
-  return tile.x +
-         tile.y * tileCount.x +
-         tile.z * tileCount.x * tileCount.y;
-}
-`;
 
 /**
  * Technique visualizes which depth slice a given fragment would be assigned to.
@@ -181,15 +153,7 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
   getFragmentSource(defines) { return `
     ${FrameUniforms}
     ${TileFunctions}
-
-    [[block]] struct ClusterBounds {
-      [[offset(0)]] center : vec3<f32>;
-      [[offset(12)]] radius : f32;
-    };
-
-    [[block]] struct Clusters {
-      [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2]}>;
-    };
+    ${ClusterStructs}
     [[set(3), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
 
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
@@ -204,10 +168,13 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
       # THIS CRASHES:
       # var clusterBounds : ClusterBounds = clusters.bounds[tileIndex];
 
-      var distToTileCenter : f32 = length(viewPosition.xyz - clusters.bounds[tileIndex].center);
-      var normDist : f32 = distToTileCenter / clusters.bounds[tileIndex].radius;
+      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - clusters.bounds[tileIndex].center;
+      var squaredDistToBoundsCenter : f32 = dot(fragToBoundsCenter, fragToBoundsCenter);
+      var normDist : f32 = squaredDistToBoundsCenter / clusters.bounds[tileIndex].squaredRadius;
 
-      outColor = vec4<f32>(clusters.bounds[tileIndex].radius, clusters.bounds[tileIndex].radius, clusters.bounds[tileIndex].radius, 1.0);
+      # FILE BUG: Why does this come out white?
+      #outColor = vec4<f32>(1.0, 0, 0, 1.0);
+      outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
       return;
     }
   `; }
