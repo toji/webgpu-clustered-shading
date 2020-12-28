@@ -26,14 +26,11 @@ import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
-import { ClusteredAABBSource } from './shaders/clustered-compute.js';
+import { ClusteredAABBSource, TILE_COUNT } from './shaders/clustered-compute.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
-
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
-
-const TILE_COUNT = [16, 10, 24];
 
 export class WebGPURenderer extends Renderer {
   constructor() {

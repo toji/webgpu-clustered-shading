@@ -20,6 +20,7 @@
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
 import { FrameUniforms, SimpleVertexSource, UNIFORM_SET, ATTRIB_MAP } from '../shaders/common.js';
+import { TILE_COUNT } from '../shaders/clustered-compute.js';
 
 /**
  * Technique visualizes simple depth info as greyscale range.
@@ -47,7 +48,7 @@ export class DepthTechnique extends WebGPURenderTechnique {
 }
 
 const TileFunctions = `
-const tileCount : vec3<i32> = vec3<i32>(16, 10, 24);
+const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
 
 fn linearDepth(depthSample : f32) -> f32 {
   var depthRange : f32 = 2.0 * depthSample - 1.0;
@@ -116,7 +117,6 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
 /**
  * Technique visualizes distance to the center of each cluster.
  */
-const TILE_COUNT = [16, 10, 24];
 export class ClusterDistanceTechnique extends WebGPURenderTechnique {
   constructor(device, renderBundleDescriptor, bindGroupLayouts, clusterBuffer) {
     super(device, renderBundleDescriptor, bindGroupLayouts);
@@ -207,7 +207,7 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
       var distToTileCenter : f32 = length(viewPosition.xyz - clusters.bounds[tileIndex].center);
       var normDist : f32 = distToTileCenter / clusters.bounds[tileIndex].radius;
 
-      outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
+      outColor = vec4<f32>(clusters.bounds[tileIndex].radius, clusters.bounds[tileIndex].radius, clusters.bounds[tileIndex].radius, 1.0);
       return;
     }
   `; }

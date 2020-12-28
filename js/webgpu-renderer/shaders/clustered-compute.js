@@ -23,6 +23,8 @@
 
 import { FrameUniforms } from './common.js';
 
+export const TILE_COUNT = [16, 9, 24];
+
 // Trying something possibly very silly here: I'm going to store the cluster bounds as spheres
 // (center + radius) instead of AABBs to reduce storage/intersection complexity. This will result
 // in more overlap between clusters to ensure we don't have any gaps, and that may not be a good
@@ -30,7 +32,7 @@ import { FrameUniforms } from './common.js';
 export function ClusteredAABBSource(x, y, z) { return `
   ${FrameUniforms}
 
-  [[builtin(global_invocation_id)]] var<in> local_id : vec3<u32>;
+  [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   [[block]] struct ClusterBounds {
     [[offset(0)]] center : vec3<f32>;
@@ -67,25 +69,25 @@ export function ClusteredAABBSource(x, y, z) { return `
 
   [[stage(compute)]]
   fn main() -> void {
-    const tileIndex : i32 = local_id.x +
-                            local_id.y * tileCount.x +
-                            local_id.z * tileCount.x * tileCount.y;
+    const tileIndex : i32 = global_id.x +
+                            global_id.y * tileCount.x +
+                            global_id.z * tileCount.x * tileCount.y;
 
     const tileSize : vec2<f32> = vec2<f32>(frame.outputSize.x / f32(tileCount.x),
                                            frame.outputSize.y / f32(tileCount.y));
 
-    var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(local_id.xy) * tileSize,
+    var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(global_id.xy) * tileSize,
                                             -1.0, 1.0);
     var maxPoint_sS : vec4<f32> = vec4<f32>(
-                                      vec2<f32>(local_id.x + 1,
-                                                local_id.y + 1) * tileSize,
+                                      vec2<f32>(global_id.x + 1,
+                                                global_id.y + 1) * tileSize,
                                       -1.0, 1.0);
 
     var maxPoint_vS : vec3<f32> = screen2View(maxPoint_sS).xyz;
     var minPoint_vS : vec3<f32> = screen2View(minPoint_sS).xyz;
 
-    const tileNear : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(local_id.z)/f32(tileCount.z));
-    const tileFar : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(local_id.z+1)/f32(tileCount.z));
+    const tileNear : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(global_id.z)/f32(tileCount.z));
+    const tileFar : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(global_id.z+1)/f32(tileCount.z));
 
     const minPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileNear);
     const minPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileFar);
