@@ -60,9 +60,9 @@
 
       let appSettings = {
         renderer: 'webGPU',
-        output: 'naive-forward',
+        output: 'clustered-forward',
         renderLightSprites: true,
-        lightCount: 10,
+        lightCount: 100,
       };
 
       let gui = new dat.GUI();
@@ -77,6 +77,7 @@
         depth: 'depth',
         depthSlice: 'depth-slice',
         clusterDistance: 'cluster-distance',
+        lightsPerCluster: 'lights-per-cluster',
         clusteredForward: 'clustered-forward',
       }).onChange(onOutputChange);
 

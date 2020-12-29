@@ -26,7 +26,7 @@ import { FrameUniforms, LightUniforms, UNIFORM_SET } from './common.js';
 export const TILE_COUNT = [16, 9, 24];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 
-export const MAX_LIGHTS_PER_CLUSTER = 10;
+export const MAX_LIGHTS_PER_CLUSTER = 20;
 export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4; // Each cluster tracks up to 10 light indices (ints) and one lght count
 
 export const TileFunctions = `
@@ -174,6 +174,7 @@ export function ClusterLightsSource(maxLights) { return `
       if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
         # Light affects this cluster. Add it to the list.
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;
+        activeLightCount = activeLightCount + 1;
       }
       if (activeLightCount == ${MAX_LIGHTS_PER_CLUSTER}) {
         break;

@@ -20,8 +20,8 @@
 
 import { Renderer } from '../renderer.js';
 import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
-import { PBRTechnique } from './techniques/pbr-technique.js';
-import { DepthTechnique, DepthSliceTechnique, ClusterDistanceTechnique } from './techniques/tile-debug-techniques.js';
+import { PBRTechnique, PBRClusteredTechnique } from './techniques/pbr-technique.js';
+import { DepthTechnique, DepthSliceTechnique, ClusterDistanceTechnique, LightsPerClusterTechnique } from './techniques/tile-debug-techniques.js';
 import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
@@ -93,7 +93,7 @@ export class WebGPURenderer extends Renderer {
           type: 'uniform-buffer'
         }, {
           binding: 2, // Cluster Lights storage
-          visibility: GPUShaderStage.FRAGMEN | GPUShaderStage.COMPUTE,
+          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'storage-buffer'
         }]
       }),
@@ -543,6 +543,23 @@ export class WebGPURenderer extends Renderer {
     }
   }
 
+  renderLightsPerCluster(encoder) {
+    if (!this.lightsPerClusterTechnique) {
+      this.lightsPerClusterTechnique = new LightsPerClusterTechnique(this.device, this.renderBundleDescriptor,
+          this.bindGroupLayouts);
+    }
+
+    if (!this.lightsPerClusterRenderBundle && this.primitives) {
+      this.lightsPerClusterRenderBundle = this.lightsPerClusterTechnique.createRenderBundle(this.primitives, {
+        0: this.frameUniformBindGroup
+      });
+    }
+
+    if (this.lightsPerClusterRenderBundle) {
+      encoder.executeBundles([this.lightsPerClusterRenderBundle]);
+    }
+  }
+
   computeClusteredForward(commandEncoder) {
     // On every size change we need to re-compute the cluster grid.
     if (!this.clusterLightsPipeline) {
@@ -614,6 +631,7 @@ export class WebGPURenderer extends Renderer {
     const commandEncoder = this.device.createCommandEncoder({});
 
     switch (this.outputType) {
+      case "lights-per-cluster":
       case "clustered-forward":
         this.computeClusteredForward(commandEncoder);
         break;
@@ -634,9 +652,12 @@ export class WebGPURenderer extends Renderer {
       case "cluster-distance":
         this.renderClusterDistance(passEncoder);
         break;
-      /*case "clustered-forward":
+      case "lights-per-cluster":
+        this.renderLightsPerCluster(passEncoder);
+        break;
+      case "clustered-forward":
         this.renderClusteredForward(passEncoder);
-        break;*/
+        break;
     }
 
     if (this.lightManager.render) {

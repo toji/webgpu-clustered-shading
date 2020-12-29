@@ -49,7 +49,7 @@ var Stats = function () {
 
 	}
 
-	showPanel( 1 );
+	showPanel( 0 );
 
 	return {
 

@@ -20,6 +20,7 @@
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
 import { FrameUniforms, LightUniforms, ATTRIB_MAP, UNIFORM_SET } from '../shaders/common.js';
+import { ClusterLightsStructs, TileFunctions } from '../shaders/clustered-compute.js';
 
 function PBR_VARYINGS(defines, dir) { return `
 [[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
@@ -234,6 +235,149 @@ export class PBRTechnique extends WebGPURenderTechnique {
       var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
       for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
+        # calculate per-light radiance
+        var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
+        var H : vec3<f32> = normalize(V + L);
+        var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
+
+        var lightRange : f32 = light.lights[i].range;
+        var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
+        # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
+        var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
+
+        # cook-torrance brdf
+        var NDF : f32 = DistributionGGX(N, H, roughness);
+        var G : f32   = GeometrySmith(N, V, L, roughness);
+        var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+        var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
+        kD = kD * (1.0 - metallic);
+
+        var numerator : vec3<f32>    = NDF * G * F;
+        var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+        denominator = max(denominator, 0.001);
+        var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
+
+        # add to outgoing radiance Lo
+        var NdotL : f32 = max(dot(N, L), 0.0);
+        Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
+      }
+
+    ${defines.USE_OCCLUSION ? `
+      var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
+    ` : `
+      var ao : f32 = 1.0;
+    `}
+
+      var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
+      var color : vec3<f32> = ambient + Lo;
+
+      var emissive : vec3<f32> = material.emissiveFactor;
+    ${defines.USE_EMISSIVE_TEXTURE ? `
+      emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
+    ` : ``}
+      color = color + emissive;
+
+      color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
+      color = pow(color, vec3<f32>(1.0/2.2, 1.0/2.2, 1.0/2.2));
+
+      outColor = vec4<f32>(color, baseColor.a);
+      return;
+    }`;
+  }
+}
+
+export class PBRClusteredTechnique extends PBRTechnique {
+  constructor(device, renderBundleDescriptor, bindGroupLayouts, maxLights) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
+    this.maxLights = maxLights;
+  }
+
+  /*${ClusterLightsStructs}
+    ${TileFunctions}
+
+    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
+
+    var clusterIndex : i32 = getClusterIndex(fragCoord);*/
+
+  getFragmentSource(defines) { return `
+    ${FrameUniforms}
+    ${ClusterLightsStructs}
+    ${TileFunctions}
+
+    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
+
+    ${PBR_FUNCTIONS}
+
+    [[block]] struct MaterialUniforms {
+      [[offset(0)]] baseColorFactor : vec4<f32>;
+      [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
+      [[offset(32)]] emissiveFactor : vec3<f32>;
+      [[offset(44)]] occlusionStrength : f32;
+    };
+    [[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+
+    [[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+    [[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+    [[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+    [[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+    [[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+    [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+
+    ${LightUniforms(this.maxLights)}
+
+    ${PBR_VARYINGS(defines, 'in')}
+
+    [[location(0)]] var<out> outColor : vec4<f32>;
+
+    const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
+    const black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
+    [[stage(fragment)]]
+    fn main() -> void {
+      var baseColor : vec4<f32> = material.baseColorFactor;
+    ${defines.USE_BASE_COLOR_MAP ? `
+      var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
+      if (baseColorMap.a < 0.05) {
+        discard;
+      }
+      baseColor = baseColor * baseColorMap;
+    ` : ``}
+    ${defines.USE_VERTEX_COLOR ? `
+      baseColor = baseColor * vCol;
+    ` : ``}
+
+      var albedo : vec3<f32> = baseColor.rgb;
+
+      var metallic : f32 = material.metallicRoughnessFactor.x;
+      var roughness : f32 = material.metallicRoughnessFactor.y;
+
+    ${defines.USE_METAL_ROUGH_MAP ? `
+      var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
+      metallic = metallic * metallicRoughness.b;
+      roughness = roughness * metallicRoughness.g;
+    ` : ``}
+
+    ${defines.USE_NORMAL_MAP ? `
+      var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
+      N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+    ` : `
+      var N : vec3<f32> = normalize(vNorm);
+    `}
+
+      var V : vec3<f32> = normalize(vView);
+
+      var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
+
+      # reflectance equation
+      var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+
+      var clusterIndex : i32 = getClusterIndex(fragCoord);
+      var lightCount : i32 = clusterLights.lights[clusterIndex].count;
+
+      for (var lightIndex : i32 = 0; lightIndex < lightCount; lightIndex = lightIndex + 1) {
+        var i : i32 = clusterLights.lights[clusterIndex].indices[lightIndex];
+
         # calculate per-light radiance
         var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
         var H : vec3<f32> = normalize(V + L);

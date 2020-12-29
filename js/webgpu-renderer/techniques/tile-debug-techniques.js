@@ -20,7 +20,7 @@
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
 import { FrameUniforms, SimpleVertexSource, UNIFORM_SET, ATTRIB_MAP } from '../shaders/common.js';
-import { TileFunctions, ClusterStructs } from '../shaders/clustered-compute.js';
+import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLUSTER } from '../shaders/clustered-compute.js';
 
 /**
  * Technique visualizes simple depth info as greyscale range.
@@ -163,18 +163,47 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
 
     [[stage(fragment)]]
     fn main() -> void {
-      var tileIndex : i32 = getClusterIndex(fragCoord);
+      var clusterIndex : i32 = getClusterIndex(fragCoord);
 
       # THIS CRASHES:
-      # var clusterBounds : ClusterBounds = clusters.bounds[tileIndex];
+      # var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
 
-      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - clusters.bounds[tileIndex].center;
+      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - clusters.bounds[clusterIndex].center;
       var distToBoundsCenter : f32 = length(fragToBoundsCenter);
-      var normDist : f32 = distToBoundsCenter / clusters.bounds[tileIndex].radius;
+      var normDist : f32 = distToBoundsCenter / clusters.bounds[clusterIndex].radius;
 
       # FILE BUG: Why does this come out white?
       #outColor = vec4<f32>(1.0, 0, 0, 1.0);
       outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
+      return;
+    }
+  `; }
+}
+
+/**
+ * Technique visualizes how many lights are affecting any given cluster.
+ */
+export class LightsPerClusterTechnique extends WebGPURenderTechnique {
+  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
+    super(device, renderBundleDescriptor, bindGroupLayouts);
+  }
+
+  getVertexSource(defines) { return SimpleVertexSource; }
+
+  getFragmentSource(defines) { return `
+    ${FrameUniforms}
+    ${ClusterLightsStructs}
+    ${TileFunctions}
+
+    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
+
+    [[location(0)]] var<out> outColor : vec4<f32>;
+
+    [[stage(fragment)]]
+    fn main() -> void {
+      var clusterIndex : i32 = getClusterIndex(fragCoord);
+      var lightCount : i32 = clusterLights.lights[clusterIndex].count;
+      outColor = vec4<f32>(f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER}), 0.0, 0.0, 1.0);
       return;
     }
   `; }
