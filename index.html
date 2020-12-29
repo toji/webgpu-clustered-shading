@@ -86,7 +86,7 @@
         }
       });
 
-      gui.add(appSettings, 'lightCount', 0, 500).onFinishChange(() => {
+      gui.add(appSettings, 'lightCount', 5, 500).onFinishChange(() => {
         if (renderer) {
           renderer.lightManager.lightCount = appSettings.lightCount;
         }

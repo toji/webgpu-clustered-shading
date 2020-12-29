@@ -30,11 +30,7 @@ export const TileFunctions = `
 const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
 
 fn linearDepth(depthSample : f32) -> f32 {
-  # This is only for OpenGL!
-  #var depthRange : f32 = 2.0 * depthSample - 1.0;
-  # WebGPU uses a [0-1] normalized depth range.
-  var depthRange : f32 = depthSample;
-  var linear : f32 = 2.0 * frame.zNear * frame.zFar / (frame.zFar + frame.zNear - depthRange * (frame.zFar - frame.zNear));
+  var linear : f32 = 2.0 * frame.zNear * frame.zFar / (frame.zFar + frame.zNear - depthSample * (frame.zFar - frame.zNear));
   return linear;
 }
 
@@ -64,13 +60,12 @@ fn getClusterIndex(fragCoord : vec4<f32>) -> i32 {
 export const ClusterStructs = `
   [[block]] struct ClusterBounds {
     [[offset(0)]] center : vec3<f32>;
-    [[offset(12)]] squaredRadius : f32;
+    [[offset(12)]] radius : f32;
   };
   [[block]] struct Clusters {
     [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TOTAL_TILES}>;
   };
 `;
-
 
 export const ClusterBoundsSource = `
   ${FrameUniforms}
@@ -97,7 +92,6 @@ export const ClusterBoundsSource = `
   fn screen2View(screen : vec4<f32>) -> vec4<f32> {
       const texCoord : vec2<f32> = screen.xy / frame.outputSize.xy;
       const clip : vec4<f32> = vec4<f32>(vec2<f32>(texCoord.x, 1.0 - texCoord.y) * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
-      #const clip : vec4<f32> = vec4<f32>(texCoord * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
       return clipToView(clip);
   }
 
@@ -134,8 +128,138 @@ export const ClusterBoundsSource = `
     const midPoint : vec3<f32> = (maxAABB - minAABB) / vec3<f32>(2.0, 2.0, 2.0);
 
     clusters.bounds[tileIndex].center = minAABB + midPoint;
-    clusters.bounds[tileIndex].squaredRadius = dot(midPoint, midPoint);
+    clusters.bounds[tileIndex].radius = length(midPoint);
 
     return;
   }
 `;
+
+export function LightCullSource(maxLights) { return `
+  ${FrameUniforms}
+  ${TileFunctions}
+  ${ClusterStructs}
+  [[set(1), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
+
+  ${LightUniforms(this.maxLights)}
+
+  const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
+
+  [[stage(compute)]]
+  fn main() -> void {
+    const tileIndex : i32 = global_id.x +
+                            global_id.y * tileCount.x +
+                            global_id.z * tileCount.x * tileCount.y;
+
+    # TODO: Look into improving threading using local invocation groups?
+    for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
+      var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
+      var distFromCluster : vec3<f32> = lightViewPos.xyz - clusters.bounds[tileIndex].center;
+      if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
+        # Light affects this cluster. Add it to the list.
+      }
+    }
+
+    return;
+  }
+`; }
+
+/*
+layout (std430, binding = 3) buffer lightSSBO{
+    PointLight pointLight[];
+};
+
+layout (std430, binding = 4) buffer lightIndexSSBO{
+    uint globalLightIndexList[];
+};
+
+struct LightGrid{
+    uint offset;
+    uint count;
+};
+
+layout (std430, binding = 5) buffer lightGridSSBO{
+    LightGrid lightGrid[];
+};
+
+layout (std430, binding = 6) buffer globalIndexCountSSBO{
+    uint globalIndexCount;
+};
+
+//Shared variables
+shared PointLight sharedLights[16*9*4];
+
+uniform mat4 viewMatrix;
+
+bool testSphereAABB(uint light, uint tile);
+float sqDistPointAABB(vec3 point, uint tile);
+
+void main(){
+    globalIndexCount = 0;
+    uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
+    uint lightCount  = pointLight.length();
+    uint numBatches = (lightCount + threadCount -1) / threadCount;
+
+    uint tileIndex = gl_LocalInvocationIndex + gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z * gl_WorkGroupID.z;
+
+    uint visibleLightCount = 0;
+    uint visibleLightIndices[100];
+
+    for( uint batch = 0; batch < numBatches; ++batch){
+        uint lightIndex = batch * threadCount + gl_LocalInvocationIndex;
+
+        //Prevent overflow by clamping to last light which is always null
+        lightIndex = min(lightIndex, lightCount);
+
+        //Populating shared light array
+        sharedLights[gl_LocalInvocationIndex] = pointLight[lightIndex];
+        barrier();
+
+        //Iterating within the current batch of lights
+        for( uint light = 0; light < threadCount; ++light){
+            if( sharedLights[light].enabled  == 1){
+                if( testSphereAABB(light, tileIndex) ){
+                                    [visibleLightCount] = batch * threadCount + light;
+                    visibleLightCount += 1;
+                }
+            }
+        }
+    }
+
+    //We want all thread groups to have completed the light tests before continuing
+    barrier();
+
+    uint offset = atomicAdd(globalIndexCount, visibleLightCount);
+
+    for(uint i = 0; i < visibleLightCount; ++i){
+        globalLightIndexList[offset + i] = visibleLightIndices[i];
+    }
+
+    lightGrid[tileIndex].offset = offset;
+    lightGrid[tileIndex].count = visibleLightCount;
+}
+
+bool testSphereAABB(uint light, uint tile){
+    float radius = sharedLights[light].range;
+    vec3 center  = vec3(viewMatrix * sharedLights[light].position);
+    float squaredDistance = sqDistPointAABB(center, tile);
+
+    return squaredDistance <= (radius * radius);
+}
+
+float sqDistPointAABB(vec3 point, uint tile){
+    float sqDist = 0.0;
+    VolumeTileAABB currentCell = cluster[tile];
+    cluster[tile].maxPoint[3] = tile;
+    for(int i = 0; i < 3; ++i){
+        float v = point[i];
+        if(v < currentCell.minPoint[i]){
+            sqDist += (currentCell.minPoint[i] - v) * (currentCell.minPoint[i] - v);
+        }
+        if(v > currentCell.maxPoint[i]){
+            sqDist += (v - currentCell.maxPoint[i]) * (v - currentCell.maxPoint[i]);
+        }
+    }
+
+    return sqDist;
+}
+*/

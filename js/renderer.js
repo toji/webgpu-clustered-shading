@@ -103,9 +103,37 @@ export class Renderer {
     // Ambient color
     vec3.set(this.lightManager.ambientColor, 0.002, 0.002, 0.002);
 
-    // Initialize positions and colors for all the lights
-    for (let i = 0; i < this.lightManager.maxLightCount; ++i) {
-      let light = this.lightManager.lights[i];
+    // The first four lights will be fixed in each corner over the birdbath things.
+    // Because otherwise the roaming lights rarely make it to the corners and it gets really dark.
+    let light = this.lightManager.lights[0];
+    vec3.set(light.position, 8.95, 1, -3.55);
+    vec3.set(light.color, 5, 1, 1);
+    light.range = 4.0;
+
+    light = this.lightManager.lights[1];
+    vec3.set(light.position, 8.95, 1, 3.2);
+    vec3.set(light.color, 5, 1, 1);
+    light.range = 4.0;
+
+    light = this.lightManager.lights[2];
+    vec3.set(light.position, -9.65, 1, -3.55);
+    vec3.set(light.color, 1, 1, 5);
+    light.range = 4.0;
+
+    light = this.lightManager.lights[3];
+    vec3.set(light.position, -9.65, 1, 3.2);
+    vec3.set(light.color, 1, 1, 5);
+    light.range = 4.0;
+
+    // Ensure that the first wandering light is large and bright
+    light = this.lightManager.lights[4];
+    vec3.set(light.position, 0, 1.5, 0);
+    vec3.set(light.color, 5, 5, 5);
+    light.range = 5.0;
+
+    // Initialize positions and colors for all the remaining lights
+    for (let i = 5; i < this.lightManager.maxLightCount; ++i) {
+      light = this.lightManager.lights[i];
 
       // Sponza scene approximate bounds:
       // X [-11, 10]
@@ -200,8 +228,14 @@ export class Renderer {
     mat4.copy(this.viewMatrix, this.camera.viewMatrix);
     vec3.copy(this.cameraPosition, this.camera.position);
 
-    // Update each light position with a wandering pattern.
-    for (let i = 0; i < this.lightManager.lightCount; ++i) {
+    // Bob the corner lights up and down
+    for (let i = 0; i < 4; ++i) {
+      let light = this.lightManager.lights[i];
+      light.position[1] = 1.25 + Math.sin((timestamp + i * 250) / 500) * 0.25;
+    }
+
+    // Update each other light position with a wandering pattern.
+    for (let i = 4; i < this.lightManager.lightCount; ++i) {
       let light = this.lightManager.lights[i];
 
       light.travelTime -= timeDelta;

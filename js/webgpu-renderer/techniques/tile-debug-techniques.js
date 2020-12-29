@@ -169,8 +169,8 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
       # var clusterBounds : ClusterBounds = clusters.bounds[tileIndex];
 
       var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - clusters.bounds[tileIndex].center;
-      var squaredDistToBoundsCenter : f32 = dot(fragToBoundsCenter, fragToBoundsCenter);
-      var normDist : f32 = squaredDistToBoundsCenter / clusters.bounds[tileIndex].squaredRadius;
+      var distToBoundsCenter : f32 = length(fragToBoundsCenter);
+      var normDist : f32 = distToBoundsCenter / clusters.bounds[tileIndex].radius;
 
       # FILE BUG: Why does this come out white?
       #outColor = vec4<f32>(1.0, 0, 0, 1.0);
