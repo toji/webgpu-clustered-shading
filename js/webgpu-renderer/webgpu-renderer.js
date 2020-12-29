@@ -26,7 +26,7 @@ import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
-import { ClusterBoundsSource, TILE_COUNT, TOTAL_TILES } from './shaders/clustered-compute.js';
+import { ClusterBoundsSource, ClusterLightsSource, TILE_COUNT, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
 
 const SAMPLE_COUNT = 4;
@@ -88,10 +88,13 @@ export class WebGPURenderer extends Renderer {
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'uniform-buffer'
         }, {
-
           binding: 1, // Light uniforms
-          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT,
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'uniform-buffer'
+        }, {
+          binding: 2, // Cluster Lights storage
+          visibility: GPUShaderStage.FRAGMEN | GPUShaderStage.COMPUTE,
+          type: 'storage-buffer'
         }]
       }),
 
@@ -144,7 +147,7 @@ export class WebGPURenderer extends Renderer {
       cluster: this.device.createBindGroupLayout({
         entries: [{
           binding: 0,
-          visibility: GPUShaderStage.FRAGMENT,
+          visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'readonly-storage-buffer'
         }]
       }),
@@ -158,13 +161,17 @@ export class WebGPURenderer extends Renderer {
         this.bindGroupLayouts.frame, // set 0
         this.bindGroupLayouts.material, // set 1
         this.bindGroupLayouts.primitive, // set 2
-        //this.clusterReadOnlyStorageBindGroupLayout, // set 3
       ]
     });
 
     this.frameUniformsBuffer = this.device.createBuffer({
       size: this.frameUniforms.byteLength,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+
+    this.clusterLightsBuffer = this.device.createBuffer({
+      size: CLUSTER_LIGHTS_SIZE * TOTAL_TILES,
+      usage: GPUBufferUsage.STORAGE
     });
 
     this.frameUniformBindGroup = this.device.createBindGroup({
@@ -179,6 +186,11 @@ export class WebGPURenderer extends Renderer {
         resource: {
           buffer: this.lightGroup.uniformsBuffer,
         },
+      }, {
+        binding: 2,
+        resource: {
+          buffer: this.clusterLightsBuffer
+        }
       }],
     });
 
@@ -532,7 +544,42 @@ export class WebGPURenderer extends Renderer {
   }
 
   computeClusteredForward(commandEncoder) {
+    // On every size change we need to re-compute the cluster grid.
+    if (!this.clusterLightsPipeline) {
+      const clusterLightsPipelineLayout = this.device.createPipelineLayout({
+        bindGroupLayouts: [
+          this.bindGroupLayouts.frame, // set 0
+          this.bindGroupLayouts.cluster, // set 1
+        ]
+      });
 
+      this.clusterLightsPipeline = this.device.createComputePipeline({
+        layout: clusterLightsPipelineLayout,
+        computeStage: {
+          module: createShaderModuleDebug(this.device, ClusterLightsSource(this.lightManager.maxLightCount)),
+          entryPoint: 'main',
+        }
+      });
+
+      this.clusterBindGroupReadOnly = this.device.createBindGroup({
+        layout: this.bindGroupLayouts.cluster,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.clusterBuffer,
+          },
+        }],
+      });
+    }
+
+    // Update the FrameUniforms buffer with the values that are used by every
+    // program and don't change for the duration of the frame.
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(this.clusterLightsPipeline);
+    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+    passEncoder.setBindGroup(1, this.clusterBindGroupReadOnly);
+    passEncoder.dispatch(...TILE_COUNT);
+    passEncoder.endPass();
   }
 
   renderClusteredForward(encoder) {
@@ -587,6 +634,9 @@ export class WebGPURenderer extends Renderer {
       case "cluster-distance":
         this.renderClusterDistance(passEncoder);
         break;
+      /*case "clustered-forward":
+        this.renderClusteredForward(passEncoder);
+        break;*/
     }
 
     if (this.lightManager.render) {

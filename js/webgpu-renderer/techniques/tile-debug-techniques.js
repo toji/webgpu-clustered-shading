@@ -94,7 +94,7 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
     super(device, renderBundleDescriptor, bindGroupLayouts);
 
     this.clusterBindGroup = this.device.createBindGroup({
-      layout: this.clusterBindGroupLayout,
+      layout: bindGroupLayouts.cluster,
       entries: [{
         binding: 0,
         resource: {
@@ -119,7 +119,7 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
         bindGroupLayouts.frame,
         bindGroupLayouts.material,
         bindGroupLayouts.primitive,
-        this.clusterBindGroupLayout,
+        bindGroupLayouts.cluster,
       ]
     });
   }

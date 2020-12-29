@@ -21,10 +21,13 @@
 // Lots of this derived from http://www.aortiz.me/2018/12/21/CG.html and
 // https://github.com/Angelo1211/HybridRenderingEngine
 
-import { FrameUniforms } from './common.js';
+import { FrameUniforms, LightUniforms, UNIFORM_SET } from './common.js';
 
 export const TILE_COUNT = [16, 9, 24];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
+
+export const MAX_LIGHTS_PER_CLUSTER = 10;
+export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4; // Each cluster tracks up to 10 light indices (ints) and one lght count
 
 export const TileFunctions = `
 const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
@@ -65,6 +68,17 @@ export const ClusterStructs = `
   [[block]] struct Clusters {
     [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TOTAL_TILES}>;
   };
+`;
+
+export const ClusterLightsStructs = `
+  [[block]] struct ClusterLights {
+    [[offset(0)]] count : i32;
+    [[offset(4)]] indices : [[stride(4)]] array<i32, ${MAX_LIGHTS_PER_CLUSTER}>;
+  };
+  [[block]] struct ClusterLightGroup {
+    [[offset(0)]] lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
+  };
+  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<storage_buffer> clusterLights : ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `
@@ -134,15 +148,17 @@ export const ClusterBoundsSource = `
   }
 `;
 
-export function LightCullSource(maxLights) { return `
+export function ClusterLightsSource(maxLights) { return `
   ${FrameUniforms}
-  ${TileFunctions}
+  ${LightUniforms(maxLights)}
+  ${ClusterLightsStructs}
+
   ${ClusterStructs}
   [[set(1), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
 
-  ${LightUniforms(this.maxLights)}
+  ${TileFunctions}
 
-  const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
+  [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   [[stage(compute)]]
   fn main() -> void {
@@ -151,13 +167,19 @@ export function LightCullSource(maxLights) { return `
                             global_id.z * tileCount.x * tileCount.y;
 
     # TODO: Look into improving threading using local invocation groups?
+    var activeLightCount : i32 = 0;
     for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
       var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
-      var distFromCluster : vec3<f32> = lightViewPos.xyz - clusters.bounds[tileIndex].center;
+      var distFromCluster : f32 = length(lightViewPos.xyz - clusters.bounds[tileIndex].center);
       if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
         # Light affects this cluster. Add it to the list.
+        clusterLights.lights[tileIndex].indices[activeLightCount] = i;
+      }
+      if (activeLightCount == ${MAX_LIGHTS_PER_CLUSTER}) {
+        break;
       }
     }
+    clusterLights.lights[tileIndex].count = activeLightCount;
 
     return;
   }
