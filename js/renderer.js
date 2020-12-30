@@ -143,7 +143,7 @@ export class Renderer {
       light.position[1] = randomBetween(0.2, 6.5);
       light.position[2] = randomBetween(-4.5, 4.0);
 
-      light.range = randomBetween(0.5, 5);
+      light.range = 2;
 
       vec3.set(light.color,
         randomBetween(0.1, 1),
@@ -206,6 +206,13 @@ export class Renderer {
 
   setOutputType(output) {
     this.outputType = output;
+  }
+
+  updateLightRange(lightRange) {
+    for (let i = 5; i < this.lightManager.maxLightCount; ++i) {
+      const light = this.lightManager.lights[i];
+      light.range = lightRange;
+    }
   }
 
   start() {

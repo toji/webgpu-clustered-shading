@@ -168,9 +168,13 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
       # THIS CRASHES:
       # var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
 
-      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - clusters.bounds[clusterIndex].center;
+      const midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
+      const center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
+      const radius : f32 = length(midPoint);
+
+      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - center;
       var distToBoundsCenter : f32 = length(fragToBoundsCenter);
-      var normDist : f32 = distToBoundsCenter / clusters.bounds[clusterIndex].radius;
+      var normDist : f32 = distToBoundsCenter / radius;
 
       # FILE BUG: Why does this come out white?
       #outColor = vec4<f32>(1.0, 0, 0, 1.0);

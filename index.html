@@ -63,6 +63,7 @@
         output: 'clustered-forward',
         renderLightSprites: true,
         lightCount: 100,
+        maxLightRange: 2,
       };
 
       let gui = new dat.GUI();
@@ -90,6 +91,12 @@
       gui.add(appSettings, 'lightCount', 5, 500).onFinishChange(() => {
         if (renderer) {
           renderer.lightManager.lightCount = appSettings.lightCount;
+        }
+      });
+
+      gui.add(appSettings, 'maxLightRange', 0.5, 5).onFinishChange(() => {
+        if (renderer) {
+          renderer.updateLightRange(appSettings.maxLightRange);
         }
       });
 

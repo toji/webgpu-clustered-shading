@@ -35,9 +35,26 @@ ${defines.USE_NORMAL_MAP ? `
 `}`;
 }
 
+const MaterialUniforms = `
+[[block]] struct MaterialUniforms {
+  [[offset(0)]] baseColorFactor : vec4<f32>;
+  [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
+  [[offset(32)]] emissiveFactor : vec3<f32>;
+  [[offset(44)]] occlusionStrength : f32;
+};
+[[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+
+[[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+[[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+[[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+`;
+
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
-const PBR_FUNCTIONS = `
+const PBRFunctions = `
 const PI : f32 = 3.14159265359;
 
 fn FresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
@@ -75,6 +92,38 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
 
   return ggx1 * ggx2;
 }`;
+
+const RadianceFunction = `
+${PBRFunctions}
+
+fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>) -> vec3<f32> {
+  var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
+  var H : vec3<f32> = normalize(V + L);
+  var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
+
+  var lightRange : f32 = light.lights[i].range;
+  var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
+  # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
+  var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
+
+  # cook-torrance brdf
+  var NDF : f32 = DistributionGGX(N, H, roughness);
+  var G : f32 = GeometrySmith(N, V, L, roughness);
+  var F : vec3<f32> = FresnelSchlick(max(dot(H, V), 0.0), F0);
+
+  var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
+  kD = kD * (1.0 - metallic);
+
+  var numerator : vec3<f32>    = NDF * G * F;
+  var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
+  denominator = max(denominator, 0.001);
+  var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
+
+  # add to outgoing radiance Lo
+  var NdotL : f32 = max(dot(N, L), 0.0);
+  return (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
+}
+`;
 
 export class PBRTechnique extends WebGPURenderTechnique {
   constructor(device, renderBundleDescriptor, bindGroupLayouts, maxLights) {
@@ -169,24 +218,10 @@ export class PBRTechnique extends WebGPURenderTechnique {
   }
 
   getFragmentSource(defines) { return `
-    ${PBR_FUNCTIONS}
-
-    [[block]] struct MaterialUniforms {
-      [[offset(0)]] baseColorFactor : vec4<f32>;
-      [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
-      [[offset(32)]] emissiveFactor : vec3<f32>;
-      [[offset(44)]] occlusionStrength : f32;
-    };
-    [[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
-
-    [[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-    [[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
-
     ${LightUniforms(this.maxLights)}
+    ${MaterialUniforms}
+
+    ${RadianceFunction}
 
     ${PBR_VARYINGS(defines, 'in')}
 
@@ -235,32 +270,8 @@ export class PBRTechnique extends WebGPURenderTechnique {
       var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
       for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
-        # calculate per-light radiance
-        var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
-        var H : vec3<f32> = normalize(V + L);
-        var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
-
-        var lightRange : f32 = light.lights[i].range;
-        var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
-        # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
-        var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
-
-        # cook-torrance brdf
-        var NDF : f32 = DistributionGGX(N, H, roughness);
-        var G : f32   = GeometrySmith(N, V, L, roughness);
-        var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-        var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
-        kD = kD * (1.0 - metallic);
-
-        var numerator : vec3<f32>    = NDF * G * F;
-        var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-        denominator = max(denominator, 0.001);
-        var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
-
-        # add to outgoing radiance Lo
-        var NdotL : f32 = max(dot(N, L), 0.0);
-        Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
+        # calculate per-light radiance and add to outgoing radiance Lo
+        Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
       }
 
     ${defines.USE_OCCLUSION ? `
@@ -293,41 +304,18 @@ export class PBRClusteredTechnique extends PBRTechnique {
     this.maxLights = maxLights;
   }
 
-  /*${ClusterLightsStructs}
-    ${TileFunctions}
-
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    var clusterIndex : i32 = getClusterIndex(fragCoord);*/
-
   getFragmentSource(defines) { return `
     ${FrameUniforms}
     ${ClusterLightsStructs}
-    ${TileFunctions}
-
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    ${PBR_FUNCTIONS}
-
-    [[block]] struct MaterialUniforms {
-      [[offset(0)]] baseColorFactor : vec4<f32>;
-      [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
-      [[offset(32)]] emissiveFactor : vec3<f32>;
-      [[offset(44)]] occlusionStrength : f32;
-    };
-    [[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
-
-    [[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-    [[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-    [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
-
+    ${MaterialUniforms}
     ${LightUniforms(this.maxLights)}
+
+    ${TileFunctions}
+    ${RadianceFunction}
 
     ${PBR_VARYINGS(defines, 'in')}
 
+    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
     [[location(0)]] var<out> outColor : vec4<f32>;
 
     const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
@@ -378,32 +366,8 @@ export class PBRClusteredTechnique extends PBRTechnique {
       for (var lightIndex : i32 = 0; lightIndex < lightCount; lightIndex = lightIndex + 1) {
         var i : i32 = clusterLights.lights[clusterIndex].indices[lightIndex];
 
-        # calculate per-light radiance
-        var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
-        var H : vec3<f32> = normalize(V + L);
-        var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
-
-        var lightRange : f32 = light.lights[i].range;
-        var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
-        # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
-        var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
-
-        # cook-torrance brdf
-        var NDF : f32 = DistributionGGX(N, H, roughness);
-        var G : f32   = GeometrySmith(N, V, L, roughness);
-        var F : vec3<f32>    = FresnelSchlick(max(dot(H, V), 0.0), F0);
-
-        var kD : vec3<f32> = vec3<f32>(1.0, 1.0, 1.0) - F;
-        kD = kD * (1.0 - metallic);
-
-        var numerator : vec3<f32>    = NDF * G * F;
-        var denominator : f32 = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0);
-        denominator = max(denominator, 0.001);
-        var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
-
-        # add to outgoing radiance Lo
-        var NdotL : f32 = max(dot(N, L), 0.0);
-        Lo = Lo + (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
+        # calculate per-light radiance and add to outgoing radiance Lo
+        Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
       }
 
     ${defines.USE_OCCLUSION ? `

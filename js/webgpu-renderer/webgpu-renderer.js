@@ -243,7 +243,7 @@ export class WebGPURenderer extends Renderer {
       });
 
       this.clusterBuffer = this.device.createBuffer({
-        size: TOTAL_TILES * 16, // Cluster x, y, z size * 16 bytes per cluster.
+        size: TOTAL_TILES * 32, // Cluster x, y, z size * 32 bytes per cluster.
         usage: GPUBufferUsage.STORAGE
       });
 

@@ -23,11 +23,13 @@
 
 import { FrameUniforms, LightUniforms, UNIFORM_SET } from './common.js';
 
-export const TILE_COUNT = [16, 9, 24];
+export const TILE_COUNT = [32, 18, 48];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 
-export const MAX_LIGHTS_PER_CLUSTER = 20;
-export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4; // Each cluster tracks up to 10 light indices (ints) and one lght count
+// Each cluster tracks up to MAX_LIGHTS_PER_CLUSTER light indices (ints) and one light count.
+// This limitation should be able to go away when we have atomic methods in WGSL.
+export const MAX_LIGHTS_PER_CLUSTER = 50;
+export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4;
 
 export const TileFunctions = `
 const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
@@ -56,17 +58,13 @@ fn getClusterIndex(fragCoord : vec4<f32>) -> i32 {
 }
 `;
 
-// Trying something possibly very silly here: I'm going to store the cluster bounds as spheres
-// (center + radius) instead of AABBs to reduce storage/intersection complexity. This will result
-// in more overlap between clusters to ensure we don't have any gaps, and that may not be a good
-// tradeoff, but I'll give it a try and see where the bottlenecks are.
 export const ClusterStructs = `
   [[block]] struct ClusterBounds {
-    [[offset(0)]] center : vec3<f32>;
-    [[offset(12)]] radius : f32;
+    [[offset(0)]] minAABB : vec3<f32>;
+    [[offset(16)]] maxAABB : vec3<f32>;
   };
   [[block]] struct Clusters {
-    [[offset(0)]] bounds : [[stride(16)]] array<ClusterBounds, ${TOTAL_TILES}>;
+    [[offset(0)]] bounds : [[stride(32)]] array<ClusterBounds, ${TOTAL_TILES}>;
   };
 `;
 
@@ -136,13 +134,8 @@ export const ClusterBoundsSource = `
     const maxPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileNear);
     const maxPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileFar);
 
-    const minAABB : vec3<f32> = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
-    const maxAABB : vec3<f32> = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
-
-    const midPoint : vec3<f32> = (maxAABB - minAABB) / vec3<f32>(2.0, 2.0, 2.0);
-
-    clusters.bounds[tileIndex].center = minAABB + midPoint;
-    clusters.bounds[tileIndex].radius = length(midPoint);
+    clusters.bounds[tileIndex].minAABB = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
+    clusters.bounds[tileIndex].maxAABB = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
 
     return;
   }
@@ -158,6 +151,33 @@ export function ClusterLightsSource(maxLights) { return `
 
   ${TileFunctions}
 
+  fn sqDistPointAABB(point : vec3<f32>, minAABB : vec3<f32>, maxAABB : vec3<f32>) -> f32 {
+    var sqDist : f32 = 0.0;
+    #const minAABB : vec3<f32> = clusters.bounds[tileIndex].minAABB;
+    #const maxAABB : vec3<f32> = clusters.bounds[tileIndex].maxAABB;
+
+    # Wait, does this actually work? Just porting code, but it seems suspect?
+    for(var i : i32 = 0; i < 3; i = i + 1) {
+      var v : f32 = point[i];
+      if(v < minAABB[i]){
+        sqDist = sqDist + (minAABB[i] - v) * (minAABB[i] - v);
+      }
+      if(v > maxAABB[i]){
+        sqDist = sqDist + (v - maxAABB[i]) * (v - maxAABB[i]);
+      }
+    }
+
+    return sqDist;
+  }
+
+#  fn testSphereAABB(lightIndex : i32, tileIndex : i32) -> bool {
+#    var radius : f32 = light.lights[lightIndex].range;
+#    var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[lightIndex].position, 1.0);
+#    var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, tileIndex);
+#
+#    return sqDist <= (radius * radius);
+#  }
+
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   [[stage(compute)]]
@@ -169,13 +189,25 @@ export function ClusterLightsSource(maxLights) { return `
     # TODO: Look into improving threading using local invocation groups?
     var activeLightCount : i32 = 0;
     for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
+      var range : f32 = light.lights[i].range;
       var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
-      var distFromCluster : f32 = length(lightViewPos.xyz - clusters.bounds[tileIndex].center);
-      if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
+      var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
+
+      const lightInCluster : bool = sqDist <= (range * range);
+      if (lightInCluster) {
         # Light affects this cluster. Add it to the list.
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;
         activeLightCount = activeLightCount + 1;
       }
+
+      #var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
+      #var distFromCluster : f32 = length(lightViewPos.xyz - clusters.bounds[tileIndex].center);
+      #if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
+      #  # Light affects this cluster. Add it to the list.
+      #  clusterLights.lights[tileIndex].indices[activeLightCount] = i;
+      #  activeLightCount = activeLightCount + 1;
+      #}
+
       if (activeLightCount == ${MAX_LIGHTS_PER_CLUSTER}) {
         break;
       }
@@ -185,104 +217,3 @@ export function ClusterLightsSource(maxLights) { return `
     return;
   }
 `; }
-
-/*
-layout (std430, binding = 3) buffer lightSSBO{
-    PointLight pointLight[];
-};
-
-layout (std430, binding = 4) buffer lightIndexSSBO{
-    uint globalLightIndexList[];
-};
-
-struct LightGrid{
-    uint offset;
-    uint count;
-};
-
-layout (std430, binding = 5) buffer lightGridSSBO{
-    LightGrid lightGrid[];
-};
-
-layout (std430, binding = 6) buffer globalIndexCountSSBO{
-    uint globalIndexCount;
-};
-
-//Shared variables
-shared PointLight sharedLights[16*9*4];
-
-uniform mat4 viewMatrix;
-
-bool testSphereAABB(uint light, uint tile);
-float sqDistPointAABB(vec3 point, uint tile);
-
-void main(){
-    globalIndexCount = 0;
-    uint threadCount = gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z;
-    uint lightCount  = pointLight.length();
-    uint numBatches = (lightCount + threadCount -1) / threadCount;
-
-    uint tileIndex = gl_LocalInvocationIndex + gl_WorkGroupSize.x * gl_WorkGroupSize.y * gl_WorkGroupSize.z * gl_WorkGroupID.z;
-
-    uint visibleLightCount = 0;
-    uint visibleLightIndices[100];
-
-    for( uint batch = 0; batch < numBatches; ++batch){
-        uint lightIndex = batch * threadCount + gl_LocalInvocationIndex;
-
-        //Prevent overflow by clamping to last light which is always null
-        lightIndex = min(lightIndex, lightCount);
-
-        //Populating shared light array
-        sharedLights[gl_LocalInvocationIndex] = pointLight[lightIndex];
-        barrier();
-
-        //Iterating within the current batch of lights
-        for( uint light = 0; light < threadCount; ++light){
-            if( sharedLights[light].enabled  == 1){
-                if( testSphereAABB(light, tileIndex) ){
-                                    [visibleLightCount] = batch * threadCount + light;
-                    visibleLightCount += 1;
-                }
-            }
-        }
-    }
-
-    //We want all thread groups to have completed the light tests before continuing
-    barrier();
-
-    uint offset = atomicAdd(globalIndexCount, visibleLightCount);
-
-    for(uint i = 0; i < visibleLightCount; ++i){
-        globalLightIndexList[offset + i] = visibleLightIndices[i];
-    }
-
-    lightGrid[tileIndex].offset = offset;
-    lightGrid[tileIndex].count = visibleLightCount;
-}
-
-bool testSphereAABB(uint light, uint tile){
-    float radius = sharedLights[light].range;
-    vec3 center  = vec3(viewMatrix * sharedLights[light].position);
-    float squaredDistance = sqDistPointAABB(center, tile);
-
-    return squaredDistance <= (radius * radius);
-}
-
-float sqDistPointAABB(vec3 point, uint tile){
-    float sqDist = 0.0;
-    VolumeTileAABB currentCell = cluster[tile];
-    cluster[tile].maxPoint[3] = tile;
-    for(int i = 0; i < 3; ++i){
-        float v = point[i];
-        if(v < currentCell.minPoint[i]){
-            sqDist += (currentCell.minPoint[i] - v) * (currentCell.minPoint[i] - v);
-        }
-        if(v > currentCell.maxPoint[i]){
-            sqDist += (v - currentCell.maxPoint[i]) * (v - currentCell.maxPoint[i]);
-        }
-    }
-
-    return sqDist;
-}
-*/
