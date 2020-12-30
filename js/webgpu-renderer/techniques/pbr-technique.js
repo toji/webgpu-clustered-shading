@@ -52,6 +52,56 @@ const MaterialUniforms = `
 [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
 `;
 
+function ReadPBRInputs(defines) { return `
+  var baseColor : vec4<f32> = material.baseColorFactor;
+${defines.USE_BASE_COLOR_MAP ? `
+  var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
+  if (baseColorMap.a < 0.05) {
+    discard;
+  }
+  baseColor = baseColor * baseColorMap;
+` : ``}
+${defines.USE_VERTEX_COLOR ? `
+  baseColor = baseColor * vCol;
+` : ``}
+
+  var albedo : vec3<f32> = baseColor.rgb;
+
+  var metallic : f32 = material.metallicRoughnessFactor.x;
+  var roughness : f32 = material.metallicRoughnessFactor.y;
+
+${defines.USE_METAL_ROUGH_MAP ? `
+  var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
+  metallic = metallic * metallicRoughness.b;
+  roughness = roughness * metallicRoughness.g;
+` : ``}
+
+${defines.USE_NORMAL_MAP ? `
+  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
+  N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+` : `
+  var N : vec3<f32> = normalize(vNorm);
+`}
+
+  var V : vec3<f32> = normalize(vView);
+
+  const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
+  var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
+
+${defines.USE_OCCLUSION ? `
+  var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
+` : `
+  var ao : f32 = 1.0;
+`}
+
+  var emissive : vec3<f32> = material.emissiveFactor;
+${defines.USE_EMISSIVE_TEXTURE ? `
+  emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
+` : ``}
+
+  var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
+`; }
+
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
 const PBRFunctions = `
@@ -227,44 +277,9 @@ export class PBRTechnique extends WebGPURenderTechnique {
 
     [[location(0)]] var<out> outColor : vec4<f32>;
 
-    const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
-    const black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-
     [[stage(fragment)]]
     fn main() -> void {
-      var baseColor : vec4<f32> = material.baseColorFactor;
-    ${defines.USE_BASE_COLOR_MAP ? `
-      var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
-      if (baseColorMap.a < 0.05) {
-        discard;
-      }
-      baseColor = baseColor * baseColorMap;
-    ` : ``}
-    ${defines.USE_VERTEX_COLOR ? `
-      baseColor = baseColor * vCol;
-    ` : ``}
-
-      var albedo : vec3<f32> = baseColor.rgb;
-
-      var metallic : f32 = material.metallicRoughnessFactor.x;
-      var roughness : f32 = material.metallicRoughnessFactor.y;
-
-    ${defines.USE_METAL_ROUGH_MAP ? `
-      var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
-      metallic = metallic * metallicRoughness.b;
-      roughness = roughness * metallicRoughness.g;
-    ` : ``}
-
-    ${defines.USE_NORMAL_MAP ? `
-      var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
-      N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
-    ` : `
-      var N : vec3<f32> = normalize(vNorm);
-    `}
-
-      var V : vec3<f32> = normalize(vView);
-
-      var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
+      ${ReadPBRInputs(defines)}
 
       # reflectance equation
       var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
@@ -274,21 +289,7 @@ export class PBRTechnique extends WebGPURenderTechnique {
         Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
       }
 
-    ${defines.USE_OCCLUSION ? `
-      var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
-    ` : `
-      var ao : f32 = 1.0;
-    `}
-
-      var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
-      var color : vec3<f32> = ambient + Lo;
-
-      var emissive : vec3<f32> = material.emissiveFactor;
-    ${defines.USE_EMISSIVE_TEXTURE ? `
-      emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
-    ` : ``}
-      color = color + emissive;
-
+      var color : vec3<f32> = Lo + ambient + emissive;
       color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
       color = pow(color, vec3<f32>(1.0/2.2, 1.0/2.2, 1.0/2.2));
 
@@ -318,44 +319,9 @@ export class PBRClusteredTechnique extends PBRTechnique {
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
     [[location(0)]] var<out> outColor : vec4<f32>;
 
-    const dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
-    const black : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
-
     [[stage(fragment)]]
     fn main() -> void {
-      var baseColor : vec4<f32> = material.baseColorFactor;
-    ${defines.USE_BASE_COLOR_MAP ? `
-      var baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
-      if (baseColorMap.a < 0.05) {
-        discard;
-      }
-      baseColor = baseColor * baseColorMap;
-    ` : ``}
-    ${defines.USE_VERTEX_COLOR ? `
-      baseColor = baseColor * vCol;
-    ` : ``}
-
-      var albedo : vec3<f32> = baseColor.rgb;
-
-      var metallic : f32 = material.metallicRoughnessFactor.x;
-      var roughness : f32 = material.metallicRoughnessFactor.y;
-
-    ${defines.USE_METAL_ROUGH_MAP ? `
-      var metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
-      metallic = metallic * metallicRoughness.b;
-      roughness = roughness * metallicRoughness.g;
-    ` : ``}
-
-    ${defines.USE_NORMAL_MAP ? `
-      var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
-      N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
-    ` : `
-      var N : vec3<f32> = normalize(vNorm);
-    `}
-
-      var V : vec3<f32> = normalize(vView);
-
-      var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
+      ${ReadPBRInputs(defines)}
 
       # reflectance equation
       var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
@@ -370,21 +336,7 @@ export class PBRClusteredTechnique extends PBRTechnique {
         Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
       }
 
-    ${defines.USE_OCCLUSION ? `
-      var ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
-    ` : `
-      var ao : f32 = 1.0;
-    `}
-
-      var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
-      var color : vec3<f32> = ambient + Lo;
-
-      var emissive : vec3<f32> = material.emissiveFactor;
-    ${defines.USE_EMISSIVE_TEXTURE ? `
-      emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
-    ` : ``}
-      color = color + emissive;
-
+      var color : vec3<f32> = Lo + ambient + emissive;
       color = color / (color + vec3<f32>(1.0, 1.0, 1.0));
       color = pow(color, vec3<f32>(1.0/2.2, 1.0/2.2, 1.0/2.2));
 
