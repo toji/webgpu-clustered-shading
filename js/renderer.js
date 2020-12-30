@@ -89,13 +89,14 @@ export class Renderer {
 
     this.projectionMatrix = new Float32Array(this.frameUniforms.buffer, 0, 16);
     this.inverseProjectionMatrix = new Float32Array(this.frameUniforms.buffer, 16 * 4, 16);
-    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 32 * 4, 16);
-    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 48 * 4, 3);
-    this.outputSize = new Float32Array(this.frameUniforms.buffer, 52 * 4, 2);
-    this.zRange = new Float32Array(this.frameUniforms.buffer, 54 * 4, 2);
+    this.outputSize = new Float32Array(this.frameUniforms.buffer, 32 * 4, 2);
+    this.zRange = new Float32Array(this.frameUniforms.buffer, 34 * 4, 2);
 
     this.zRange[0] = 0.2; // Near
     this.zRange[1] = 100.0; // Far
+
+    this.viewMatrix = new Float32Array(this.frameUniforms.buffer, 36 * 4, 16);
+    this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 52 * 4, 3);
 
     // Allocate all the scene's lights
     this.lightManager = new LightManager(500);

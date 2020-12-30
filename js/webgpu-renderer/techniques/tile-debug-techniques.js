@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
-import { FrameUniforms, SimpleVertexSource, UNIFORM_SET, ATTRIB_MAP } from '../shaders/common.js';
+import { ProjectionUniforms, ViewUniforms, ModelUniforms, SimpleVertexSource, ATTRIB_MAP } from '../shaders/common.js';
 import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLUSTER } from '../shaders/clustered-compute.js';
 
 /**
@@ -33,8 +33,6 @@ export class DepthTechnique extends WebGPURenderTechnique {
   getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
-    ${FrameUniforms}
-
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
 
     [[location(0)]] var<out> outColor : vec4<f32>;
@@ -58,20 +56,8 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
   getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
-    ${FrameUniforms}
+    ${ProjectionUniforms}
     ${TileFunctions}
-
-    var<private> colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
-      vec3<f32>(1.0, 0.0, 0.0),
-      vec3<f32>(1.0, 0.5, 0.0),
-      vec3<f32>(0.5, 1.0, 0.0),
-      vec3<f32>(0.0, 1.0, 0.0),
-      vec3<f32>(0.0, 1.0, 0.5),
-      vec3<f32>(0.0, 0.5, 1.0),
-      vec3<f32>(0.0, 0.0, 1.0),
-      vec3<f32>(0.5, 0.0, 1.0),
-      vec3<f32>(1.0, 0.0, 0.5)
-    );
 
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
 
@@ -80,7 +66,8 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
     [[stage(fragment)]]
     fn main() -> void {
       var tile : vec3<i32> = getTile(fragCoord);
-      outColor = vec4<f32>(colorSet[tile.z % 9], 1.0);
+      var sliceDepth : f32 = f32(tile.z) / f32(tileCount.z);
+      outColor = vec4<f32>(sliceDepth, sliceDepth, sliceDepth, 1.0);
       return;
     }
   `; }
@@ -130,12 +117,9 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
   }
 
   getVertexSource(defines) { return `
-    ${FrameUniforms}
-
-    [[block]] struct PrimitiveUniforms {
-      [[offset(0)]] modelMatrix : mat4x4<f32>;
-    };
-    [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
+    ${ProjectionUniforms}
+    ${ViewUniforms}
+    ${ModelUniforms}
 
     [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
 
@@ -144,15 +128,16 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
 
     [[stage(vertex)]]
     fn main() -> void {
-      viewPosition = frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
-      outPosition = frame.projectionMatrix * viewPosition;
+      viewPosition = view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
+      outPosition = projection.matrix * viewPosition;
       return;
     }
   `}
 
   getFragmentSource(defines) { return `
-    ${FrameUniforms}
+    ${ProjectionUniforms}
     ${TileFunctions}
+
     ${ClusterStructs}
     [[set(3), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
 
@@ -195,9 +180,9 @@ export class LightsPerClusterTechnique extends WebGPURenderTechnique {
   getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
-    ${FrameUniforms}
-    ${ClusterLightsStructs}
+    ${ProjectionUniforms}
     ${TileFunctions}
+    ${ClusterLightsStructs}
 
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
 

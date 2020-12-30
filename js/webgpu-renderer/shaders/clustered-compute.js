@@ -18,10 +18,10 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-// Lots of this derived from http://www.aortiz.me/2018/12/21/CG.html and
+// Lots of this is ported or otherwise influenced by http://www.aortiz.me/2018/12/21/CG.html and
 // https://github.com/Angelo1211/HybridRenderingEngine
 
-import { FrameUniforms, LightUniforms, UNIFORM_SET } from './common.js';
+import { ProjectionUniforms, ViewUniforms, LightUniforms, UNIFORM_SET } from './common.js';
 
 export const TILE_COUNT = [32, 18, 48];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
@@ -35,18 +35,17 @@ export const TileFunctions = `
 const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
 
 fn linearDepth(depthSample : f32) -> f32 {
-  var linear : f32 = 2.0 * frame.zNear * frame.zFar / (frame.zFar + frame.zNear - depthSample * (frame.zFar - frame.zNear));
-  return linear;
+  return 2.0 * projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthSample * (projection.zFar - projection.zNear));
 }
 
 fn getTile(fragCoord : vec4<f32>) -> vec3<i32> {
   # TODO: scale and bias calculation can be moved outside the shader to save cycles.
-  var sliceScale : f32 = f32(tileCount.z) / log2(frame.zFar / frame.zNear);
-  var sliceBias : f32 = -(f32(tileCount.z) * log2(frame.zNear) / log2(frame.zFar / frame.zNear));
+  var sliceScale : f32 = f32(tileCount.z) / log2(projection.zFar / projection.zNear);
+  var sliceBias : f32 = -(f32(tileCount.z) * log2(projection.zNear) / log2(projection.zFar / projection.zNear));
   var zTile : i32 = i32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
 
-  return vec3<i32>(i32(fragCoord.x / (frame.outputSize.x / f32(tileCount.x))),
-                   i32(fragCoord.y / (frame.outputSize.y / f32(tileCount.y))),
+  return vec3<i32>(i32(fragCoord.x / (projection.outputSize.x / f32(tileCount.x))),
+                   i32(fragCoord.y / (projection.outputSize.y / f32(tileCount.y))),
                    zTile);
 }
 
@@ -76,11 +75,11 @@ export const ClusterLightsStructs = `
   [[block]] struct ClusterLightGroup {
     [[offset(0)]] lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<storage_buffer> clusterLights : ClusterLightGroup;
+  [[set(${UNIFORM_SET.Frame}), binding(3)]] var<storage_buffer> clusterLights : ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `
-  ${FrameUniforms}
+  ${ProjectionUniforms}
   ${ClusterStructs}
   [[set(1), binding(0)]] var<storage_buffer> clusters : Clusters;
 
@@ -97,12 +96,12 @@ export const ClusterBoundsSource = `
   }
 
   fn clipToView(clip : vec4<f32>) -> vec4<f32> {
-      const view : vec4<f32> = frame.inverseProjectionMatrix * clip;
+      const view : vec4<f32> = projection.inverseMatrix * clip;
       return view / vec4<f32>(view.w, view.w, view.w, view.w);
   }
 
   fn screen2View(screen : vec4<f32>) -> vec4<f32> {
-      const texCoord : vec2<f32> = screen.xy / frame.outputSize.xy;
+      const texCoord : vec2<f32> = screen.xy / projection.outputSize.xy;
       const clip : vec4<f32> = vec4<f32>(vec2<f32>(texCoord.x, 1.0 - texCoord.y) * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
       return clipToView(clip);
   }
@@ -116,8 +115,8 @@ export const ClusterBoundsSource = `
                             global_id.y * tileCount.x +
                             global_id.z * tileCount.x * tileCount.y;
 
-    const tileSize : vec2<f32> = vec2<f32>(frame.outputSize.x / f32(tileCount.x),
-                                           frame.outputSize.y / f32(tileCount.y));
+    const tileSize : vec2<f32> = vec2<f32>(projection.outputSize.x / f32(tileCount.x),
+                                           projection.outputSize.y / f32(tileCount.y));
 
     var maxPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x+1), f32(global_id.y+1)) * tileSize, -1.0, 1.0);
     var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, -1.0, 1.0);
@@ -126,8 +125,8 @@ export const ClusterBoundsSource = `
     var maxPoint_vS : vec3<f32> = screen2View(maxPoint_sS).xyz;
     var minPoint_vS : vec3<f32> = screen2View(minPoint_sS).xyz;
 
-    const tileNear : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(global_id.z)/f32(tileCount.z));
-    const tileFar : f32 = -frame.zNear * pow(frame.zFar/ frame.zNear, f32(global_id.z+1)/f32(tileCount.z));
+    const tileNear : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z)/f32(tileCount.z));
+    const tileFar : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z+1)/f32(tileCount.z));
 
     const minPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileNear);
     const minPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileFar);
@@ -142,7 +141,8 @@ export const ClusterBoundsSource = `
 `;
 
 export function ClusterLightsSource(maxLights) { return `
-  ${FrameUniforms}
+  ${ProjectionUniforms}
+  ${ViewUniforms}
   ${LightUniforms(maxLights)}
   ${ClusterLightsStructs}
 
@@ -170,14 +170,6 @@ export function ClusterLightsSource(maxLights) { return `
     return sqDist;
   }
 
-#  fn testSphereAABB(lightIndex : i32, tileIndex : i32) -> bool {
-#    var radius : f32 = light.lights[lightIndex].range;
-#    var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[lightIndex].position, 1.0);
-#    var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, tileIndex);
-#
-#    return sqDist <= (radius * radius);
-#  }
-
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   [[stage(compute)]]
@@ -190,7 +182,7 @@ export function ClusterLightsSource(maxLights) { return `
     var activeLightCount : i32 = 0;
     for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
       var range : f32 = light.lights[i].range;
-      var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
+      var lightViewPos : vec4<f32> = view.matrix * vec4<f32>(light.lights[i].position, 1.0);
       var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
 
       const lightInCluster : bool = sqDist <= (range * range);
@@ -199,14 +191,6 @@ export function ClusterLightsSource(maxLights) { return `
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;
         activeLightCount = activeLightCount + 1;
       }
-
-      #var lightViewPos : vec4<f32> = frame.viewMatrix * vec4<f32>(light.lights[i].position, 1.0);
-      #var distFromCluster : f32 = length(lightViewPos.xyz - clusters.bounds[tileIndex].center);
-      #if (distFromCluster <= light.lights[i].range + clusters.bounds[tileIndex].radius) {
-      #  # Light affects this cluster. Add it to the list.
-      #  clusterLights.lights[tileIndex].indices[activeLightCount] = i;
-      #  activeLightCount = activeLightCount + 1;
-      #}
 
       if (activeLightCount == ${MAX_LIGHTS_PER_CLUSTER}) {
         break;

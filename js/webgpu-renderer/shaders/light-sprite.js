@@ -18,14 +18,15 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { FrameUniforms, LightUniforms } from './common.js';
+import { ProjectionUniforms, ViewUniforms, LightUniforms } from './common.js';
 
 export function LightSpriteVertexSource(maxLightCount) { return `
   var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
     vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
   );
 
-  ${FrameUniforms}
+  ${ProjectionUniforms}
+  ${ViewUniforms}
   ${LightUniforms(maxLightCount)}
 
   [[location(0)]] var<out> vPos : vec2<f32>;
@@ -44,7 +45,7 @@ export function LightSpriteVertexSource(maxLightCount) { return `
     # Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
     bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
-    bbModelViewMatrix = frame.viewMatrix * bbModelViewMatrix;
+    bbModelViewMatrix = view.matrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;
     bbModelViewMatrix[0][2] = 0.0;
@@ -57,7 +58,7 @@ export function LightSpriteVertexSource(maxLightCount) { return `
     bbModelViewMatrix[2][1] = 0.0;
     bbModelViewMatrix[2][2] = 1.0;
 
-    outPosition = frame.projectionMatrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
+    outPosition = projection.matrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
     return;
   }
 `;

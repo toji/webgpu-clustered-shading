@@ -32,17 +32,34 @@ export const UNIFORM_SET = {
   Primitive: 2,
 };
 
-export const FrameUniforms = `
-  [[block]] struct FrameUniforms {
-    [[offset(0)]] projectionMatrix : mat4x4<f32>;
-    [[offset(64)]] inverseProjectionMatrix : mat4x4<f32>;
-    [[offset(128)]] viewMatrix : mat4x4<f32>;
-    [[offset(192)]] cameraPosition : vec3<f32>;
-    [[offset(208)]] outputSize : vec2<f32>;
-    [[offset(216)]] zNear : f32;
-    [[offset(220)]] zFar : f32;
+export const ProjectionUniformsSize = 144;
+export const ProjectionUniforms = `
+  [[block]] struct ProjectionUniforms {
+    [[offset(0)]] matrix : mat4x4<f32>;
+    [[offset(64)]] inverseMatrix : mat4x4<f32>;
+    [[offset(128)]] outputSize : vec2<f32>;
+    [[offset(136)]] zNear : f32;
+    [[offset(140)]] zFar : f32;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(0)]] var<uniform> frame : FrameUniforms;
+  [[set(${UNIFORM_SET.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
+`;
+
+export const ViewUniformsSize = 80;
+export const ViewUniforms = `
+  [[block]] struct ViewUniforms {
+    [[offset(0)]] matrix : mat4x4<f32>;
+    [[offset(64)]] position : vec3<f32>;
+    [[offset(76)]] dummy : f32;
+  };
+  [[set(${UNIFORM_SET.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
+`;
+
+export const ModelUniformsSize = 64;
+export const ModelUniforms = `
+  [[block]] struct ModelUniforms {
+    [[offset(0)]] matrix : mat4x4<f32>;
+  };
+  [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> model : ModelUniforms;
 `;
 
 export function LightUniforms(maxLightCount) { return `
@@ -57,16 +74,13 @@ export function LightUniforms(maxLightCount) { return `
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(1)]] var<uniform> light : LightUniforms;
+  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<uniform> light : LightUniforms;
 `};
 
 export const SimpleVertexSource = `
-  ${FrameUniforms}
-
-  [[block]] struct PrimitiveUniforms {
-    [[offset(0)]] modelMatrix : mat4x4<f32>;
-  };
-  [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
+  ${ProjectionUniforms}
+  ${ViewUniforms}
+  ${ModelUniforms}
 
   [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
 
@@ -74,8 +88,7 @@ export const SimpleVertexSource = `
 
   [[stage(vertex)]]
   fn main() -> void {
-    const viewPosition : vec4<f32> = frame.viewMatrix * primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
-    outPosition = frame.projectionMatrix * viewPosition;
+    outPosition = projection.matrix * view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
     return;
   }
 `;

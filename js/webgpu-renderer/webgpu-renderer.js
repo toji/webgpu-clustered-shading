@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
+import { ProjectionUniformsSize, ViewUniformsSize, ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
 import { PBRTechnique, PBRClusteredTechnique } from './techniques/pbr-technique.js';
 import { DepthTechnique, DepthSliceTechnique, ClusterDistanceTechnique, LightsPerClusterTechnique } from './techniques/tile-debug-techniques.js';
 import { LightGroup } from './light-group.js';
@@ -84,15 +84,19 @@ export class WebGPURenderer extends Renderer {
     this.bindGroupLayouts = {
       frame: this.device.createBindGroupLayout({
         entries: [{
-          binding: 0, // Frame uniforms
+          binding: 0, // Projection uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'uniform-buffer'
         }, {
-          binding: 1, // Light uniforms
+          binding: 1, // View uniforms
+          visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
+          type: 'uniform-buffer'
+        }, {
+          binding: 2, // Light uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'uniform-buffer'
         }, {
-          binding: 2, // Cluster Lights storage
+          binding: 3, // Cluster Lights storage
           visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
           type: 'storage-buffer'
         }]
@@ -164,8 +168,13 @@ export class WebGPURenderer extends Renderer {
       ]
     });
 
-    this.frameUniformsBuffer = this.device.createBuffer({
-      size: this.frameUniforms.byteLength,
+    this.projectionUniformsBuffer = this.device.createBuffer({
+      size: ProjectionUniformsSize,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+
+    this.viewUniformsBuffer = this.device.createBuffer({
+      size: ViewUniformsSize,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
@@ -179,15 +188,20 @@ export class WebGPURenderer extends Renderer {
       entries: [{
         binding: 0,
         resource: {
-          buffer: this.frameUniformsBuffer,
+          buffer: this.projectionUniformsBuffer,
         },
       }, {
         binding: 1,
         resource: {
-          buffer: this.lightGroup.uniformsBuffer,
+          buffer: this.viewUniformsBuffer,
         },
       }, {
         binding: 2,
+        resource: {
+          buffer: this.lightGroup.uniformsBuffer,
+        },
+      }, {
+        binding: 3,
         resource: {
           buffer: this.clusterLightsBuffer
         }
@@ -258,9 +272,8 @@ export class WebGPURenderer extends Renderer {
       });
     }
 
-    // Update the FrameUniforms buffer with the values that are used by every
-    // program and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
+    // Update the Projection uniforms. These only need to be updated on resize.
+    this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
 
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
@@ -621,9 +634,9 @@ export class WebGPURenderer extends Renderer {
     // but there seems to be a bug with that right now?
     this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
 
-    // Update the FrameUniforms buffer with the values that are used by every
-    // program and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.frameUniformsBuffer, 0, this.frameUniforms);
+    // Update the View uniforms buffer with the values. These are used by most shader programs
+    // and don't change for the duration of the frame.
+    this.device.defaultQueue.writeBuffer(this.viewUniformsBuffer, 0, this.frameUniforms, ProjectionUniformsSize, ViewUniformsSize);
 
     // Update the light unforms as well
     this.lightGroup.updateUniforms();

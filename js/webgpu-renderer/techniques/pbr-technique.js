@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { WebGPURenderTechnique } from './webgpu-render-technique.js';
-import { FrameUniforms, LightUniforms, ATTRIB_MAP, UNIFORM_SET } from '../shaders/common.js';
+import { ProjectionUniforms, ViewUniforms, ModelUniforms, LightUniforms, ATTRIB_MAP, UNIFORM_SET } from '../shaders/common.js';
 import { ClusterLightsStructs, TileFunctions } from '../shaders/clustered-compute.js';
 
 function PBR_VARYINGS(defines, dir) { return `
@@ -222,6 +222,12 @@ export class PBRTechnique extends WebGPURenderTechnique {
   }
 
   getVertexSource(defines) { return `
+    ${ProjectionUniforms}
+    ${ViewUniforms}
+    ${ModelUniforms}
+
+    ${PBR_VARYINGS(defines, 'out')}
+
     [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
     [[location(${ATTRIB_MAP.NORMAL})]] var<in> NORMAL : vec3<f32>;
     ${defines.USE_NORMAL_MAP ? `
@@ -232,22 +238,13 @@ export class PBRTechnique extends WebGPURenderTechnique {
     [[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
     ` : ``}
 
-    ${FrameUniforms}
-
-    [[block]] struct PrimitiveUniforms {
-      [[offset(0)]] modelMatrix : mat4x4<f32>;
-    };
-    [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> primitive : PrimitiveUniforms;
-
-    ${PBR_VARYINGS(defines, 'out')}
-
     [[builtin(position)]] var<out> outPosition : vec4<f32>;
 
     [[stage(vertex)]]
     fn main() -> void {
-      var n : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(NORMAL, 0.0)).xyz);
+      var n : vec3<f32> = normalize((model.matrix * vec4<f32>(NORMAL, 0.0)).xyz);
     ${defines.USE_NORMAL_MAP ? `
-      var t : vec3<f32> = normalize((primitive.modelMatrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
+      var t : vec3<f32> = normalize((model.matrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
       var b : vec3<f32> = cross(n, t) * TANGENT.w;
       vTBN = mat3x3<f32>(t, b, n);
     ` : `
@@ -259,10 +256,10 @@ export class PBRTechnique extends WebGPURenderTechnique {
     ` : `` }
 
       vTex = TEXCOORD_0;
-      var mPos : vec4<f32> = primitive.modelMatrix * vec4<f32>(POSITION, 1.0);
+      var mPos : vec4<f32> = model.matrix * vec4<f32>(POSITION, 1.0);
       vWorldPos = mPos.xyz;
-      vView = frame.cameraPosition - mPos.xyz;
-      outPosition = frame.projectionMatrix * frame.viewMatrix * mPos;
+      vView = view.position - mPos.xyz;
+      outPosition = projection.matrix * view.matrix * mPos;
       return;
     }`;
   }
@@ -306,7 +303,7 @@ export class PBRClusteredTechnique extends PBRTechnique {
   }
 
   getFragmentSource(defines) { return `
-    ${FrameUniforms}
+    ${ProjectionUniforms}
     ${ClusterLightsStructs}
     ${MaterialUniforms}
     ${LightUniforms(this.maxLights)}

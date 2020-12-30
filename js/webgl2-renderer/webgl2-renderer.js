@@ -54,6 +54,9 @@ const LightSprite = {
     layout(std140) uniform FrameUniforms {
       mat4 projectionMatrix;
       mat4 inverseProjectionMatrix;
+      vec2 outputSize;
+      float zNear;
+      float zFar;
       mat4 viewMatrix;
       vec3 cameraPosition;
     };
