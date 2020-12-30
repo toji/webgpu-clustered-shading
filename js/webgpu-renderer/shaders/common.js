@@ -77,6 +77,24 @@ export function LightUniforms(maxLightCount) { return `
   [[set(${UNIFORM_SET.Frame}), binding(2)]] var<uniform> light : LightUniforms;
 `};
 
+export const MaterialUniformsSize = 48;
+export const MaterialUniforms = `
+  [[block]] struct MaterialUniforms {
+    [[offset(0)]] baseColorFactor : vec4<f32>;
+    [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
+    [[offset(32)]] emissiveFactor : vec3<f32>;
+    [[offset(44)]] occlusionStrength : f32;
+  };
+  [[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+
+  [[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+  [[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+  [[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+  [[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+  [[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+  [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+`;
+
 export const SimpleVertexSource = `
   ${ProjectionUniforms}
   ${ViewUniforms}

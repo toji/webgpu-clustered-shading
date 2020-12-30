@@ -20,8 +20,8 @@
 
 import { Renderer } from '../renderer.js';
 import { ProjectionUniformsSize, ViewUniformsSize, ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
-import { PBRTechnique, PBRClusteredTechnique } from './techniques/pbr-technique.js';
-import { DepthTechnique, DepthSliceTechnique, ClusterDistanceTechnique, LightsPerClusterTechnique } from './techniques/tile-debug-techniques.js';
+import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-render-bundle-helper.js';
+import { DepthVisualization, DepthSliceVisualization, ClusterDistanceVisualization, LightsPerClusterVisualization } from './debug-visualizations.js';
 import { LightGroup } from './light-group.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
@@ -490,13 +490,10 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderNaiveForward(encoder) {
-    if (!this.pbrTechnique) {
-      this.pbrTechnique = new PBRTechnique(this.device, this.renderBundleDescriptor,
-          this.bindGroupLayouts, this.lightManager.maxLightCount);
-    }
-
     if (!this.pbrRenderBundle && this.primitives) {
-      this.pbrRenderBundle = this.pbrTechnique.createRenderBundle(this.primitives, {
+      const pbrHelper = new PBRRenderBundleHelper(this.device, this.renderBundleDescriptor,
+        this.bindGroupLayouts, this.lightManager.maxLightCount);
+      this.pbrRenderBundle = pbrHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup
       });
     }
@@ -507,12 +504,9 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderDepth(encoder) {
-    if (!this.depthTechnique) {
-      this.depthTechnique = new DepthTechnique(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
-    }
-
     if (!this.depthRenderBundle && this.primitives) {
-      this.depthRenderBundle = this.depthTechnique.createRenderBundle(this.primitives, {
+      const visualizationHelper = new DepthVisualization(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
+      this.depthRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup
       });
     }
@@ -523,12 +517,9 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderDepthSlices(encoder) {
-    if (!this.depthSliceTechnique) {
-      this.depthSliceTechnique = new DepthSliceTechnique(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
-    }
-
     if (!this.depthSliceRenderBundle && this.primitives) {
-      this.depthSliceRenderBundle = this.depthSliceTechnique.createRenderBundle(this.primitives, {
+      const visualizationHelper = new DepthSliceVisualization(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
+      this.depthSliceRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup
       });
     }
@@ -539,13 +530,10 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderClusterDistance(encoder) {
-    if (!this.clusterDistanceTechnique) {
-      this.clusterDistanceTechnique = new ClusterDistanceTechnique(this.device, this.renderBundleDescriptor,
-          this.bindGroupLayouts, this.clusterBuffer);
-    }
-
     if (!this.clusterDistanceRenderBundle && this.primitives) {
-      this.clusterDistanceRenderBundle = this.clusterDistanceTechnique.createRenderBundle(this.primitives, {
+      const visualizationHelper = new ClusterDistanceVisualization(this.device, this.renderBundleDescriptor,
+        this.bindGroupLayouts, this.clusterBuffer);
+      this.clusterDistanceRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup,
         3: this.clusterReadonlyBindGroup
       });
@@ -557,13 +545,10 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderLightsPerCluster(encoder) {
-    if (!this.lightsPerClusterTechnique) {
-      this.lightsPerClusterTechnique = new LightsPerClusterTechnique(this.device, this.renderBundleDescriptor,
-          this.bindGroupLayouts);
-    }
-
     if (!this.lightsPerClusterRenderBundle && this.primitives) {
-      this.lightsPerClusterRenderBundle = this.lightsPerClusterTechnique.createRenderBundle(this.primitives, {
+      const visualizationHelper = new LightsPerClusterVisualization(this.device, this.renderBundleDescriptor,
+        this.bindGroupLayouts);
+      this.lightsPerClusterRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup
       });
     }
@@ -613,13 +598,10 @@ export class WebGPURenderer extends Renderer {
   }
 
   renderClusteredForward(encoder) {
-    if (!this.pbrClusteredTechnique) {
-      this.pbrClusteredTechnique = new PBRClusteredTechnique(this.device, this.renderBundleDescriptor,
-          this.bindGroupLayouts, this.lightManager.maxLightCount);
-    }
-
     if (!this.pbrClusteredRenderBundle && this.primitives) {
-      this.pbrClusteredRenderBundle = this.pbrClusteredTechnique.createRenderBundle(this.primitives, {
+      const pbrHelper = new PBRClusteredRenderBundleHelper(this.device, this.renderBundleDescriptor,
+        this.bindGroupLayouts, this.lightManager.maxLightCount);
+      this.pbrClusteredRenderBundle = pbrHelper.createRenderBundle(this.primitives, {
         0: this.frameUniformBindGroup
       });
     }

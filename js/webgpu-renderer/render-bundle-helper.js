@@ -18,10 +18,11 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { createShaderModuleDebug } from '../wgsl-utils.js';
-import { UNIFORM_SET } from '../shaders/common.js';
+import { createShaderModuleDebug } from './wgsl-utils.js';
+import { UNIFORM_SET, SimpleVertexSource } from './shaders/common.js';
 
-export class WebGPURenderTechnique {
+// A utility class that creates render bundles for a set of shaders and a list of primitives.
+export class RenderBundleHelper {
   constructor(device, renderBundleDescriptor, bindGroupLayouts) {
     this.device = device;
     this.renderBundleDescriptor = renderBundleDescriptor;
@@ -50,7 +51,7 @@ export class WebGPURenderTechnique {
   }
 
   getVertexSource(defines) {
-    return null; // Override per-technique
+    return SimpleVertexSource; // Override per-technique
   }
 
   getFragmentSource(defines) {
@@ -69,7 +70,7 @@ export class WebGPURenderTechnique {
       const vertexSource = this.getVertexSource(programDefines);
       const fragmentSource = this.getFragmentSource(programDefines);
       if (!vertexSource) {
-        throw new Error('Render technique did not supply a valid vertex shader.');
+        throw new Error('RenderBundleHelper did not supply a valid vertex shader.');
       }
       shaderModule = {
         id: this.nextShaderModuleId++,

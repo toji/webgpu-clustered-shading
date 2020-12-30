@@ -18,19 +18,17 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { WebGPURenderTechnique } from './webgpu-render-technique.js';
-import { ProjectionUniforms, ViewUniforms, ModelUniforms, SimpleVertexSource, ATTRIB_MAP } from '../shaders/common.js';
-import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLUSTER } from '../shaders/clustered-compute.js';
+import { RenderBundleHelper } from './render-bundle-helper.js';
+import { ProjectionUniforms, ViewUniforms, ModelUniforms, ATTRIB_MAP } from './shaders/common.js';
+import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLUSTER } from './shaders/clustered-compute.js';
 
 /**
- * Technique visualizes simple depth info as greyscale range.
+ * Visualizes simple depth info as greyscale range.
  */
-export class DepthTechnique extends WebGPURenderTechnique {
+export class DepthVisualization extends RenderBundleHelper {
   constructor(device, renderBundleDescriptor, bindGroupLayouts) {
     super(device, renderBundleDescriptor, bindGroupLayouts);
   }
-
-  getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
@@ -46,14 +44,12 @@ export class DepthTechnique extends WebGPURenderTechnique {
 }
 
 /**
- * Technique visualizes which depth slice a given fragment would be assigned to.
+ * visualizes which depth slice a given fragment would be assigned to.
  */
-export class DepthSliceTechnique extends WebGPURenderTechnique {
+export class DepthSliceVisualization extends RenderBundleHelper {
   constructor(device, renderBundleDescriptor, bindGroupLayouts) {
     super(device, renderBundleDescriptor, bindGroupLayouts);
   }
-
-  getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
     ${ProjectionUniforms}
@@ -74,9 +70,9 @@ export class DepthSliceTechnique extends WebGPURenderTechnique {
 }
 
 /**
- * Technique visualizes distance to the center of each cluster.
+ * visualizes distance to the center of each cluster.
  */
-export class ClusterDistanceTechnique extends WebGPURenderTechnique {
+export class ClusterDistanceVisualization extends RenderBundleHelper {
   constructor(device, renderBundleDescriptor, bindGroupLayouts, clusterBuffer) {
     super(device, renderBundleDescriptor, bindGroupLayouts);
 
@@ -170,14 +166,12 @@ export class ClusterDistanceTechnique extends WebGPURenderTechnique {
 }
 
 /**
- * Technique visualizes how many lights are affecting any given cluster.
+ * Visualizes how many lights are affecting any given cluster.
  */
-export class LightsPerClusterTechnique extends WebGPURenderTechnique {
+export class LightsPerClusterVisualization extends RenderBundleHelper {
   constructor(device, renderBundleDescriptor, bindGroupLayouts) {
     super(device, renderBundleDescriptor, bindGroupLayouts);
   }
-
-  getVertexSource(defines) { return SimpleVertexSource; }
 
   getFragmentSource(defines) { return `
     ${ProjectionUniforms}
