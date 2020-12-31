@@ -59,11 +59,22 @@ export class DepthSliceVisualization extends RenderBundleHelper {
 
     [[location(0)]] var<out> outColor : vec4<f32>;
 
+    const colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+      vec3<f32>(1.0, 0.0, 0.0),
+      vec3<f32>(1.0, 0.5, 0.0),
+      vec3<f32>(0.5, 1.0, 0.0),
+      vec3<f32>(0.0, 1.0, 0.0),
+      vec3<f32>(0.0, 1.0, 0.5),
+      vec3<f32>(0.0, 0.5, 1.0),
+      vec3<f32>(0.0, 0.0, 1.0),
+      vec3<f32>(0.5, 0.0, 1.0),
+      vec3<f32>(1.0, 0.0, 0.5)
+    );
+
     [[stage(fragment)]]
     fn main() -> void {
       var tile : vec3<i32> = getTile(fragCoord);
-      var sliceDepth : f32 = f32(tile.z) / f32(tileCount.z);
-      outColor = vec4<f32>(sliceDepth, sliceDepth, sliceDepth, 1.0);
+      outColor = vec4<f32>(colorSet[tile.z % 9], 1.0);
       return;
     }
   `; }
