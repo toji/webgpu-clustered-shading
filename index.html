@@ -62,7 +62,7 @@
         renderer: 'webGPU',
         output: 'clustered-forward',
         renderLightSprites: true,
-        lightCount: 100,
+        lightCount: 128,
         maxLightRange: 2,
       };
 
@@ -88,13 +88,13 @@
         }
       });
 
-      gui.add(appSettings, 'lightCount', 5, 500).onFinishChange(() => {
+      gui.add(appSettings, 'lightCount', 5, 1024).onFinishChange(() => {
         if (renderer) {
           renderer.lightManager.lightCount = appSettings.lightCount;
         }
       });
 
-      gui.add(appSettings, 'maxLightRange', 0.5, 5).onFinishChange(() => {
+      gui.add(appSettings, 'maxLightRange', 0.1, 5).onFinishChange(() => {
         if (renderer) {
           renderer.updateLightRange(appSettings.maxLightRange);
         }
@@ -139,6 +139,7 @@
             document.body.appendChild(renderer.canvas);
             camera.element = renderer.canvas;
             renderer.lightManager.lightCount = appSettings.lightCount;
+            renderer.updateLightRange(appSettings.maxLightRange);
             renderer.lightManager.render = appSettings.renderLightSprites;
 
             onOutputChange();

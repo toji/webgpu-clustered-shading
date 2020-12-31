@@ -94,7 +94,7 @@ export class WebGPURenderer extends Renderer {
         }, {
           binding: 2, // Light uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          type: 'uniform-buffer'
+          type: 'readonly-storage-buffer'
         }, {
           binding: 3, // Cluster Lights storage
           visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,

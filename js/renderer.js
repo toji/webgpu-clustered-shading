@@ -99,7 +99,7 @@ export class Renderer {
     this.cameraPosition = new Float32Array(this.frameUniforms.buffer, 52 * 4, 3);
 
     // Allocate all the scene's lights
-    this.lightManager = new LightManager(500);
+    this.lightManager = new LightManager(1024);
 
     // Ambient color
     vec3.set(this.lightManager.ambientColor, 0.002, 0.002, 0.002);

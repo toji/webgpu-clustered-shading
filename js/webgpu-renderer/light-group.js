@@ -29,7 +29,7 @@ export class LightGroup {
 
     this.uniformsBuffer = this.device.createBuffer({
       size: lightManager.uniformArray.byteLength,
-      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
     });
 
     this.spritePipelineLayout = this.device.createPipelineLayout({

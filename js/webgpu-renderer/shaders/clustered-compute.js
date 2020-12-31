@@ -28,7 +28,7 @@ export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 
 // Each cluster tracks up to MAX_LIGHTS_PER_CLUSTER light indices (ints) and one light count.
 // This limitation should be able to go away when we have atomic methods in WGSL.
-export const MAX_LIGHTS_PER_CLUSTER = 50;
+export const MAX_LIGHTS_PER_CLUSTER = 100;
 export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4;
 
 export const TileFunctions = `

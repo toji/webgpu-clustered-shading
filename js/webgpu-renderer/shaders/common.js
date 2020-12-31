@@ -74,7 +74,7 @@ export function LightUniforms(maxLightCount) { return `
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<uniform> light : LightUniforms;
+  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<storage_buffer> light : [[access(read)]] LightUniforms;
 `};
 
 export const MaterialUniformsSize = 48;
