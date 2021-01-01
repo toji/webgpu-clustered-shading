@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { createShaderModuleDebug } from './wgsl-utils.js';
-import { UNIFORM_SET, SimpleVertexSource } from './shaders/common.js';
+import { ATTRIB_MAP, UNIFORM_SET, SimpleVertexSource } from './shaders/common.js';
 
 // A utility class that creates render bundles for a set of shaders and a list of primitives.
 export class RenderBundleHelper {
@@ -87,13 +87,7 @@ export class RenderBundleHelper {
     const shaderModule = this.getShaderModules(primitive);
     const primitiveTopology = primitive.gpuPrimitiveTopology;
 
-    const vertexState = {
-      vertexBuffers: primitive.renderData.vertexBuffers,
-    };
-
-    if (primitiveTopology == 'triangle-strip' || primitiveTopology == 'line-strip') {
-      vertexState.indexFormat = primitive.indices.gpuType;
-    }
+    const vertexState = primitive.getVertexStateDescriptor(ATTRIB_MAP);
 
     const cullMode = material.cullFace ? 'back' : 'none';
     const colorBlend = {};
@@ -103,20 +97,7 @@ export class RenderBundleHelper {
     }
 
     // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|`;
-    let i = 0;
-    for (const vertexBuffer of vertexState.vertexBuffers) {
-      pipelineKey += `${i}:${vertexBuffer.arrayStride}`;
-      for (let attribute of vertexBuffer.attributes) {
-        pipelineKey += `:${attribute.shaderLocation},${attribute.offset},${attribute.format}`;
-      }
-      pipelineKey += '|'
-      i++;
-    }
-    if (vertexState.indexFormat) {
-      pipelineKey += `${vertexState.indexFormat}`;
-    }
-
+    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|${vertexState.hash}`;
     let cachedPipeline = this.pipelineCache.get(pipelineKey);
 
     if (!cachedPipeline) {

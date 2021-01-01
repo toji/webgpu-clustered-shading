@@ -482,6 +482,53 @@ class Primitive {
     this.renderData = {};
   }
 
+  // Returns a GPUVertexStateDescriptor that describes the layout of the buffers for this primitive.
+  getVertexStateDescriptor(attributeMap) {
+    const vertexBuffers = [];
+    let vertexStateHash = '';
+    for (let [bufferView, attributes] of this.attributeBuffers) {
+      let arrayStride = bufferView.byteStride;
+
+      const attributeLayouts = [];
+      for (let attribName in attributes) {
+        const attribute = attributes[attribName];
+
+        attributeLayouts.push({
+          shaderLocation: attributeMap[attribName],
+          offset: attribute.byteOffset,
+          format: attribute.gpuFormat,
+        });
+
+        vertexStateHash += `${attributeMap[attribName]},${attribute.byteOffset},${attribute.gpuFormat}:`;
+
+        if (!bufferView.byteStride) {
+          arrayStride += attribute.packedByteStride;
+        }
+      }
+
+      vertexStateHash += `${arrayStride}|`;
+
+      vertexBuffers.push({
+        arrayStride,
+        attributes: attributeLayouts,
+      });
+    }
+
+    const vertexState = {
+      vertexBuffers,
+    };
+
+    if (this.mode == GL.TRIANGLE_STRIP || this.mode == GL.LINE_STRIP) {
+      vertexState.indexFormat = this.indices.gpuType;
+      vertexStateHash += `${vertexState.indexFormat}`;
+    }
+
+    // Not used by WebGPU, but useful for identifing primitives with identical vertex states.
+    vertexState.hash = vertexStateHash;
+
+    return vertexState;
+  }
+
   get gpuPrimitiveTopology() {
     switch (this.mode) {
       case GL.TRIANGLES:

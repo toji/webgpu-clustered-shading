@@ -422,35 +422,6 @@ export class WebGPURenderer extends Renderer {
   }
 
   initPrimitive(primitive) {
-    const material = primitive.material;
-
-    const vertexBuffers = [];
-    for (let [bufferView, attributes] of primitive.attributeBuffers) {
-      let arrayStride = bufferView.byteStride;
-
-      const attributeLayouts = [];
-      for (let attribName in attributes) {
-        const attribute = attributes[attribName];
-
-        attributeLayouts.push({
-          shaderLocation: ATTRIB_MAP[attribName],
-          offset: attribute.byteOffset,
-          format: attribute.gpuFormat,
-        });
-
-        if (!bufferView.byteStride) {
-          arrayStride += attribute.packedByteStride;
-        }
-      }
-
-      vertexBuffers.push({
-        arrayStride,
-        attributes: attributeLayouts,
-      });
-    }
-
-    primitive.renderData.vertexBuffers = vertexBuffers;
-
     const bufferSize = 16 * 4;
 
     // TODO: Support multiple instances
