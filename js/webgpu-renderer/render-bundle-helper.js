@@ -85,11 +85,8 @@ export class RenderBundleHelper {
   getPrimitivePipeline(primitive) {
     const material = primitive.material;
     const shaderModule = this.getShaderModules(primitive);
-    const primitiveTopology = primitive.gpuPrimitiveTopology;
+    const pipelineDescriptor = primitive.getPartialRenderPipelineDescriptor(ATTRIB_MAP);
 
-    const vertexState = primitive.getVertexStateDescriptor(ATTRIB_MAP);
-
-    const cullMode = material.cullFace ? 'back' : 'none';
     const colorBlend = {};
     if (material.blend) {
       colorBlend.srcFactor = 'src-alpha';
@@ -97,24 +94,16 @@ export class RenderBundleHelper {
     }
 
     // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${shaderModule.id}|${primitiveTopology}|${cullMode}|${material.blend}|${vertexState.hash}`;
+    let pipelineKey = `${shaderModule.id}|${material.blend}|${pipelineDescriptor.hash}`;
     let cachedPipeline = this.pipelineCache.get(pipelineKey);
 
     if (!cachedPipeline) {
-      const pipeline = this.device.createRenderPipeline({
+      Object.assign(pipelineDescriptor, {
+        layout: this.pipelineLayout,
+
         vertexStage: shaderModule.vertexStage,
         fragmentStage: shaderModule.fragmentStage,
 
-        primitiveTopology,
-
-        vertexState,
-
-        rasterizationState: {
-          cullMode,
-        },
-
-        // Everything below here is (currently) identical for each pipeline
-        layout: this.pipelineLayout,
         colorStates: [{
           format: this.renderBundleDescriptor.colorFormats[0],
           colorBlend,
@@ -126,6 +115,8 @@ export class RenderBundleHelper {
         },
         sampleCount: this.renderBundleDescriptor.sampleCount,
       });
+
+      const pipeline = this.device.createRenderPipeline(pipelineDescriptor);
 
       cachedPipeline = {
         id: this.nextPipelineId++,

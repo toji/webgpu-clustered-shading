@@ -482,6 +482,27 @@ class Primitive {
     this.renderData = {};
   }
 
+  getPartialRenderPipelineDescriptor(attributeMap) {
+    const primitiveTopology = this.gpuPrimitiveTopology;
+    const vertexState = this.getVertexStateDescriptor(attributeMap);
+
+    const cullMode = this.material.primitiveTopologyprimitiveTopology ? 'back' : 'none';
+
+    // Generate a key that describes this pipeline's layout/state
+    let pipelineKey = `${primitiveTopology}|${cullMode}|${vertexState.hash}`;
+
+    return {
+      // Not used by WebGPU, but useful for identifing primitives with identical vertex states.
+      hash: `${primitiveTopology}|${cullMode}|${vertexState.hash}`,
+
+      primitiveTopology: this.gpuPrimitiveTopology,
+      rasterizationState: {
+        cullMode: this.material.cullFace ? 'back' : 'none'
+      },
+      vertexState,
+    }
+  }
+
   // Returns a GPUVertexStateDescriptor that describes the layout of the buffers for this primitive.
   getVertexStateDescriptor(attributeMap) {
     const vertexBuffers = [];
