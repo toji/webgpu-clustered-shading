@@ -22,9 +22,9 @@ import { RenderBundleHelper } from './render-bundle-helper.js';
 import { PBRVertexSource, PBRFragmentSource, PBRClusteredFragmentSource } from './shaders/pbr.js';
 
 export class PBRRenderBundleHelper extends RenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts, maxLights) {
-    super(device, renderBundleDescriptor, bindGroupLayouts);
-    this.maxLights = maxLights;
+  constructor(renderer) {
+    super(renderer);
+    this.maxLights = renderer.lightManager.maxLightCount;
   }
 
   getDefinesForPrimitive(primitive) {
@@ -74,9 +74,5 @@ export class PBRRenderBundleHelper extends RenderBundleHelper {
 }
 
 export class PBRClusteredRenderBundleHelper extends PBRRenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts, maxLights) {
-    super(device, renderBundleDescriptor, bindGroupLayouts, maxLights);
-  }
-
   getFragmentSource(defines) { return PBRClusteredFragmentSource(defines); }
 }

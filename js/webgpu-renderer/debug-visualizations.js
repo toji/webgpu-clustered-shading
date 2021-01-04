@@ -26,10 +26,6 @@ import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLU
  * Visualizes simple depth info as greyscale range.
  */
 export class DepthVisualization extends RenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
-    super(device, renderBundleDescriptor, bindGroupLayouts);
-  }
-
   getFragmentSource(defines) { return `
     [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
 
@@ -47,10 +43,6 @@ export class DepthVisualization extends RenderBundleHelper {
  * visualizes which depth slice a given fragment would be assigned to.
  */
 export class DepthSliceVisualization extends RenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
-    super(device, renderBundleDescriptor, bindGroupLayouts);
-  }
-
   getFragmentSource(defines) { return `
     ${ProjectionUniforms}
     ${TileFunctions}
@@ -84,30 +76,7 @@ export class DepthSliceVisualization extends RenderBundleHelper {
  * visualizes distance to the center of each cluster.
  */
 export class ClusterDistanceVisualization extends RenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts, clusterBuffer) {
-    super(device, renderBundleDescriptor, bindGroupLayouts);
-
-    this.clusterBindGroup = this.device.createBindGroup({
-      layout: bindGroupLayouts.cluster,
-      entries: [{
-        binding: 0,
-        resource: {
-          buffer: clusterBuffer,
-        },
-      }],
-    });
-  }
-
   createPipelineLayout(bindGroupLayouts) {
-    this.clusterBindGroupLayout = this.device.createBindGroupLayout({
-      entries: [{
-        binding: 0,
-        visibility: GPUShaderStage.FRAGMENT,
-        type: 'readonly-storage-buffer'
-      }]
-    });
-
-    // Override per-technique if needed
     return this.device.createPipelineLayout({
       bindGroupLayouts: [
         bindGroupLayouts.frame,
@@ -116,11 +85,6 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
         bindGroupLayouts.cluster,
       ]
     });
-  }
-
-  createRenderBundle(primitives, frameBindGroups) {
-    frameBindGroups[3] = this.clusterBindGroup;
-    return super.createRenderBundle(primitives, frameBindGroups);
   }
 
   getVertexSource(defines) { return `
@@ -174,6 +138,11 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
       return;
     }
   `; }
+
+  setFrameBindGroups(renderBundleEncoder) {
+    super.setFrameBindGroups(renderBundleEncoder);
+    renderBundleEncoder.setBindGroup(3, this.renderer.bindGroups.cluster);
+  }
 }
 
 /**
@@ -197,7 +166,8 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
     fn main() -> void {
       var clusterIndex : i32 = getClusterIndex(fragCoord);
       var lightCount : i32 = clusterLights.lights[clusterIndex].count;
-      outColor = vec4<f32>(f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER}), 0.0, 0.0, 1.0);
+      var lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});
+      outColor = mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
       return;
     }
   `; }

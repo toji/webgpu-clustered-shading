@@ -98,3 +98,14 @@ this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.fram
 ```
 
 This is not what the spec says should happen
+
+## Mix can't take a single scalar
+
+Maybe not a "bug", but really annoying nonetheless.
+
+```ts
+// What I want to do:
+mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), lightFactor);
+// What I have to do:
+mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
+```

@@ -23,10 +23,11 @@ import { ATTRIB_MAP, UNIFORM_SET, SimpleVertexSource } from './shaders/common.js
 
 // A utility class that creates render bundles for a set of shaders and a list of primitives.
 export class RenderBundleHelper {
-  constructor(device, renderBundleDescriptor, bindGroupLayouts) {
-    this.device = device;
-    this.renderBundleDescriptor = renderBundleDescriptor;
-    this.pipelineLayout = this.createPipelineLayout(bindGroupLayouts);
+  constructor(renderer) {
+    this.renderer = renderer;
+    this.device = renderer.device;
+    this.renderBundleDescriptor = renderer.renderBundleDescriptor;
+    this.pipelineLayout = this.createPipelineLayout(renderer.bindGroupLayouts);
 
     this.nextShaderModuleId = 0;
     this.shaderModuleCache = new Map(); // Map<String -> ShaderModule>
@@ -130,7 +131,11 @@ export class RenderBundleHelper {
     return cachedPipeline;
   }
 
-  createRenderBundle(primitives, frameBindGroups) {
+  setFrameBindGroups(renderBundleEncoder) {
+    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, this.renderer.bindGroups.frame);
+  }
+
+  createRenderBundle(primitives) {
     // Generate a render bundle that draws all the given primitives with the specified technique.
     // The sort up front is a bit heavy, but that's OK because the end result is a render bundle
     // will excute very quickly.
@@ -167,9 +172,7 @@ export class RenderBundleHelper {
     // Create a bundle we can use to replay our scene drawing each frame
     const renderBundleEncoder = this.device.createRenderBundleEncoder(this.renderBundleDescriptor);
 
-    for (let bindGroupSet in frameBindGroups) {
-      renderBundleEncoder.setBindGroup(bindGroupSet, frameBindGroups[bindGroupSet]);
-    }
+    this.setFrameBindGroups(renderBundleEncoder);
 
     // Opaque primitives first
     for (let pipeline of opaquePipelines.values()) {

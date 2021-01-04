@@ -32,14 +32,31 @@ import { createShaderModuleDebug } from './wgsl-utils.js';
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 
+// Can reuse these for every PBR material
+const materialUniforms = new Float32Array(4 + 4 + 4);
+const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
+const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
+const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
+
 export class WebGPURenderer extends Renderer {
   constructor() {
     super();
 
     this.context = this.canvas.getContext('gpupresent');
+
+    this.outputHelpers = {
+      'naive-forward': PBRRenderBundleHelper,
+      'clustered-forward': PBRClusteredRenderBundleHelper,
+      'depth': DepthVisualization,
+      'depth-slice': DepthSliceVisualization,
+      'cluster-distance': ClusterDistanceVisualization,
+      'lights-per-cluster': LightsPerClusterVisualization,
+    };
   }
 
   async init() {
+    this.outputRenderBundles = {};
+
     this.adapter = await navigator.gpu.requestAdapter({
       powerPreference: "high-performance"
     });
@@ -183,30 +200,32 @@ export class WebGPURenderer extends Renderer {
       usage: GPUBufferUsage.STORAGE
     });
 
-    this.frameUniformBindGroup = this.device.createBindGroup({
-      layout: this.bindGroupLayouts.frame,
-      entries: [{
-        binding: 0,
-        resource: {
-          buffer: this.projectionUniformsBuffer,
-        },
-      }, {
-        binding: 1,
-        resource: {
-          buffer: this.viewUniformsBuffer,
-        },
-      }, {
-        binding: 2,
-        resource: {
-          buffer: this.lightGroup.uniformsBuffer,
-        },
-      }, {
-        binding: 3,
-        resource: {
-          buffer: this.clusterLightsBuffer
-        }
-      }],
-    });
+    this.bindGroups = {
+      frame: this.device.createBindGroup({
+        layout: this.bindGroupLayouts.frame,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.projectionUniformsBuffer,
+          },
+        }, {
+          binding: 1,
+          resource: {
+            buffer: this.viewUniformsBuffer,
+          },
+        }, {
+          binding: 2,
+          resource: {
+            buffer: this.lightGroup.uniformsBuffer,
+          },
+        }, {
+          binding: 3,
+          resource: {
+            buffer: this.clusterLightsBuffer
+          }
+        }],
+      })
+    }
 
     this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
     this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
@@ -233,56 +252,7 @@ export class WebGPURenderer extends Renderer {
     this.depthAttachment.attachment = depthTexture.createView();
 
     // On every size change we need to re-compute the cluster grid.
-    if (!this.clusterPipeline) {
-      const clusterStorageBindGroupLayout = this.device.createBindGroupLayout({
-        entries: [{
-          binding: 0,
-          visibility: GPUShaderStage.COMPUTE,
-          type: 'storage-buffer'
-        }]
-      });
-      const clusterPipelineLayout = this.device.createPipelineLayout({
-        bindGroupLayouts: [
-          this.bindGroupLayouts.frame, // set 0
-          clusterStorageBindGroupLayout, // set 1
-        ]
-      });
-
-      this.clusterPipeline = this.device.createComputePipeline({
-        layout: clusterPipelineLayout,
-        computeStage: {
-          module: createShaderModuleDebug(this.device, ClusterBoundsSource),
-          entryPoint: 'main',
-        }
-      });
-
-      this.clusterBuffer = this.device.createBuffer({
-        size: TOTAL_TILES * 32, // Cluster x, y, z size * 32 bytes per cluster.
-        usage: GPUBufferUsage.STORAGE
-      });
-
-      this.clusterStorageBindGroup = this.device.createBindGroup({
-        layout: this.clusterPipeline.getBindGroupLayout(1),
-        entries: [{
-          binding: 0,
-          resource: {
-            buffer: this.clusterBuffer,
-          },
-        }],
-      });
-    }
-
-    // Update the Projection uniforms. These only need to be updated on resize.
-    this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
-
-    const commandEncoder = this.device.createCommandEncoder();
-    const passEncoder = commandEncoder.beginComputePass();
-    passEncoder.setPipeline(this.clusterPipeline);
-    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-    passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
-    passEncoder.dispatch(...TILE_COUNT);
-    passEncoder.endPass();
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    updateClusterBounds();
   }
 
   async setGltf(gltf) {
@@ -366,12 +336,6 @@ export class WebGPURenderer extends Renderer {
   }
 
   initMaterial(material) {
-    // Can reuse these for every PBR material
-    const materialUniforms = new Float32Array(4 + 4 + 4);
-    const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
-    const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
-    const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
-
     vec4.copy(baseColorFactor, material.baseColorFactor);
     vec2.copy(metallicRoughnessFactor, material.metallicRoughnessFactor);
     vec3.copy(emissiveFactor, material.emissiveFactor);
@@ -460,76 +424,69 @@ export class WebGPURenderer extends Renderer {
     }
   }
 
-  renderNaiveForward(encoder) {
-    if (!this.pbrRenderBundle && this.primitives) {
-      const pbrHelper = new PBRRenderBundleHelper(this.device, this.renderBundleDescriptor,
-        this.bindGroupLayouts, this.lightManager.maxLightCount);
-      this.pbrRenderBundle = pbrHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup
+  computeClusterBounds() {
+    if (!this.clusterPipeline) {
+      const clusterStorageBindGroupLayout = this.device.createBindGroupLayout({
+        entries: [{
+          binding: 0,
+          visibility: GPUShaderStage.COMPUTE,
+          type: 'storage-buffer'
+        }]
+      });
+
+      this.clusterPipeline = this.device.createComputePipeline({
+        layout: this.device.createPipelineLayout({
+          bindGroupLayouts: [
+            this.bindGroupLayouts.frame, // set 0
+            clusterStorageBindGroupLayout, // set 1
+          ]
+        }),
+        computeStage: {
+          module: createShaderModuleDebug(this.device, ClusterBoundsSource),
+          entryPoint: 'main',
+        }
+      });
+
+      this.clusterBuffer = this.device.createBuffer({
+        size: TOTAL_TILES * 32, // Cluster x, y, z size * 32 bytes per cluster.
+        usage: GPUBufferUsage.STORAGE
+      });
+
+      this.clusterStorageBindGroup = this.device.createBindGroup({
+        layout: clusterStorageBindGroupLayout,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.clusterBuffer,
+          },
+        }],
+      });
+
+      this.bindGroups.cluster = this.device.createBindGroup({
+        layout: this.bindGroupLayouts.cluster,
+        entries: [{
+          binding: 0,
+          resource: {
+            buffer: this.clusterBuffer,
+          },
+        }],
       });
     }
 
-    if (this.pbrRenderBundle) {
-      encoder.executeBundles([this.pbrRenderBundle]);
-    }
+    // Update the Projection uniforms. These only need to be updated on resize.
+    this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
+
+    const commandEncoder = this.device.createCommandEncoder();
+    const passEncoder = commandEncoder.beginComputePass();
+    passEncoder.setPipeline(this.clusterPipeline);
+    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
+    passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
+    passEncoder.dispatch(...TILE_COUNT);
+    passEncoder.endPass();
+    this.device.defaultQueue.submit([commandEncoder.finish()]);
   }
 
-  renderDepth(encoder) {
-    if (!this.depthRenderBundle && this.primitives) {
-      const visualizationHelper = new DepthVisualization(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
-      this.depthRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup
-      });
-    }
-
-    if (this.depthRenderBundle) {
-      encoder.executeBundles([this.depthRenderBundle]);
-    }
-  }
-
-  renderDepthSlices(encoder) {
-    if (!this.depthSliceRenderBundle && this.primitives) {
-      const visualizationHelper = new DepthSliceVisualization(this.device, this.renderBundleDescriptor, this.bindGroupLayouts);
-      this.depthSliceRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup
-      });
-    }
-
-    if (this.depthSliceRenderBundle) {
-      encoder.executeBundles([this.depthSliceRenderBundle]);
-    }
-  }
-
-  renderClusterDistance(encoder) {
-    if (!this.clusterDistanceRenderBundle && this.primitives) {
-      const visualizationHelper = new ClusterDistanceVisualization(this.device, this.renderBundleDescriptor,
-        this.bindGroupLayouts, this.clusterBuffer);
-      this.clusterDistanceRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup,
-        3: this.clusterReadonlyBindGroup
-      });
-    }
-
-    if (this.clusterDistanceRenderBundle) {
-      encoder.executeBundles([this.clusterDistanceRenderBundle]);
-    }
-  }
-
-  renderLightsPerCluster(encoder) {
-    if (!this.lightsPerClusterRenderBundle && this.primitives) {
-      const visualizationHelper = new LightsPerClusterVisualization(this.device, this.renderBundleDescriptor,
-        this.bindGroupLayouts);
-      this.lightsPerClusterRenderBundle = visualizationHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup
-      });
-    }
-
-    if (this.lightsPerClusterRenderBundle) {
-      encoder.executeBundles([this.lightsPerClusterRenderBundle]);
-    }
-  }
-
-  computeClusteredForward(commandEncoder) {
+  computeClusterLights(commandEncoder) {
     // On every size change we need to re-compute the cluster grid.
     if (!this.clusterLightsPipeline) {
       const clusterLightsPipelineLayout = this.device.createPipelineLayout({
@@ -546,40 +503,16 @@ export class WebGPURenderer extends Renderer {
           entryPoint: 'main',
         }
       });
-
-      this.clusterBindGroupReadOnly = this.device.createBindGroup({
-        layout: this.bindGroupLayouts.cluster,
-        entries: [{
-          binding: 0,
-          resource: {
-            buffer: this.clusterBuffer,
-          },
-        }],
-      });
     }
 
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.clusterLightsPipeline);
-    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
-    passEncoder.setBindGroup(1, this.clusterBindGroupReadOnly);
+    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
+    passEncoder.setBindGroup(1, this.bindGroups.cluster);
     passEncoder.dispatch(...TILE_COUNT);
     passEncoder.endPass();
-  }
-
-  renderClusteredForward(encoder) {
-    if (!this.pbrClusteredRenderBundle && this.primitives) {
-      const pbrHelper = new PBRClusteredRenderBundleHelper(this.device, this.renderBundleDescriptor,
-        this.bindGroupLayouts, this.lightManager.maxLightCount);
-      this.pbrClusteredRenderBundle = pbrHelper.createRenderBundle(this.primitives, {
-        0: this.frameUniformBindGroup
-      });
-    }
-
-    if (this.pbrClusteredRenderBundle) {
-      encoder.executeBundles([this.pbrClusteredRenderBundle]);
-    }
   }
 
   onFrame(timestamp) {
@@ -594,41 +527,32 @@ export class WebGPURenderer extends Renderer {
     // Update the light unforms as well
     this.lightGroup.updateUniforms();
 
+    // Create a render bundle for the requested output type if one doesn't already exist.
+    let renderBundle = this.outputRenderBundles[this.outputType];
+    if (!renderBundle && this.primitives) {
+      const helperConstructor = this.outputHelpers[this.outputType];
+      const renderBundleHelper = new helperConstructor(this);
+      renderBundle = this.outputRenderBundles[this.outputType] = renderBundleHelper.createRenderBundle(this.primitives);
+    }
+
     const commandEncoder = this.device.createCommandEncoder({});
 
     switch (this.outputType) {
       case "lights-per-cluster":
       case "clustered-forward":
-        this.computeClusteredForward(commandEncoder);
+        this.computeClusterLights(commandEncoder);
         break;
     }
 
     const passEncoder = commandEncoder.beginRenderPass(this.renderPassDescriptor);
 
-    switch (this.outputType) {
-      case "naive-forward":
-        this.renderNaiveForward(passEncoder);
-        break;
-      case "depth":
-        this.renderDepth(passEncoder);
-        break;
-      case "depth-slice":
-        this.renderDepthSlices(passEncoder);
-        break;
-      case "cluster-distance":
-        this.renderClusterDistance(passEncoder);
-        break;
-      case "lights-per-cluster":
-        this.renderLightsPerCluster(passEncoder);
-        break;
-      case "clustered-forward":
-        this.renderClusteredForward(passEncoder);
-        break;
+    if (renderBundle) {
+      passEncoder.executeBundles([renderBundle]);
     }
 
     if (this.lightManager.render) {
       // Last, render a sprite for all of the lights.
-      passEncoder.setBindGroup(UNIFORM_SET.Frame, this.frameUniformBindGroup);
+      passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
       this.lightGroup.renderSprites(passEncoder);
     }
 
