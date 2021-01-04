@@ -19,10 +19,10 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { ProjectionUniformsSize, ViewUniformsSize, ATTRIB_MAP, UNIFORM_SET } from './shaders/common.js';
+import { ProjectionUniformsSize, ViewUniformsSize, UNIFORM_SET } from './shaders/common.js';
 import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-render-bundle-helper.js';
 import { DepthVisualization, DepthSliceVisualization, ClusterDistanceVisualization, LightsPerClusterVisualization } from './debug-visualizations.js';
-import { LightGroup } from './light-group.js';
+import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/light-sprite.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
@@ -174,9 +174,6 @@ export class WebGPURenderer extends Renderer {
       }),
     };
 
-    this.lightGroup = new LightGroup(this.device, this.lightManager,
-      this.bindGroupLayouts.frame, this.renderBundleDescriptor);
-
     this.pipelineLayout = this.device.createPipelineLayout({
       bindGroupLayouts: [
         this.bindGroupLayouts.frame, // set 0
@@ -185,14 +182,19 @@ export class WebGPURenderer extends Renderer {
       ]
     });
 
-    this.projectionUniformsBuffer = this.device.createBuffer({
+    this.projectionBuffer = this.device.createBuffer({
       size: ProjectionUniformsSize,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
     });
 
-    this.viewUniformsBuffer = this.device.createBuffer({
+    this.viewBuffer = this.device.createBuffer({
       size: ViewUniformsSize,
       usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.UNIFORM,
+    });
+
+    this.lightsBuffer = this.device.createBuffer({
+      size: this.lightManager.uniformArray.byteLength,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.STORAGE,
     });
 
     this.clusterLightsBuffer = this.device.createBuffer({
@@ -206,17 +208,17 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0,
           resource: {
-            buffer: this.projectionUniformsBuffer,
+            buffer: this.projectionBuffer,
           },
         }, {
           binding: 1,
           resource: {
-            buffer: this.viewUniformsBuffer,
+            buffer: this.viewBuffer,
           },
         }, {
           binding: 2,
           resource: {
-            buffer: this.lightGroup.uniformsBuffer,
+            buffer: this.lightsBuffer,
           },
         }, {
           binding: 3,
@@ -230,6 +232,40 @@ export class WebGPURenderer extends Renderer {
     this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
     this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
     this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
+
+    // Setup a render pipeline for drawing the light sprites
+    this.lightSpritePipeline = this.device.createRenderPipeline({
+      layout: this.device.createPipelineLayout({
+        bindGroupLayouts: [
+          this.bindGroupLayouts.frame, // set 0
+        ]
+      }),
+      vertexStage: {
+        module: createShaderModuleDebug(this.device, LightSpriteVertexSource(this.lightManager.maxLightCount)),
+        entryPoint: 'main'
+      },
+      fragmentStage: {
+        module: createShaderModuleDebug(this.device, LightSpriteFragmentSource),
+        entryPoint: 'main'
+      },
+      primitiveTopology: 'triangle-strip',
+      vertexState: {
+        indexFormat: 'uint32'
+      },
+      colorStates: [{
+        format: this.swapChainFormat,
+        colorBlend: {
+          srcFactor: 'src-alpha',
+          dstFactor: 'one',
+        }
+      }],
+      depthStencilState: {
+        depthWriteEnabled: false,
+        depthCompare: 'less',
+        format: DEPTH_FORMAT,
+      },
+      sampleCount: SAMPLE_COUNT,
+    });
   }
 
   onResize(width, height) {
@@ -252,7 +288,7 @@ export class WebGPURenderer extends Renderer {
     this.depthAttachment.attachment = depthTexture.createView();
 
     // On every size change we need to re-compute the cluster grid.
-    updateClusterBounds();
+    this.computeClusterBounds();
   }
 
   async setGltf(gltf) {
@@ -340,19 +376,19 @@ export class WebGPURenderer extends Renderer {
     vec2.copy(metallicRoughnessFactor, material.metallicRoughnessFactor);
     vec3.copy(emissiveFactor, material.emissiveFactor);
 
-    const materialUniformsBuffer = this.device.createBuffer({
+    const materialBuffer = this.device.createBuffer({
       size: materialUniforms.byteLength,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    this.device.defaultQueue.writeBuffer(materialUniformsBuffer, 0, materialUniforms);
+    this.device.defaultQueue.writeBuffer(materialBuffer, 0, materialUniforms);
 
     const materialBindGroup = this.device.createBindGroup({
       layout: this.bindGroupLayouts.material,
       entries: [{
         binding: 0,
         resource: {
-          buffer: materialUniformsBuffer,
+          buffer: materialBuffer,
         },
       },
       {
@@ -390,24 +426,24 @@ export class WebGPURenderer extends Renderer {
 
     // TODO: Support multiple instances
     if (primitive.renderData.instances.length) {
-      const primitiveUniformsBuffer = this.device.createBuffer({
+      const modelBuffer = this.device.createBuffer({
         size: bufferSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      this.device.defaultQueue.writeBuffer(primitiveUniformsBuffer, 0, primitive.renderData.instances[0]);
+      this.device.defaultQueue.writeBuffer(modelBuffer, 0, primitive.renderData.instances[0]);
 
-      const primitiveBindGroup = this.device.createBindGroup({
+      const modelBindGroup = this.device.createBindGroup({
         layout: this.bindGroupLayouts.primitive,
         entries: [{
           binding: 0,
           resource: {
-            buffer: primitiveUniformsBuffer,
+            buffer: modelBuffer,
           },
         }],
       });
 
-      primitive.renderData.gpuBindGroup = primitiveBindGroup;
+      primitive.renderData.gpuBindGroup = modelBindGroup;
     }
   }
 
@@ -474,7 +510,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     // Update the Projection uniforms. These only need to be updated on resize.
-    this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
+    this.device.defaultQueue.writeBuffer(this.projectionBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
 
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
@@ -522,10 +558,10 @@ export class WebGPURenderer extends Renderer {
 
     // Update the View uniforms buffer with the values. These are used by most shader programs
     // and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.viewUniformsBuffer, 0, this.frameUniforms, ProjectionUniformsSize, ViewUniformsSize);
+    this.device.defaultQueue.writeBuffer(this.viewBuffer, 0, this.frameUniforms, ProjectionUniformsSize, ViewUniformsSize);
 
-    // Update the light unforms as well
-    this.lightGroup.updateUniforms();
+    // Update the light unform buffer with the latest values as well.
+    this.device.defaultQueue.writeBuffer(this.lightsBuffer, 0, this.lightManager.uniformArray);
 
     // Create a render bundle for the requested output type if one doesn't already exist.
     let renderBundle = this.outputRenderBundles[this.outputType];
@@ -551,9 +587,11 @@ export class WebGPURenderer extends Renderer {
     }
 
     if (this.lightManager.render) {
-      // Last, render a sprite for all of the lights.
+      // Last, render a sprite for all of the lights. This is done using instancing so it's a single
+      // call for every light.
+      passEncoder.setPipeline(this.lightSpritePipeline);
       passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
-      this.lightGroup.renderSprites(passEncoder);
+      passEncoder.draw(4, this.lightManager.lightCount, 0, 0);
     }
 
     passEncoder.endPass();
