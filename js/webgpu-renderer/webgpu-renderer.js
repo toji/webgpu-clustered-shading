@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { Renderer } from '../renderer.js';
-import { ProjectionUniformsSize, ViewUniformsSize, UNIFORM_SET } from './shaders/common.js';
+import { ProjectionUniformsSize, ViewUniformsSize, BIND_GROUP } from './shaders/common.js';
 import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-render-bundle-helper.js';
 import { DepthVisualization, DepthSliceVisualization, ClusterDistanceVisualization, LightsPerClusterVisualization } from './debug-visualizations.js';
 import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/light-sprite.js';
@@ -515,7 +515,7 @@ export class WebGPURenderer extends Renderer {
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.clusterPipeline);
-    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
+    passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
     passEncoder.dispatch(...TILE_COUNT);
     passEncoder.endPass();
@@ -545,7 +545,7 @@ export class WebGPURenderer extends Renderer {
     // program and don't change for the duration of the frame.
     const passEncoder = commandEncoder.beginComputePass();
     passEncoder.setPipeline(this.clusterLightsPipeline);
-    passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
+    passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.bindGroups.cluster);
     passEncoder.dispatch(...TILE_COUNT);
     passEncoder.endPass();
@@ -590,7 +590,7 @@ export class WebGPURenderer extends Renderer {
       // Last, render a sprite for all of the lights. This is done using instancing so it's a single
       // call for every light.
       passEncoder.setPipeline(this.lightSpritePipeline);
-      passEncoder.setBindGroup(UNIFORM_SET.Frame, this.bindGroups.frame);
+      passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
       passEncoder.draw(4, this.lightManager.lightCount, 0, 0);
     }
 

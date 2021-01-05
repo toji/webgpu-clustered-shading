@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 import { createShaderModuleDebug } from './wgsl-utils.js';
-import { ATTRIB_MAP, UNIFORM_SET, SimpleVertexSource } from './shaders/common.js';
+import { ATTRIB_MAP, BIND_GROUP, SimpleVertexSource } from './shaders/common.js';
 
 // A utility class that creates render bundles for a set of shaders and a list of primitives.
 export class RenderBundleHelper {
@@ -132,7 +132,7 @@ export class RenderBundleHelper {
   }
 
   setFrameBindGroups(renderBundleEncoder) {
-    renderBundleEncoder.setBindGroup(UNIFORM_SET.Frame, this.renderer.bindGroups.frame);
+    renderBundleEncoder.setBindGroup(BIND_GROUP.Frame, this.renderer.bindGroups.frame);
   }
 
   createRenderBundle(primitives) {
@@ -193,10 +193,10 @@ export class RenderBundleHelper {
     encoder.setPipeline(pipeline);
 
     for (let [materialBindGroup, primitives] of materialPrimitives) {
-      encoder.setBindGroup(UNIFORM_SET.Material, materialBindGroup);
+      encoder.setBindGroup(BIND_GROUP.Material, materialBindGroup);
 
       for (let primitive of primitives) {
-        encoder.setBindGroup(UNIFORM_SET.Primitive, primitive.renderData.gpuBindGroup);
+        encoder.setBindGroup(BIND_GROUP.Model, primitive.renderData.gpuBindGroup);
 
         let i = 0;
         for (let bufferView of primitive.attributeBuffers.keys()) {

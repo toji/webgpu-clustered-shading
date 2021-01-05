@@ -62,6 +62,7 @@
         renderer: 'webGPU',
         output: 'clustered-forward',
         renderLightSprites: true,
+        lightPattern: 'wandering',
         lightCount: 128,
         maxLightRange: 2,
       };
@@ -87,6 +88,11 @@
           renderer.lightManager.render = appSettings.renderLightSprites;
         }
       });
+
+      /*gui.add(appSettings, 'lightPattern', {
+        wandering: 'wandering',
+        grid: 'grid',
+      }).onChange(onLightPatternChange);*/
 
       gui.add(appSettings, 'lightCount', 5, 1024).onFinishChange(() => {
         if (renderer) {
@@ -160,9 +166,15 @@
         }
       }
 
+      function onLightPatternChange() {
+        if (renderer) {
+          renderer.onLightPatternChange(appSettings.lightPattern);
+        }
+      }
+
       async function initGltf() {
         const gltfLoader = new Gltf2Loader();
-        gltf = await gltfLoader.loadFromUrl('./media/models/sponza/Sponza.gltf');
+        gltf = await gltfLoader.loadFromUrl('./media/models/sponza/sponza.glb');
         if (renderer) {
           renderer.setGltf(gltf);
         }

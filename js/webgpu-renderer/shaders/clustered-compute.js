@@ -21,7 +21,7 @@
 // Lots of this is ported or otherwise influenced by http://www.aortiz.me/2018/12/21/CG.html and
 // https://github.com/Angelo1211/HybridRenderingEngine
 
-import { ProjectionUniforms, ViewUniforms, LightUniforms, UNIFORM_SET } from './common.js';
+import { ProjectionUniforms, ViewUniforms, LightUniforms, BIND_GROUP } from './common.js';
 
 export const TILE_COUNT = [32, 18, 48];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
@@ -75,7 +75,7 @@ export const ClusterLightsStructs = `
   [[block]] struct ClusterLightGroup {
     [[offset(0)]] lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(3)]] var<storage_buffer> clusterLights : ClusterLightGroup;
+  [[set(${BIND_GROUP.Frame}), binding(3)]] var<storage_buffer> clusterLights : ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `

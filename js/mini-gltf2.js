@@ -187,10 +187,9 @@ export class Gltf2Loader {
         } else {
           let bufferView = gltf.bufferViews[image.bufferView];
           bufferView.usage.add('image');
-          gltf.images.push(bufferView.dataView().then((dataView) => {
+          gltf.images.push(bufferView.dataView.then((dataView) => {
             const imgBlob = new Blob([dataView], {type: image.mimeType});
             return createImageBitmap(imgBlob);
-            //imgElement.src = URL.createObjectURL(new Blob([dataView], {type: image.mimeType}));
           }));
         }
       }

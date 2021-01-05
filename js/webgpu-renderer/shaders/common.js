@@ -26,10 +26,10 @@ export const ATTRIB_MAP = {
   COLOR_0: 5,
 };
 
-export const UNIFORM_SET = {
+export const BIND_GROUP = {
   Frame: 0,
   Material: 1,
-  Primitive: 2,
+  Model: 2,
 };
 
 export const ProjectionUniformsSize = 144;
@@ -41,7 +41,7 @@ export const ProjectionUniforms = `
     [[offset(136)]] zNear : f32;
     [[offset(140)]] zFar : f32;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
+  [[set(${BIND_GROUP.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
 `;
 
 export const ViewUniformsSize = 80;
@@ -51,15 +51,7 @@ export const ViewUniforms = `
     [[offset(64)]] position : vec3<f32>;
     [[offset(76)]] dummy : f32;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
-`;
-
-export const ModelUniformsSize = 64;
-export const ModelUniforms = `
-  [[block]] struct ModelUniforms {
-    [[offset(0)]] matrix : mat4x4<f32>;
-  };
-  [[set(${UNIFORM_SET.Primitive}), binding(0)]] var<uniform> model : ModelUniforms;
+  [[set(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
 `;
 
 export function LightUniforms(maxLightCount) { return `
@@ -74,8 +66,16 @@ export function LightUniforms(maxLightCount) { return `
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
-  [[set(${UNIFORM_SET.Frame}), binding(2)]] var<storage_buffer> light : [[access(read)]] LightUniforms;
+  [[set(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> light : [[access(read)]] LightUniforms;
 `};
+
+export const ModelUniformsSize = 64;
+export const ModelUniforms = `
+  [[block]] struct ModelUniforms {
+    [[offset(0)]] matrix : mat4x4<f32>;
+  };
+  [[set(${BIND_GROUP.Model}), binding(0)]] var<uniform> model : ModelUniforms;
+`;
 
 export const MaterialUniformsSize = 48;
 export const MaterialUniforms = `
@@ -85,14 +85,14 @@ export const MaterialUniforms = `
     [[offset(32)]] emissiveFactor : vec3<f32>;
     [[offset(44)]] occlusionStrength : f32;
   };
-  [[set(${UNIFORM_SET.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+  [[set(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
 
-  [[set(${UNIFORM_SET.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-  [[set(${UNIFORM_SET.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-  [[set(${UNIFORM_SET.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-  [[set(${UNIFORM_SET.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-  [[set(${UNIFORM_SET.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-  [[set(${UNIFORM_SET.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+  [[set(${BIND_GROUP.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+  [[set(${BIND_GROUP.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+  [[set(${BIND_GROUP.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+  [[set(${BIND_GROUP.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+  [[set(${BIND_GROUP.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+  [[set(${BIND_GROUP.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
 `;
 
 export const SimpleVertexSource = `

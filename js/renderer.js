@@ -83,6 +83,8 @@ export class Renderer {
     this.rafId = 0;
     this.frameCount = -1;
 
+    this.lightPattern = 'wandering';
+
     // Storage for global uniforms.
     // These can either be used individually or as a uniform buffer.
     this.frameUniforms = new Float32Array(16 + 16 + 16 + 4 + 4);
@@ -209,6 +211,10 @@ export class Renderer {
     this.outputType = output;
   }
 
+  onLightPatternChange(pattern) {
+    this.lightPattern = pattern;
+  }
+
   updateLightRange(lightRange) {
     for (let i = 5; i < this.lightManager.maxLightCount; ++i) {
       const light = this.lightManager.lights[i];
@@ -230,19 +236,7 @@ export class Renderer {
     window.removeEventListener('resize', this.resizeCallback);
   }
 
-  // Handles frame logic that's common to all renderers.
-  beforeFrame(timestamp, timeDelta) {
-    // Copy values from the camera into our frame uniform buffers
-    mat4.copy(this.viewMatrix, this.camera.viewMatrix);
-    vec3.copy(this.cameraPosition, this.camera.position);
-
-    // Bob the corner lights up and down
-    for (let i = 0; i < 4; ++i) {
-      let light = this.lightManager.lights[i];
-      light.position[1] = 1.25 + Math.sin((timestamp + i * 250) / 500) * 0.25;
-    }
-
-    // Update each other light position with a wandering pattern.
+  updateWanderingLights(timeDelta) {
     for (let i = 4; i < this.lightManager.lightCount; ++i) {
       let light = this.lightManager.lights[i];
 
@@ -265,6 +259,26 @@ export class Renderer {
       }
 
       vec3.add(light.position, light.position, light.velocity);
+    }
+  }
+
+  // Handles frame logic that's common to all renderers.
+  beforeFrame(timestamp, timeDelta) {
+    // Copy values from the camera into our frame uniform buffers
+    mat4.copy(this.viewMatrix, this.camera.viewMatrix);
+    vec3.copy(this.cameraPosition, this.camera.position);
+
+    // Bob the corner lights up and down
+    for (let i = 0; i < 4; ++i) {
+      let light = this.lightManager.lights[i];
+      light.position[1] = 1.25 + Math.sin((timestamp + i * 250) / 500) * 0.25;
+    }
+
+    // Update each other light position with a wandering pattern.
+    switch (this.lightPattern) {
+      case 'wandering':
+        this.updateWanderingLights(timeDelta);
+        break;
     }
   }
 
