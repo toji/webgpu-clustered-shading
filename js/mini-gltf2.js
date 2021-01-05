@@ -177,19 +177,18 @@ export class Gltf2Loader {
           if (isDataUri(image.uri)) {
             //imgElement.src = image.uri;
             gltf.images.push(fetch(`${image.uri}`).then(async (response) => {
-              return createImageBitmap(await response.blob());
+              return await response.blob();
             }));
           } else {
             gltf.images.push(fetch(`${baseUrl}${image.uri}`).then(async (response) => {
-              return createImageBitmap(await response.blob());
+              return await response.blob();
             }));
           }
         } else {
           let bufferView = gltf.bufferViews[image.bufferView];
           bufferView.usage.add('image');
           gltf.images.push(bufferView.dataView.then((dataView) => {
-            const imgBlob = new Blob([dataView], {type: image.mimeType});
-            return createImageBitmap(imgBlob);
+            return new Blob([dataView], {type: image.mimeType});
           }));
         }
       }
@@ -224,12 +223,16 @@ export class Gltf2Loader {
           }
           sampler = defaultSampler;
         }
-        gltf.textures.push(new Texture(gltf.images[texture.source], sampler));
+        if (texture.extensions && texture.extensions.KHR_texture_basisu) {
+          gltf.textures.push(new Texture(gltf.images[texture.extensions.KHR_texture_basisu.source], sampler));
+        } else {
+          gltf.textures.push(new Texture(gltf.images[texture.source], sampler));
+        }
+
       }
     }
 
     function getTexture(textureInfo) {
-      //return null;
       if (!textureInfo) {
         return null;
       }

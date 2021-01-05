@@ -1,33 +1,273 @@
-let F=Object.defineProperty,R=a=>F(a,"__esModule",{value:!0}),S=(a,b)=>{R(a);for(let c in b)F(a,c,{get:b[c],enumerable:!0})};const q={jpg:{format:"rgb8unorm",mimeType:"image/jpeg"},jpeg:{format:"rgb8unorm",mimeType:"image/jpeg"},png:{format:"rgba8unorm",mimeType:"image/png"},apng:{format:"rgba8unorm",mimeType:"image/apng"},gif:{format:"rgba8unorm",mimeType:"image/gif"},bmp:{format:"rgb8unorm",mimeType:"image/bmp"},webp:{format:"rgba8unorm",mimeType:"image/webp"},ico:{format:"rgba8unorm",mimeType:"image/x-icon"},cur:{format:"rgba8unorm",mimeType:"image/x-icon"},svg:{format:"rgba8unorm",mimeType:"image/svg+xml"}},x=typeof createImageBitmap!=="undefined";class v{constructor(){}static supportedExtensions(){return Object.keys(q)}async loadTextureFromUrl(a,b,c){let d=q[c.extension].format;a.supportedFormatList.indexOf(d)==-1&&(d="rgba8unorm");if(x){const e=await fetch(b),f=await createImageBitmap(await e.blob());return a.textureFromImageBitmap(f,d,c.mipmaps)}else return new Promise((e,f)=>{const g=new Image();g.addEventListener("load",()=>{e(a.textureFromImageElement(g,d,c.mipmaps))}),g.addEventListener("error",function(l){f(l)}),g.src=b})}async loadTextureFromBlob(a,b,c){let d=q[c.extension].format;a.supportedFormatList.indexOf(d)==-1&&(d="rgba8unorm");if(x){const e=await createImageBitmap(b);return a.textureFromImageBitmap(e,d,c.mipmaps)}else return new Promise((e,f)=>{const g=new Image();g.addEventListener("load",()=>{e(a.textureFromImageElement(g,d,c.mipmaps))}),g.addEventListener("error",function(h){f(h)});const l=window.URL.createObjectURL(b);g.src=l})}async loadTextureFromBuffer(a,b,c){const d=q[c.extension].mimeType;if(!d)throw new Error(`Unable to determine MIME type for extension "${c.extension}"`);const e=new Blob(b,{type:d});return this.loadTextureFromBlob(a,e,c)}destroy(){}}const Q={};class D{constructor(a,b,c,d){this.client=a,this.options=b,this.resolve=c,this.reject=d}}const o={};let E=1;function P(a){const b=o[a.data.id];if(!b){a.data.error&&console.error(`Texture load failed: ${a.data.error}`),console.error(`Invalid pending texture ID: ${a.data.id}`);return}delete o[a.data.id];if(a.data.error){console.error(`Texture load failed: ${a.data.error}`),b.reject(`${a.data.error}`);return}const c=b.client.textureFromTextureData(a.data,b.options.mipmaps);b.resolve(c)}class r{constructor(a){const b=Q.url.replace("worker-loader.js",a);this.worker=new Worker(b),this.worker.onmessage=P}async loadTextureFromUrl(a,b,c){const d=E++;return this.worker.postMessage({id:d,url:b,supportedFormats:a.supportedFormats(),mipmaps:c.mipmaps,extension:c.extension}),new Promise((e,f)=>{o[d]=new D(a,c,e,f)})}async loadTextureFromBlob(a,b,c){const d=await b.arrayBuffer();return this.loadTextureFromBuffer(a,d,c)}async loadTextureFromBuffer(a,b,c){const d=E++;return this.worker.postMessage({id:d,buffer:b,supportedFormats:a.supportedFormats(),mipmaps:c.mipmaps,extension:c.extension}),new Promise((e,f)=>{o[d]=new D(a,c,e,f)})}destroy(){if(this.worker){this.worker.terminate();const a=new Error("Texture loader was destroyed.");for(const b of o)b.reject(a)}}}const j=WebGLRenderingContext,y={rgb8unorm:{canGenerateMipmaps:!0,gl:{format:j.RGB,type:j.UNSIGNED_BYTE,sizedFormat:32849}},rgba8unorm:{canGenerateMipmaps:!0,gl:{format:j.RGBA,type:j.UNSIGNED_BYTE,sizedFormat:32856}},"rgb8unorm-srgb":{canGenerateMipmaps:!0,gl:{format:j.RGB,type:j.UNSIGNED_BYTE,sizedFormat:35904}},"rgba8unorm-srgb":{canGenerateMipmaps:!0,gl:{format:j.RGBA,type:j.UNSIGNED_BYTE,sizedFormat:35907}},rgb565unorm:{canGenerateMipmaps:!0,gl:{format:j.RGB,type:j.UNSIGNED_SHORT_5_6_5,sizedFormat:j.RGB565}},rgba4unorm:{canGenerateMipmaps:!0,gl:{format:j.RGBA,type:j.UNSIGNED_SHORT_4_4_4_4,sizedFormat:j.RGBA4}},rgba5551unorm:{canGenerateMipmaps:!0,gl:{format:j.RGBA,type:j.UNSIGNED_SHORT_5_5_5_1,sizedFormat:j.RGB5_A1}},bgra8unorm:{canGenerateMipmaps:!0},"bgra8unorm-srgb":{canGenerateMipmaps:!0},"bc1-rgb-unorm":{gl:{texStorage:!0,sizedFormat:33776},compressed:{blockBytes:8,blockWidth:4,blockHeight:4}},"bc2-rgba-unorm":{gl:{texStorage:!0,sizedFormat:33778},compressed:{blockBytes:16,blockWidth:4,blockHeight:4}},"bc3-rgba-unorm":{gl:{texStorage:!1,sizedFormat:33779},compressed:{blockBytes:16,blockWidth:4,blockHeight:4}},"bc7-rgba-unorm":{gl:{texStorage:!0,sizedFormat:36492},compressed:{blockBytes:16,blockWidth:4,blockHeight:4}},"etc1-rgb-unorm":{gl:{texStorage:!1,sizedFormat:36196},compressed:{blockBytes:8,blockWidth:4,blockHeight:4}},"etc2-rgba8unorm":{gl:{texStorage:!0,sizedFormat:37496},compressed:{blockBytes:16,blockWidth:4,blockHeight:4}},"astc-4x4-rgba-unorm":{gl:{texStorage:!0,sizedFormat:37808},compressed:{blockBytes:16,blockWidth:4,blockHeight:4}},"pvrtc1-4bpp-rgb-unorm":{gl:{texStorage:!1,sizedFormat:35840},compressed:{blockBytes:8,blockWidth:4,blockHeight:4}},"pvrtc1-4bpp-rgba-unorm":{gl:{texStorage:!1,sizedFormat:35842},compressed:{blockBytes:8,blockWidth:4,blockHeight:4}}};class w{constructor(a,b={}){this.texture=a,this.width=b.width||1,this.height=b.height||1,this.depth=b.depth||1,this.mipLevels=b.mipLevels||1,this.format=b.format||"rgba8unorm",this.type=b.type||"2d"}}class I{constructor(a,b,c,d=null,e={}){this.format=a,this.width=Math.max(1,b),this.height=Math.max(1,c),this.levels=[],d&&this.getLevel(0).setSlice(0,d,e)}getLevel(a,b={}){let c=this.levels[a];return c||(c=new J(this,a,b),this.levels[a]=c),c}}class J{constructor(a,b,c){this.textureData=a,this.levelIndex=b,this.width=Math.max(1,c.width||this.textureData.width>>b),this.height=Math.max(1,c.height||this.textureData.height>>b),this.slices=[]}setSlice(a,b,c={}){if(this.slices[a]!=void 0)throw new Error("Cannot define an image slice twice.");let d=c.byteOffset||0,e=c.byteLength||0,f;b instanceof ArrayBuffer?(f=b,e||(e=f.byteLength-d)):(f=b.buffer,e||(e=b.byteLength-d),d+=b.byteOffset),this.slices[a]={buffer:f,byteOffset:d,byteLength:e}}}class s{constructor(a,b){this.extensions=a,this.callback=b,this.loader=null}getLoader(){return this.loader||(this.loader=this.callback()),this.loader}}const z=[new s(v.supportedExtensions(),()=>new v()),new s(["basis"],()=>new r("basis/basis-worker.js")),new s(["ktx","ktx2"],()=>new r("ktx/ktx-worker.js")),new s(["dds"],()=>new r("dds-worker.js"))],i=Symbol("wtt/WebTextureClient"),k=Symbol("wtt/WebTextureLoaders"),t=document.createElement("a"),K=typeof createImageBitmap!=="undefined",n={extension:null,mipmaps:!0};class A{constructor(a){this[i]=a,this[k]={};for(const b of z)for(const c of b.extensions)this[k][c]=b;this[k]["*"]=z[0]}async loadTextureFromUrl(a,b){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");const c=Object.assign({},n,b);t.href=a;if(!c.extension){const f=t.pathname.lastIndexOf(".");c.extension=f>-1?t.pathname.substring(f+1).toLowerCase():"*"}let d=this[k][c.extension];d||(d=this[k]["*"]);const e=d.getLoader();if(!e)throw new Error(`Failed to get loader for extension "${c.extension}"`);return e.loadTextureFromUrl(this[i],t.href,c)}async loadTextureFromBlob(a,b){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");const c=Object.assign({},n,b);if(!c.extension&&c.filename){const f=c.filename.lastIndexOf(".");c.extension=f>-1?c.filename.substring(f+1).toLowerCase():null}if(!c.extension)throw new Error("Must specify an extension when creating a texture from a blob.");const d=this[k][c.extension];d||(d=this[k]["*"]);const e=d.getLoader();if(!e)throw new Error(`Failed to get loader for extension "${c.extension}"`);return e.loadTextureFromBlob(this[i],a,c)}async loadTextureFromBuffer(a,b){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");const c=Object.assign({},n,b);if(!c.extension&&c.filename){const f=c.filename.lastIndexOf(".");c.extension=f>-1?c.filename.substring(f+1).toLowerCase():null}if(!c.extension)throw new Error("Must specify an extension when creating a texture from a blob.");const d=this[k][c.extension];d||(d=this[k]["*"]);const e=d.getLoader();if(!e)throw new Error(`Failed to get loader for extension "${c.extension}"`);return e.loadTextureFromBuffer(this[i],a,c)}async loadTextureFromElement(a,b){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");const c=Object.assign({},n,b);if(!K)return this[i].textureFromImageElement(a,"rgba8unorm",c.mipmaps);const d=await createImageBitmap(a);return this[i].textureFromImageBitmap(d,"rgba8unorm",c.mipmaps)}async loadTextureFromImageBitmap(a,b){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");const c=Object.assign({},n,b);return this[i].textureFromImageBitmap(a,"rgba8unorm",c.mipmaps)}createTextureFromColor(a,b,c,d=1,e="rgba8unorm"){if(!this[i])throw new Error("Cannot create new textures after object has been destroyed.");if(e!="rgba8unorm"&&e!="rgba8unorm-srgb")throw new Error('createTextureFromColor only supports "rgba8unorm" and "rgba8unorm-srgb" formats');const f=new Uint8Array([a*255,b*255,c*255,d*255]);return this[i].textureFromTextureData(new I(e,1,1,f),!1)}set allowCompressedFormats(a){this[i].allowCompressedFormats=!!a}get allowCompressedFormats(){return this[i].allowCompressedFormats}destroy(){this[i]&&(this[i].destroy(),this[i]=null)}}class B{constructor(a){this.device=a,this.sampler=a.createSampler({minFilter:"linear"}),this.pipelines={}}getMipmapPipeline(a){let b=this.pipelines[a];return b||((!this.mipmapVertexShaderModule||!this.mipmapFragmentShaderModule)&&(this.mipmapVertexShaderModule=this.device.createShaderModule({code:`
-            var<private> pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-              vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0),
-              vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0));
-            var<private> tex : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
-              vec2<f32>(0.0, 0.0), vec2<f32>(1.0, 0.0),
-              vec2<f32>(0.0, 1.0), vec2<f32>(1.0, 1.0));
+// Copyright 2020 Brandon Jones
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+// documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
+// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
+// permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-            [[builtin(position)]] var<out> outPosition : vec4<f32>;
-            [[builtin(vertex_idx)]] var<in> vertexIndex : i32;
+// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
+// Software.
 
-            [[location(0)]] var<out> vTex : vec2<f32>;
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-            [[stage(vertex)]]
-            fn main() -> void {
-              vTex = tex[vertexIndex];
-              outPosition = vec4<f32>(pos[vertexIndex], 0.0, 1.0);
-              return;
-            }
-          `}),this.mipmapFragmentShaderModule=this.device.createShaderModule({code:`
-            [[binding(0), set(0)]] var<uniform_constant> imgSampler : sampler;
-            [[binding(1), set(0)]] var<uniform_constant> img : texture_sampled_2d<f32>;
+/**
+ * Supports loading textures for WebGPU, as well as providing common utilities that are not part of the core WebGPU API
+ * such as mipmap generation.
+ *
+ * @file WebGPU client for the Web Texture Tool
+ * @module WebGPUTextureTool
+ */
 
-            [[location(0)]] var<in> vTex : vec2<f32>;
-            [[location(0)]] var<out> outColor : vec4<f32>;
+import {WebTextureFormat, WebTextureTool, WebTextureResult} from './web-texture-tool-base.js';
+import {WebGPUMipmapGenerator} from './webgpu-mipmap-generator.js';
 
-            [[stage(fragment)]]
-            fn main() -> void {
-              outColor = textureSample(img, imgSampler, vTex);
-              return;
-            }
-          `})),b=this.device.createRenderPipeline({vertexStage:{module:this.mipmapVertexShaderModule,entryPoint:"main"},fragmentStage:{module:this.mipmapFragmentShaderModule,entryPoint:"main"},primitiveTopology:"triangle-strip",vertexState:{indexFormat:"uint32"},colorStates:[{format:a}]}),this.pipelines[a]=b),b}generateMipmap(a,b){const c=this.getMipmapPipeline(b.format);if(b.dimension=="3d"||b.dimension=="1d")throw new Error("Generating mipmaps for non-2d textures is currently unsupported!");let d=a;const e=b.size.depth||1,f=b.usage&GPUTextureUsage.OUTPUT_ATTACHMENT;if(!f){const h={size:{width:Math.ceil(b.size.width/2),height:Math.ceil(b.size.height/2),depth:e},format:b.format,usage:GPUTextureUsage.COPY_SRC|GPUTextureUsage.SAMPLED|GPUTextureUsage.OUTPUT_ATTACHMENT,mipLevelCount:b.mipLevelCount-1};d=this.device.createTexture(h)}const g=this.device.createCommandEncoder({}),l=c.getBindGroupLayout(0);for(let h=0;h<e;++h){let m=a.createView({baseMipLevel:0,mipLevelCount:1,dimension:"2d",baseArrayLayer:h,arrayLayerCount:1}),p=f?1:0;for(let G=1;G<b.mipLevelCount;++G){const H=d.createView({baseMipLevel:p++,mipLevelCount:1,dimension:"2d",baseArrayLayer:h,arrayLayerCount:1}),u=g.beginRenderPass({colorAttachments:[{attachment:H,loadValue:[0,0,0,0]}]}),T=this.device.createBindGroup({layout:l,entries:[{binding:0,resource:this.sampler},{binding:1,resource:m}]});u.setPipeline(c),u.setBindGroup(0,T),u.draw(4,1,0,0),u.endPass(),m=H}}if(!f){const h={width:Math.ceil(b.size.width/2),height:Math.ceil(b.size.height/2),depth:e};for(let m=1;m<b.mipLevelCount-1;++m)g.copyTextureToTexture({texture:d,mipLevel:m-1},{texture:a,mipLevel:m},h),h.width=Math.ceil(h.width/2),h.height=Math.ceil(h.height/2)}return this.device.defaultQueue.submit([g.finish()]),f||d.destroy(),a}}const L=typeof createImageBitmap!=="undefined",M={"texture-compression-bc":["bc1-rgba-unorm","bc2-rgba-unorm","bc3-rgba-unorm","bc7-rgba-unorm"],textureCompressionBC:["bc1-rgba-unorm","bc2-rgba-unorm","bc3-rgba-unorm","bc7-rgba-unorm"]};function C(a,b){return Math.floor(Math.log2(Math.max(a,b)))+1}class N{constructor(a){this.device=a,this.allowCompressedFormats=!0,this.uncompressedFormatList=["rgba8unorm","rgba8unorm-srgb","bgra8unorm","bgra8unorm-srgb"],this.supportedFormatList=["rgba8unorm","rgba8unorm-srgb","bgra8unorm","bgra8unorm-srgb"];if(a.extensions)for(const b of a.extensions){const c=M[b];c&&this.supportedFormatList.push(...c)}this.mipmapGenerator=new B(a)}supportedFormats(){return this.allowCompressedFormats?this.supportedFormatList:this.uncompressedFormatList}async textureFromImageBitmap(a,b,c){if(!this.device)throw new Error("Cannot create new textures after object has been destroyed.");const d=c?C(a.width,a.height):1,e=GPUTextureUsage.COPY_DST|GPUTextureUsage.SAMPLED,f={size:{width:a.width,height:a.height,depth:1},format:b,usage:e,mipLevelCount:d},g=this.device.createTexture(f);return this.device.defaultQueue.copyImageBitmapToTexture({imageBitmap:a},{texture:g},f.size),c&&this.mipmapGenerator.generateMipmap(g,f),new w(g,{width:a.width,height:a.height,mipLevels:d,format:b})}async textureFromImageElement(a,b,c){if(!this.device)throw new Error("Cannot create new textures after object has been destroyed.");if(!L)throw new Error("Must support ImageBitmap to use WebGPU. (How did you even get to this error?)");const d=await createImageBitmap(a);return this.textureFromImageBitmap(d,b,c)}textureFromTextureData(a,b){if(!this.device)throw new Error("Cannot create new textures after object has been destroyed.");const c=y[a.format];if(!c)throw new Error(`Unknown format "${a.format}"`);const d=c.compressed||{blockBytes:4,blockWidth:1,blockHeight:1};b=b&&c.canGenerateMipmaps;const e=a.levels.length>1?a.levels.length:b?C(a.width,a.height):1,f=GPUTextureUsage.COPY_DST|GPUTextureUsage.SAMPLED,g={size:{width:Math.ceil(a.width/d.blockWidth)*d.blockWidth,height:Math.ceil(a.height/d.blockHeight)*d.blockHeight,depth:a.depth},format:a.format,usage:f,mipLevelCount:e},l=this.device.createTexture(g);for(const h of a.levels){const m=Math.ceil(h.width/d.blockWidth)*d.blockBytes;for(const p of h.slices)this.device.defaultQueue.writeTexture({texture:l,mipLevel:h.levelIndex,origin:{z:p.sliceIndex}},p.buffer,{offset:p.byteOffset,bytesPerRow:m},{width:Math.ceil(h.width/d.blockWidth)*d.blockWidth,height:Math.ceil(h.height/d.blockHeight)*d.blockHeight,depth:1})}return b&&this.mipmapGenerator.generateMipmap(l,g),new w(l,{width:a.width,height:a.height,depth:a.depth,mipLevels:e,format:a.format,type:a.type})}destroy(){this.device=null}}class O extends A{constructor(a,b){super(new N(a),b)}}export{O as WebGPUTextureTool};
-//# sourceMappingURL=webgpu-texture-tool.js.map
+const IMAGE_BITMAP_SUPPORTED = (typeof createImageBitmap !== 'undefined');
+
+const EXTENSION_FORMATS = {
+  'texture-compression-bc': [
+    'bc1-rgba-unorm',
+    'bc2-rgba-unorm',
+    'bc3-rgba-unorm',
+    'bc7-rgba-unorm',
+  ],
+  'textureCompressionBC': [ // Non-standard
+    'bc1-rgba-unorm',
+    'bc2-rgba-unorm',
+    'bc3-rgba-unorm',
+    'bc7-rgba-unorm',
+  ],
+};
+
+/**
+ * Determines the number of mip levels needed for a full mip chain given the width and height of texture level 0.
+ *
+ * @param {number} width of texture level 0.
+ * @param {number} height of texture level 0.
+ * @returns {number} Ideal number of mip levels.
+ */
+function calculateMipLevels(width, height) {
+  return Math.floor(Math.log2(Math.max(width, height))) + 1;
+}
+
+/**
+ * Texture Client that interfaces with WebGPU.
+ */
+class WebGPUTextureClient {
+  /**
+   * Creates a WebTextureClient instance which uses WebGPU.
+   * Should not be called outside of the WebGLTextureTool constructor.
+   *
+   * @param {module:External.GPUDevice} device - WebGPU device to use.
+   */
+  constructor(device) {
+    this.device = device;
+    this.allowCompressedFormats = true;
+
+    this.uncompressedFormatList = [
+      'rgba8unorm',
+      'rgba8unorm-srgb',
+      'bgra8unorm',
+      'bgra8unorm-srgb',
+    ];
+
+    this.supportedFormatList = [
+      'rgba8unorm',
+      'rgba8unorm-srgb',
+      'bgra8unorm',
+      'bgra8unorm-srgb',
+    ];
+
+    // Add any other formats that are exposed by extensions.
+    if (device.extensions) {
+      for (const extension of device.extensions) {
+        const formats = EXTENSION_FORMATS[extension];
+        if (formats) {
+          this.supportedFormatList.push(...formats);
+        }
+      }
+    }
+
+    this.mipmapGenerator = new WebGPUMipmapGenerator(device);
+  }
+
+  /**
+   * Returns a list of the WebTextureFormats that this client can support.
+   *
+   * @returns {Array<module:WebTextureTool.WebTextureFormat>} - List of supported WebTextureFormats.
+   */
+  supportedFormats() {
+    if (this.allowCompressedFormats) {
+      return this.supportedFormatList;
+    } else {
+      return this.uncompressedFormatList;
+    }
+  }
+
+  /**
+   * Creates a GPUTexture from the given ImageBitmap.
+   *
+   * @param {module:External.ImageBitmap} imageBitmap - ImageBitmap source for the texture.
+   * @param {module:WebTextureTool.WebTextureFormat} format - Format to store the texture as on the GPU. Must be an
+   * uncompressed format.
+   * @param {boolean} generateMipmaps - True if mipmaps are desired.
+   * @returns {module:WebTextureTool.WebTextureResult} - Completed texture and metadata.
+   */
+  async textureFromImageBitmap(imageBitmap, format, generateMipmaps) {
+    if (!this.device) {
+      throw new Error('Cannot create new textures after object has been destroyed.');
+    }
+    const mipLevelCount = generateMipmaps ? calculateMipLevels(imageBitmap.width, imageBitmap.height) : 1;
+
+    const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED;
+
+    const textureDescriptor = {
+      size: {width: imageBitmap.width, height: imageBitmap.height, depth: 1},
+      format,
+      usage,
+      mipLevelCount,
+    };
+    const texture = this.device.createTexture(textureDescriptor);
+
+    this.device.defaultQueue.copyImageBitmapToTexture({imageBitmap}, {texture}, textureDescriptor.size);
+
+    if (generateMipmaps) {
+      this.mipmapGenerator.generateMipmap(texture, textureDescriptor);
+    }
+
+    return new WebTextureResult(texture, {
+      width: imageBitmap.width,
+      height: imageBitmap.height,
+      mipLevels: mipLevelCount,
+      format: format,
+    });
+  }
+
+  /**
+   * Creates a GPUTexture from the given HTMLImageElement.
+   * Note that WebGPU cannot consume image elements directly, so this method will attempt to create an ImageBitmap and
+   * pass that to textureFromImageBitmap instead.
+   *
+   * @param {module:External.HTMLImageElement} image - image source for the texture.
+   * @param {module:WebTextureTool.WebTextureFormat} format - Format to store the texture as on the GPU. Must be an
+   * uncompressed format.
+   * @param {boolean} generateMipmaps - True if mipmaps are desired.
+   * @returns {module:WebTextureTool.WebTextureResult} - Completed texture and metadata.
+   */
+  async textureFromImageElement(image, format, generateMipmaps) {
+    if (!this.device) {
+      throw new Error('Cannot create new textures after object has been destroyed.');
+    }
+    if (!IMAGE_BITMAP_SUPPORTED) {
+      throw new Error('Must support ImageBitmap to use WebGPU. (How did you even get to this error?)');
+    }
+    const imageBitmap = await createImageBitmap(image);
+    return this.textureFromImageBitmap(imageBitmap, format, generateMipmaps);
+  }
+
+  /**
+   * Creates a GPUTexture from the given texture level data.
+   *
+   * @param {module:WebTextureTool.WebTextureData} textureData - Object containing data and layout for each image and
+   * mip level of the texture.
+   * @param {boolean} generateMipmaps - True if mipmaps generation is desired. Only applies if a single level is given
+   * and the texture format is renderable.
+   * @returns {module:WebTextureTool.WebTextureResult} - Completed texture and metadata.
+   */
+  textureFromTextureData(textureData, generateMipmaps) {
+    if (!this.device) {
+      throw new Error('Cannot create new textures after object has been destroyed.');
+    }
+
+    const wtFormat = WebTextureFormat[textureData.format];
+    if (!wtFormat) {
+      throw new Error(`Unknown format "${textureData.format}"`);
+    }
+
+    const blockInfo = wtFormat.compressed || {blockBytes: 4, blockWidth: 1, blockHeight: 1};
+    generateMipmaps = generateMipmaps && wtFormat.canGenerateMipmaps;
+
+    const mipLevelCount = textureData.levels.length > 1 ? textureData.levels.length :
+                            (generateMipmaps ? calculateMipLevels(textureData.width, textureData.height) : 1);
+
+    const usage = GPUTextureUsage.COPY_DST | GPUTextureUsage.SAMPLED;
+
+    const textureDescriptor = {
+      size: {
+        width: Math.ceil(textureData.width / blockInfo.blockWidth) * blockInfo.blockWidth,
+        height: Math.ceil(textureData.height / blockInfo.blockHeight) * blockInfo.blockHeight,
+        depth: textureData.depth,
+      },
+      format: textureData.format,
+      usage,
+      mipLevelCount: mipLevelCount,
+    };
+    const texture = this.device.createTexture(textureDescriptor);
+
+    for (const mipLevel of textureData.levels) {
+      const bytesPerRow = Math.ceil(mipLevel.width / blockInfo.blockWidth) * blockInfo.blockBytes;
+
+      for (const slice of mipLevel.slices) {
+        // TODO: It may be more efficient to upload the mip levels to a buffer and copy to the texture, but this makes
+        // the code significantly simpler and avoids an alignment issue I was seeing previously, so for now we'll take
+        // the easy route.
+        this.device.defaultQueue.writeTexture(
+            {
+              texture: texture,
+              mipLevel: mipLevel.levelIndex,
+              origin: {z: slice.sliceIndex},
+            },
+            slice.buffer,
+            {
+              offset: slice.byteOffset,
+              bytesPerRow,
+            },
+            { // Copy width and height must be a multiple of the format block size;
+              width: Math.ceil(mipLevel.width / blockInfo.blockWidth) * blockInfo.blockWidth,
+              height: Math.ceil(mipLevel.height / blockInfo.blockHeight) * blockInfo.blockHeight,
+              depth: 1,
+            });
+      }
+    }
+
+    if (generateMipmaps) {
+      this.mipmapGenerator.generateMipmap(texture, textureDescriptor);
+    }
+
+    return new WebTextureResult(texture, {
+      width: textureData.width,
+      height: textureData.height,
+      depth: textureData.depth,
+      mipLevels: mipLevelCount,
+      format: textureData.format,
+      type: textureData.type,
+    });
+  }
+
+  /**
+   * Destroy this client.
+   * The client is unusable after calling destroy().
+   *
+   * @returns {void}
+   */
+  destroy() {
+    this.device = null;
+  }
+}
+
+/**
+ * Variant of WebTextureTool which produces WebGPU textures.
+ */
+export class WebGPUTextureTool extends WebTextureTool {
+  /**
+   * Creates a WebTextureTool instance which produces WebGPU textures.
+   *
+   * @param {module:External.GPUDevice} device - WebGPU device to create textures with.
+   * @param {object} toolOptions - Options to initialize this WebTextureTool instance with.
+   */
+  constructor(device, toolOptions) {
+    super(new WebGPUTextureClient(device), toolOptions);
+  }
+}

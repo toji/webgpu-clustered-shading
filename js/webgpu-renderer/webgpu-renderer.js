@@ -363,7 +363,7 @@ export class WebGPURenderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureTool.loadTextureFromImageBitmap(await image);
+    const result = await this.textureTool.loadTextureFromBlob(await image);
     image.gpuTextureView = result.texture.createView();
   }
 
