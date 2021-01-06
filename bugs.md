@@ -24,6 +24,7 @@ error: line 417: OpFunctionCall Argument <id> '256[%256]'s type does not match F
 
 ## Should I be able to set bindings to an array directly?
 
+= FILED =
 ```ts
 //THIS CRASHES:
 [[set(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${TOTAL_TILES}>;
@@ -37,6 +38,7 @@ error: line 417: OpFunctionCall Argument <id> '256[%256]'s type does not match F
 
 ## Vector expansion weirdness
 
+= FILED =
 ```ts
 // This comes out white.
 outColor = vec4<f32>(1.0, 0, 0, 1.0);
@@ -63,6 +65,7 @@ var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
 
 ## SPIR-V failure for too few vector components
 
+= FILED =
 ```ts
 vec3<f32>(1.0);
 ```
@@ -75,6 +78,7 @@ error: line 295: OpConstantComposite Constituent <id> count does not match Resul
 
 ## SPIR-V failure for vec + scalar
 
+= FILED =
 ```ts
 vec3<f32>(1.0, 1.0, 1.0) + 1.0
 ```
@@ -87,10 +91,12 @@ error: line 755: Expected arithmetic operands to be of Result Type: FAdd operand
 
 ## Alpha blending (or discard?) Broken on Mac with light sprites
 
+= FILED =
 No code for this one. just take a screenshot.
 
 ## Write buffer input offsets/size is in bytes, even when input is typed array
 
+= FILED =
 ```ts
 this.device.defaultQueue.writeBuffer(this.projectionUniformsBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
 // Should be:
@@ -103,9 +109,16 @@ This is not what the spec says should happen
 
 Maybe not a "bug", but really annoying nonetheless.
 
+= FILED =
 ```ts
 // What I want to do:
 mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), lightFactor);
 // What I have to do:
 mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
 ```
+
+## Cube map regression
+
+Might be my fault. Texture tester shows:
+
+The texture viewDimension of the bind group layout entry is different from the shader module declaration at set 0 binding 2

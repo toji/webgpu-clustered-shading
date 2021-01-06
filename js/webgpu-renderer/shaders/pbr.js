@@ -124,7 +124,7 @@ ${defines.USE_EMISSIVE_TEXTURE ? `
   emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
 ` : ``}
 
-  var ambient : vec3<f32> = light.lightAmbient * albedo * ao;
+  var ambient : vec3<f32> = globalLights.ambient * albedo * ao;
 `; }
 
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
@@ -172,14 +172,14 @@ const RadianceFunction = `
 ${PBRFunctions}
 
 fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>) -> vec3<f32> {
-  var L : vec3<f32> = normalize(light.lights[i].position.xyz - vWorldPos);
+  var L : vec3<f32> = normalize(globalLights.lights[i].position.xyz - vWorldPos);
   var H : vec3<f32> = normalize(V + L);
-  var distance : f32 = length(light.lights[i].position.xyz - vWorldPos);
+  var distance : f32 = length(globalLights.lights[i].position.xyz - vWorldPos);
 
-  var lightRange : f32 = light.lights[i].range;
+  var lightRange : f32 = globalLights.lights[i].range;
   var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
   # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
-  var radiance : vec3<f32> = light.lights[i].color.rgb * attenuation;
+  var radiance : vec3<f32> = globalLights.lights[i].color.rgb * attenuation;
 
   # cook-torrance brdf
   var NDF : f32 = DistributionGGX(N, H, roughness);
@@ -217,7 +217,7 @@ export function PBRFragmentSource(defines) { return `
     # reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-    for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
+    for (var i : i32 = 0; i < globalLights.lightCount; i = i + 1) {
       # calculate per-light radiance and add to outgoing radiance Lo
       Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
     }

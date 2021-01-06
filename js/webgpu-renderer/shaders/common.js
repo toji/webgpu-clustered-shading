@@ -61,12 +61,12 @@ export function LightUniforms(maxLightCount) { return `
     [[offset(16)]] color : vec3<f32>;
   };
 
-  [[block]] struct LightUniforms {
-    [[offset(0)]] lightAmbient : vec3<f32>;
+  [[block]] struct GlobalLightUniforms {
+    [[offset(0)]] ambient : vec3<f32>;
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
   };
-  [[set(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> light : [[access(read)]] LightUniforms;
+  [[set(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> globalLights : [[access(read)]] GlobalLightUniforms;
 `};
 
 export const ModelUniformsSize = 64;

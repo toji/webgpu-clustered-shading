@@ -180,9 +180,9 @@ export function ClusterLightsSource(maxLights) { return `
 
     # TODO: Look into improving threading using local invocation groups?
     var activeLightCount : i32 = 0;
-    for (var i : i32 = 0; i < light.lightCount; i = i + 1) {
-      var range : f32 = light.lights[i].range;
-      var lightViewPos : vec4<f32> = view.matrix * vec4<f32>(light.lights[i].position, 1.0);
+    for (var i : i32 = 0; i < globalLights.lightCount; i = i + 1) {
+      var range : f32 = globalLights.lights[i].range;
+      var lightViewPos : vec4<f32> = view.matrix * vec4<f32>(globalLights.lights[i].position, 1.0);
       var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
 
       const lightInCluster : bool = sqDist <= (range * range);

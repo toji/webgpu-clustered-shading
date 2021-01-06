@@ -39,12 +39,12 @@ export function LightSpriteVertexSource(maxLightCount) { return `
   [[stage(vertex)]]
   fn main() -> void {
     vPos = pos[vertexIndex];
-    vColor = light.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * light.lights[instanceIndex].range * 0.025;
+    vColor = globalLights.lights[instanceIndex].color;
+    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * globalLights.lights[instanceIndex].range * 0.025;
 
     # Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
-    bbModelViewMatrix[3] = vec4<f32>(light.lights[instanceIndex].position, 1.0);
+    bbModelViewMatrix[3] = vec4<f32>(globalLights.lights[instanceIndex].position, 1.0);
     bbModelViewMatrix = view.matrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;
