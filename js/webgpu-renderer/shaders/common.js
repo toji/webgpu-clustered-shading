@@ -54,7 +54,7 @@ export const ViewUniforms = `
   [[set(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
 `;
 
-export function LightUniforms(maxLightCount) { return `
+export const LightUniforms = `
   struct Light {
     [[offset(0)]] position : vec3<f32>;
     [[offset(12)]] range : f32;
@@ -64,10 +64,10 @@ export function LightUniforms(maxLightCount) { return `
   [[block]] struct LightUniforms {
     [[offset(0)]] lightAmbient : vec3<f32>;
     [[offset(12)]] lightCount : u32;
-    [[offset(16)]] lights : [[stride(32)]] array<Light, ${maxLightCount}>;
+    [[offset(16)]] lights : [[stride(32)]] array<Light>;
   };
   [[set(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> light : [[access(read)]] LightUniforms;
-`};
+`;
 
 export const ModelUniformsSize = 64;
 export const ModelUniforms = `

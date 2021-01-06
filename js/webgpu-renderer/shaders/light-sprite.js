@@ -20,14 +20,14 @@
 
 import { ProjectionUniforms, ViewUniforms, LightUniforms } from './common.js';
 
-export function LightSpriteVertexSource(maxLightCount) { return `
+export const LightSpriteVertexSource = `
   const pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
     vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
   );
 
   ${ProjectionUniforms}
   ${ViewUniforms}
-  ${LightUniforms(maxLightCount)}
+  ${LightUniforms}
 
   [[location(0)]] var<out> vPos : vec2<f32>;
   [[location(1)]] var<out> vColor : vec3<f32>;
@@ -62,7 +62,6 @@ export function LightSpriteVertexSource(maxLightCount) { return `
     return;
   }
 `;
-}
 
 export const LightSpriteFragmentSource = `
   [[location(0)]] var<out> outColor : vec4<f32>;

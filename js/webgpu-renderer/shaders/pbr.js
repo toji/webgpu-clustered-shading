@@ -201,7 +201,7 @@ fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, meta
 `;
 
 export function PBRFragmentSource(defines) { return `
-  ${LightUniforms(defines.maxLights)}
+  ${LightUniforms}
   ${MaterialUniforms}
 
   ${RadianceFunction}
@@ -235,7 +235,7 @@ export function PBRClusteredFragmentSource(defines) { return `
   ${ProjectionUniforms}
   ${ClusterLightsStructs}
   ${MaterialUniforms}
-  ${LightUniforms(defines.maxLights)}
+  ${LightUniforms}
 
   ${TileFunctions}
   ${RadianceFunction}

@@ -241,7 +241,7 @@ export class WebGPURenderer extends Renderer {
         ]
       }),
       vertexStage: {
-        module: createShaderModuleDebug(this.device, LightSpriteVertexSource(this.lightManager.maxLightCount)),
+        module: createShaderModuleDebug(this.device, LightSpriteVertexSource),
         entryPoint: 'main'
       },
       fragmentStage: {
@@ -535,7 +535,7 @@ export class WebGPURenderer extends Renderer {
       this.clusterLightsPipeline = this.device.createComputePipeline({
         layout: clusterLightsPipelineLayout,
         computeStage: {
-          module: createShaderModuleDebug(this.device, ClusterLightsSource(this.lightManager.maxLightCount)),
+          module: createShaderModuleDebug(this.device, ClusterLightsSource),
           entryPoint: 'main',
         }
       });
