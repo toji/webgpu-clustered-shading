@@ -141,10 +141,10 @@ export const ClusterBoundsSource = `
   }
 `;
 
-export function ClusterLightsSource(maxLights) { return `
+export const ClusterLightsSource = `
   ${ProjectionUniforms}
   ${ViewUniforms}
-  ${LightUniforms(maxLights)}
+  ${LightUniforms}
   ${ClusterLightsStructs}
 
   ${ClusterStructs}
@@ -201,4 +201,4 @@ export function ClusterLightsSource(maxLights) { return `
 
     return;
   }
-`; }
+`;

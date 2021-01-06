@@ -24,15 +24,12 @@ import { PBRVertexSource, PBRFragmentSource, PBRClusteredFragmentSource } from '
 export class PBRRenderBundleHelper extends RenderBundleHelper {
   constructor(renderer) {
     super(renderer);
-    this.maxLights = renderer.lightManager.maxLightCount;
   }
 
   getDefinesForPrimitive(primitive) {
     const attributes = primitive.enabledAttributes;
     const material = primitive.material;
-    const programDefines = {
-      maxLights: this.maxLights
-    };
+    const programDefines = {};
 
     if (attributes.has('COLOR_0')) {
       programDefines['USE_VERTEX_COLOR'] = 1;
