@@ -510,7 +510,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     // Update the Projection uniforms. These only need to be updated on resize.
-    this.device.defaultQueue.writeBuffer(this.projectionBuffer, 0, this.frameUniforms, 0, ProjectionUniformsSize);
+    this.device.defaultQueue.writeBuffer(this.projectionBuffer, 0, this.frameUniforms.buffer, 0, ProjectionUniformsSize);
 
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
@@ -558,7 +558,7 @@ export class WebGPURenderer extends Renderer {
 
     // Update the View uniforms buffer with the values. These are used by most shader programs
     // and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.viewBuffer, 0, this.frameUniforms, ProjectionUniformsSize, ViewUniformsSize);
+    this.device.defaultQueue.writeBuffer(this.viewBuffer, 0, this.frameUniforms.buffer, ProjectionUniformsSize, ViewUniformsSize);
 
     // Update the light unform buffer with the latest values as well.
     this.device.defaultQueue.writeBuffer(this.lightsBuffer, 0, this.lightManager.uniformArray);
