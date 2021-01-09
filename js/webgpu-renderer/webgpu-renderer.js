@@ -318,6 +318,7 @@ export class WebGPURenderer extends Renderer {
       this.initPrimitive(primitive);
     }
 
+    this.outputRenderBundles = {};
     this.primitives = gltf.primitives;
   }
 

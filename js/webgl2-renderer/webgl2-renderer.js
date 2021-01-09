@@ -194,6 +194,7 @@ export class WebGL2Renderer extends Renderer {
 
     this.initMaterials(gltf.materials);
 
+    this.programs = new Map();
     for (let primitive of gltf.primitives) {
       this.initPrimitive(primitive);
     }
