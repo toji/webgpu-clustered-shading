@@ -310,18 +310,18 @@ export class Gltf2Loader {
           const bufferView = gltf.bufferViews[accessor.bufferView];
           bufferView.usage.add('vertex');
 
-          let attributeMap = attributeBuffers.get(bufferView);
-          if (!attributeMap) {
-            attributeMap = {};
-            attributeBuffers.set(bufferView, attributeMap);
+          let bufferAttributes = attributeBuffers.get(bufferView);
+          if (!bufferAttributes) {
+            bufferAttributes = new PrimitiveBufferAttributes(bufferView);
+            attributeBuffers.set(bufferView, bufferAttributes);
           }
 
-          attributeMap[name] = new PrimitiveAttribute(
+          bufferAttributes.addAttribute(name, new PrimitiveAttribute(
             getComponentCount(accessor.type),
             accessor.componentType,
             accessor.byteOffset,
             accessor.normalized
-          );
+          ));
         }
 
         let indices = null;
@@ -420,6 +420,26 @@ class Node {
   }
 }
 
+class PrimitiveBufferAttributes {
+  constructor(bufferView) {
+    this.bufferView = bufferView;
+    this.minAttributeByteOffset = 0;
+    this.attributeCount = 0;
+    this.attributes = {};
+  }
+
+  addAttribute(name, primitiveAttribute) {
+    if (this.attributeCount == 0) {
+      this.minAttributeByteOffset = primitiveAttribute.byteOffset;
+    } else {
+      this.minAttributeByteOffset = Math.min(this.minAttributeByteOffset, primitiveAttribute.byteOffset);
+    }
+
+    this.attributeCount++;
+    this.attributes[name] = primitiveAttribute;
+  }
+}
+
 class PrimitiveAttribute {
   constructor(componentCount, componentType, byteOffset, normalized) {
     this.componentCount = componentCount || 3;
@@ -467,15 +487,15 @@ class PrimitiveIndices {
 
 class Primitive {
   constructor(attributeBuffers, indices, elementCount, mode, material) {
-    this.attributeBuffers = attributeBuffers; // Map<BufferView -> PrimitiveAttribute{}>
+    this.attributeBuffers = attributeBuffers; // Map<BufferView -> PrimitiveBufferAttributes>
     this.indices = indices || null;
     this.elementCount = elementCount || 0;
     this.mode = mode || GL.TRIANGLES;
     this.material = material;
 
     this.enabledAttributes = new Set();
-    for (let attributes of attributeBuffers.values()) {
-      for (let attribName in attributes) {
+    for (let bufferAttributes of attributeBuffers.values()) {
+      for (let attribName in bufferAttributes.attributes) {
         this.enabledAttributes.add(attribName);
       }
     }
@@ -509,20 +529,23 @@ class Primitive {
   getVertexStateDescriptor(attributeMap) {
     const vertexBuffers = [];
     let vertexStateHash = '';
-    for (let [bufferView, attributes] of this.attributeBuffers) {
+    for (let [bufferView, bufferAttributes] of this.attributeBuffers) {
       let arrayStride = bufferView.byteStride;
 
       const attributeLayouts = [];
-      for (let attribName in attributes) {
-        const attribute = attributes[attribName];
+      for (let attribName in bufferAttributes.attributes) {
+        const attribute = bufferAttributes.attributes[attribName];
+        // WebGPU doesn't allow attribute offsets greater than 2048.
+        // This is apparently due to a Vulkan limitation.
+        const offset = attribute.byteOffset - bufferAttributes.minAttributeByteOffset;
 
         attributeLayouts.push({
           shaderLocation: attributeMap[attribName],
-          offset: attribute.byteOffset,
           format: attribute.gpuFormat,
+          offset,
         });
 
-        vertexStateHash += `${attributeMap[attribName]},${attribute.byteOffset},${attribute.gpuFormat}:`;
+        vertexStateHash += `${attributeMap[attribName]},${offset},${attribute.gpuFormat}:`;
 
         if (!bufferView.byteStride) {
           arrayStride += attribute.packedByteStride;

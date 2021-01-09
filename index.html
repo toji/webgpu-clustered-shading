@@ -7,7 +7,7 @@
     <meta name='mobile-web-app-capable' content='yes'>
     <meta name='apple-mobile-web-app-capable' content='yes'>
 
-    <title>Web Graphics API Test</title>
+    <title>WebGPU Clustered Forward Shading</title>
 
     <style>
       html, body {
@@ -174,7 +174,7 @@
 
       async function initGltf() {
         const gltfLoader = new Gltf2Loader();
-        gltf = await gltfLoader.loadFromUrl('./media/models/sponza/sponza.glb');
+        gltf = await gltfLoader.loadFromUrl('./media/models/sponza/sponza-ktx.glb');
         if (renderer) {
           renderer.setGltf(gltf);
         }

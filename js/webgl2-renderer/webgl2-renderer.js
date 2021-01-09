@@ -370,11 +370,11 @@ export class WebGL2Renderer extends Renderer {
   bindPrimitive(primitive) {
     const gl = this.gl;
 
-    for (let [bufferView, attributes] of primitive.attributeBuffers) {
+    for (let [bufferView, bufferAttributes] of primitive.attributeBuffers) {
       gl.bindBuffer(gl.ARRAY_BUFFER, bufferView.renderData.glBuffer);
 
-      for (let attribName in attributes) {
-        const attribute = attributes[attribName];
+      for (let attribName in bufferAttributes.attributes) {
+        const attribute = bufferAttributes.attributes[attribName];
         const attribIndex = ATTRIB_MAP[attribName];
         gl.enableVertexAttribArray(attribIndex);
         gl.vertexAttribPointer(

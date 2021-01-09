@@ -199,8 +199,8 @@ export class RenderBundleHelper {
         encoder.setBindGroup(BIND_GROUP.Model, primitive.renderData.gpuBindGroup);
 
         let i = 0;
-        for (let bufferView of primitive.attributeBuffers.keys()) {
-          encoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer);
+        for (let [bufferView, bufferAttributes] of primitive.attributeBuffers) {
+          encoder.setVertexBuffer(i, bufferView.renderData.gpuBuffer, bufferAttributes.minAttributeByteOffset);
           i++;
         }
 
