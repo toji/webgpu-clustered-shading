@@ -257,6 +257,10 @@ export class WebGPURenderer extends Renderer {
         colorBlend: {
           srcFactor: 'src-alpha',
           dstFactor: 'one',
+        },
+        alphaBlend: {
+          srcFactor: "one",
+          dstFactor: "one",
         }
       }],
       depthStencilState: {

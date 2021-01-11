@@ -528,7 +528,7 @@ class Primitive {
   // Returns a GPUVertexStateDescriptor that describes the layout of the buffers for this primitive.
   getVertexStateDescriptor(attributeMap) {
     const vertexBuffers = [];
-    let vertexStateHash = '';
+
     for (let [bufferView, bufferAttributes] of this.attributeBuffers) {
       let arrayStride = bufferView.byteStride;
 
@@ -538,21 +538,18 @@ class Primitive {
         // WebGPU doesn't allow attribute offsets greater than 2048.
         // This is apparently due to a Vulkan limitation.
         const offset = attribute.byteOffset - bufferAttributes.minAttributeByteOffset;
+        const format = attribute.gpuFormat;
 
         attributeLayouts.push({
           shaderLocation: attributeMap[attribName],
-          format: attribute.gpuFormat,
+          format,
           offset,
         });
-
-        vertexStateHash += `${attributeMap[attribName]},${offset},${attribute.gpuFormat}:`;
 
         if (!bufferView.byteStride) {
           arrayStride += attribute.packedByteStride;
         }
       }
-
-      vertexStateHash += `${arrayStride}|`;
 
       vertexBuffers.push({
         arrayStride,
@@ -566,11 +563,7 @@ class Primitive {
 
     if (this.mode == GL.TRIANGLE_STRIP || this.mode == GL.LINE_STRIP) {
       vertexState.indexFormat = this.indices.gpuType;
-      vertexStateHash += `${vertexState.indexFormat}`;
     }
-
-    // Not used by WebGPU, but useful for identifing primitives with identical vertex states.
-    vertexState.hash = vertexStateHash;
 
     return vertexState;
   }

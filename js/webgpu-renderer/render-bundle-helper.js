@@ -18,6 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+import { RenderPipelineCache } from './render-pipeline-cache.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
 import { ATTRIB_MAP, BIND_GROUP, SimpleVertexSource } from './shaders/common.js';
 
@@ -32,8 +33,7 @@ export class RenderBundleHelper {
     this.nextShaderModuleId = 0;
     this.shaderModuleCache = new Map(); // Map<String -> ShaderModule>
 
-    this.nextPipelineId = 0;
-    this.pipelineCache = new Map(); // Map<String -> GPURenderPipeline>
+    this.pipelineCache = new RenderPipelineCache(renderer.device);
   }
 
   createPipelineLayout(bindGroupLayouts) {
@@ -94,41 +94,29 @@ export class RenderBundleHelper {
       colorBlend.dstFactor = 'one-minus-src-alpha';
     }
 
-    // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${shaderModule.id}|${material.blend}|${pipelineDescriptor.hash}`;
-    let cachedPipeline = this.pipelineCache.get(pipelineKey);
+    Object.assign(pipelineDescriptor, {
+      layout: this.pipelineLayout,
 
-    if (!cachedPipeline) {
-      Object.assign(pipelineDescriptor, {
-        layout: this.pipelineLayout,
+      vertexStage: shaderModule.vertexStage,
+      fragmentStage: shaderModule.fragmentStage,
 
-        vertexStage: shaderModule.vertexStage,
-        fragmentStage: shaderModule.fragmentStage,
+      colorStates: [{
+        format: this.renderBundleDescriptor.colorFormats[0],
+        colorBlend,
+        alphaBlend: {
+          srcFactor: "one",
+          dstFactor: "one",
+        }
+      }],
+      depthStencilState: {
+        depthWriteEnabled: true,
+        depthCompare: 'less',
+        format: this.renderBundleDescriptor.depthStencilFormat,
+      },
+      sampleCount: this.renderBundleDescriptor.sampleCount,
+    });
 
-        colorStates: [{
-          format: this.renderBundleDescriptor.colorFormats[0],
-          colorBlend,
-        }],
-        depthStencilState: {
-          depthWriteEnabled: true,
-          depthCompare: 'less',
-          format: this.renderBundleDescriptor.depthStencilFormat,
-        },
-        sampleCount: this.renderBundleDescriptor.sampleCount,
-      });
-
-      const pipeline = this.device.createRenderPipeline(pipelineDescriptor);
-
-      cachedPipeline = {
-        id: this.nextPipelineId++,
-        opaque: !material.blend,
-        pipeline
-      };
-
-      this.pipelineCache.set(pipelineKey, cachedPipeline);
-    }
-
-    return cachedPipeline;
+    return this.pipelineCache.getRenderPipeline(pipelineDescriptor);
   }
 
   setFrameBindGroups(renderBundleEncoder) {
@@ -144,18 +132,18 @@ export class RenderBundleHelper {
     const pipelineMaterials = new Map(); // WeakMap<id -> Map<Material -> Primitive[]>>
 
     for (const primitive of primitives) {
-      const cachedPipeline = this.getPrimitivePipeline(primitive);
+      const pipeline = this.getPrimitivePipeline(primitive);
 
-      if (cachedPipeline.opaque) {
-        opaquePipelines.set(cachedPipeline.id, cachedPipeline.pipeline);
+      if (primitive.material.blend) {
+        blendedPipelines.set(pipeline.renderPipelineCacheHash, pipeline);
       } else {
-        blendedPipelines.set(cachedPipeline.id, cachedPipeline.pipeline);
+        opaquePipelines.set(pipeline.renderPipelineCacheHash, pipeline);
       }
 
-      let materialPrimitiveMap = pipelineMaterials.get(cachedPipeline.pipeline);
+      let materialPrimitiveMap = pipelineMaterials.get(pipeline);
       if (!materialPrimitiveMap) {
         materialPrimitiveMap = new Map(); // Map<Material -> Primitive[]>
-        pipelineMaterials.set(cachedPipeline.pipeline, materialPrimitiveMap);
+        pipelineMaterials.set(pipeline, materialPrimitiveMap);
       }
 
       const materialBindGroup = primitive.material.renderData.gpuBindGroup;
