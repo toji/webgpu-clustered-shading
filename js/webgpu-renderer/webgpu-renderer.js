@@ -103,19 +103,19 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0, // Projection uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          type: 'uniform-buffer'
+          buffer: {},
         }, {
           binding: 1, // View uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.COMPUTE,
-          type: 'uniform-buffer'
+          buffer: {}
         }, {
           binding: 2, // Light uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          type: 'readonly-storage-buffer'
+          buffer: { type: 'read-only-storage' }
         }, {
           binding: 3, // Cluster Lights storage
           visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          type: 'storage-buffer'
+          buffer: { type: 'storage' }
         }]
       }),
 
@@ -123,37 +123,37 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'uniform-buffer'
+          buffer: {}
         },
         {
           binding: 1, // defaultSampler
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampler'
+          sampler: {}
         },
         {
           binding: 2, // baseColorTexture
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampled-texture'
+          texture: {}
         },
         {
           binding: 3, // normalTexture
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampled-texture'
+          texture: {}
         },
         {
           binding: 4, // metallicRoughnessTexture
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampled-texture'
+          texture: {}
         },
         {
           binding: 5, // occlusionTexture
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampled-texture'
+          texture: {}
         },
         {
           binding: 6, // emissiveTexture
           visibility: GPUShaderStage.FRAGMENT,
-          type: 'sampled-texture'
+          texture: {}
         }]
       }),
 
@@ -161,7 +161,7 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.VERTEX,
-          type: 'uniform-buffer'
+          buffer: {}
         }]
       }),
 
@@ -169,7 +169,7 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
-          type: 'readonly-storage-buffer'
+          buffer: { type: 'read-only-storage' }
         }]
       }),
     };
@@ -471,7 +471,7 @@ export class WebGPURenderer extends Renderer {
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.COMPUTE,
-          type: 'storage-buffer'
+          buffer: { type: 'storage' }
         }]
       });
 
