@@ -1,4 +1,4 @@
-import { vec3, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
+import { vec3, mat4 } from './third-party/gl-matrix/dist/esm/index.js';
 
 const DIR = vec3.create();
 

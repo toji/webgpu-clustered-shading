@@ -23,7 +23,7 @@ import { ProjectionUniformsSize, ViewUniformsSize, BIND_GROUP } from './shaders/
 import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-render-bundle-helper.js';
 import { DepthVisualization, DepthSliceVisualization, ClusterDistanceVisualization, LightsPerClusterVisualization } from './debug-visualizations.js';
 import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/light-sprite.js';
-import { vec2, vec3, vec4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { vec2, vec3, vec4 } from '../third-party/gl-matrix/dist/esm/index.js';
 import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
 
 import { ClusterBoundsSource, ClusterLightsSource, TILE_COUNT, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';

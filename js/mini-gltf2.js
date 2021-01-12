@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { vec2, vec3, vec4, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
+import { vec2, vec3, vec4, mat4 } from './third-party/gl-matrix/dist/esm/index.js';
 
 // Used for comparing values from glTF files, which uses WebGL enums natively.
 const GL = WebGLRenderingContext;

@@ -21,7 +21,7 @@
 import { Renderer } from '../renderer.js';
 import { ShaderProgram } from './shader-program.js';
 import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader.js';
-import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/src/gl-matrix.js';
+import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/dist/esm/index.js';
 import { WebGLTextureTool } from '../third-party/web-texture-tool/build/webgl-texture-tool.js';
 
 export class PBRShaderProgram extends ShaderProgram {

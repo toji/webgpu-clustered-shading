@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { vec3, mat4 } from './third-party/gl-matrix/src/gl-matrix.js';
+import { vec3, mat4 } from './third-party/gl-matrix/dist/esm/index.js';
 
 const lightFloatCount = 8;
 const lightByteSize = lightFloatCount * 4;
@@ -184,7 +184,9 @@ export class Renderer {
       this.outputSize[1] = this.canvas.height;
 
       const aspect = this.canvas.width / this.canvas.height;
-      mat4.perspective(this.projectionMatrix, Math.PI * 0.5, aspect, this.zRange[0], this.zRange[1]);
+      // Using mat4.perspectiveZO instead of mat4.perpective because WebGPU's
+      // normalized device coordinates Z range is [0, 1], instead of WebGL's [-1, 1]
+      mat4.perspectiveZO(this.projectionMatrix, Math.PI * 0.5, aspect, this.zRange[0], this.zRange[1]);
       mat4.invert(this.inverseProjectionMatrix, this.projectionMatrix);
 
       this.onResize(this.canvas.width, this.canvas.height);

@@ -35,7 +35,8 @@ export const TileFunctions = `
 const tileCount : vec3<i32> = vec3<i32>(${TILE_COUNT[0]}, ${TILE_COUNT[1]}, ${TILE_COUNT[2]});
 
 fn linearDepth(depthSample : f32) -> f32 {
-  return 2.0 * projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthSample * (projection.zFar - projection.zNear));
+  var depthRange : f32 = 2.0 * depthSample - 1.0;
+  return 2.0 * projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthRange * (projection.zFar - projection.zNear));
 }
 
 fn getTile(fragCoord : vec4<f32>) -> vec3<i32> {
