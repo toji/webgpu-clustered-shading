@@ -41,7 +41,7 @@ export const ProjectionUniforms = `
     [[offset(136)]] zNear : f32;
     [[offset(140)]] zFar : f32;
   };
-  [[set(${BIND_GROUP.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
+  [[group(${BIND_GROUP.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
 `;
 
 export const ViewUniformsSize = 80;
@@ -51,7 +51,7 @@ export const ViewUniforms = `
     [[offset(64)]] position : vec3<f32>;
     [[offset(76)]] dummy : f32;
   };
-  [[set(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
+  [[group(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
 `;
 
 export const LightUniforms = `
@@ -66,7 +66,7 @@ export const LightUniforms = `
     [[offset(12)]] lightCount : u32;
     [[offset(16)]] lights : [[stride(32)]] array<Light>;
   };
-  [[set(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> globalLights : [[access(read)]] GlobalLightUniforms;
+  [[group(${BIND_GROUP.Frame}), binding(2)]] var<storage_buffer> globalLights : [[access(read)]] GlobalLightUniforms;
 `;
 
 export const ModelUniformsSize = 64;
@@ -74,7 +74,7 @@ export const ModelUniforms = `
   [[block]] struct ModelUniforms {
     [[offset(0)]] matrix : mat4x4<f32>;
   };
-  [[set(${BIND_GROUP.Model}), binding(0)]] var<uniform> model : ModelUniforms;
+  [[group(${BIND_GROUP.Model}), binding(0)]] var<uniform> model : ModelUniforms;
 `;
 
 export const MaterialUniformsSize = 48;
@@ -85,14 +85,14 @@ export const MaterialUniforms = `
     [[offset(32)]] emissiveFactor : vec3<f32>;
     [[offset(44)]] occlusionStrength : f32;
   };
-  [[set(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+  [[group(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
 
-  [[set(${BIND_GROUP.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-  [[set(${BIND_GROUP.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
-  [[set(${BIND_GROUP.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
-  [[set(${BIND_GROUP.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
-  [[set(${BIND_GROUP.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
-  [[set(${BIND_GROUP.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
+  [[group(${BIND_GROUP.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_sampled_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_sampled_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_sampled_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_sampled_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_sampled_2d<f32>;
 `;
 
 export const SimpleVertexSource = `

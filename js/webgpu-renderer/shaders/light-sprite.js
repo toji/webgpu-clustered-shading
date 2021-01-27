@@ -33,8 +33,8 @@ export const LightSpriteVertexSource = `
   [[location(1)]] var<out> vColor : vec3<f32>;
 
   [[builtin(position)]] var<out> outPosition : vec4<f32>;
-  [[builtin(vertex_idx)]] var<in> vertexIndex : i32;
-  [[builtin(instance_idx)]] var<in> instanceIndex : i32;
+  [[builtin(vertex_index)]] var<in> vertexIndex : i32;
+  [[builtin(instance_index)]] var<in> instanceIndex : i32;
 
   [[stage(vertex)]]
   fn main() -> void {
