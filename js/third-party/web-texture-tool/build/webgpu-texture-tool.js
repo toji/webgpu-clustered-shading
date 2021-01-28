@@ -131,7 +131,7 @@ class WebGPUTextureClient {
     };
     const texture = this.device.createTexture(textureDescriptor);
 
-    this.device.defaultQueue.copyImageBitmapToTexture({imageBitmap}, {texture}, textureDescriptor.size);
+    this.device.queue.copyImageBitmapToTexture({imageBitmap}, {texture}, textureDescriptor.size);
 
     if (generateMipmaps) {
       this.mipmapGenerator.generateMipmap(texture, textureDescriptor);
@@ -213,7 +213,7 @@ class WebGPUTextureClient {
         // TODO: It may be more efficient to upload the mip levels to a buffer and copy to the texture, but this makes
         // the code significantly simpler and avoids an alignment issue I was seeing previously, so for now we'll take
         // the easy route.
-        this.device.defaultQueue.writeTexture(
+        this.device.queue.writeTexture(
             {
               texture: texture,
               mipLevel: mipLevel.levelIndex,

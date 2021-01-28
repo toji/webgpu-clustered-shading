@@ -40,7 +40,7 @@ fn linearDepth(depthSample : f32) -> f32 {
 }
 
 fn getTile(fragCoord : vec4<f32>) -> vec3<i32> {
-  # TODO: scale and bias calculation can be moved outside the shader to save cycles.
+  // TODO: scale and bias calculation can be moved outside the shader to save cycles.
   var sliceScale : f32 = f32(tileCount.z) / log2(projection.zFar / projection.zNear);
   var sliceBias : f32 = -(f32(tileCount.z) * log2(projection.zNear) / log2(projection.zFar / projection.zNear));
   var zTile : i32 = i32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
@@ -76,18 +76,15 @@ export const ClusterLightsStructs = `
   [[block]] struct ClusterLightGroup {
     [[offset(0)]] lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage_buffer> clusterLights : ClusterLightGroup;
+  [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage> clusterLights : ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `
   ${ProjectionUniforms}
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage_buffer> clusters : Clusters;
+  [[group(1), binding(0)]] var<storage> clusters : Clusters;
 
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
-
-  # THIS CRASHES:
-  # [[group(1), binding(0)]] var<storage_buffer> clusters : [[stride(32)]] array<Cluster, ${TOTAL_TILES}>;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
       const normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
@@ -148,16 +145,16 @@ export const ClusterLightsSource = `
   ${ClusterLightsStructs}
 
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
+  [[group(1), binding(0)]] var<storage> clusters : [[access(read)]] Clusters;
 
   ${TileFunctions}
 
   fn sqDistPointAABB(point : vec3<f32>, minAABB : vec3<f32>, maxAABB : vec3<f32>) -> f32 {
     var sqDist : f32 = 0.0;
-    #const minAABB : vec3<f32> = clusters.bounds[tileIndex].minAABB;
-    #const maxAABB : vec3<f32> = clusters.bounds[tileIndex].maxAABB;
+    // const minAABB : vec3<f32> = clusters.bounds[tileIndex].minAABB;
+    // const maxAABB : vec3<f32> = clusters.bounds[tileIndex].maxAABB;
 
-    # Wait, does this actually work? Just porting code, but it seems suspect?
+    // Wait, does this actually work? Just porting code, but it seems suspect?
     for(var i : i32 = 0; i < 3; i = i + 1) {
       var v : f32 = point[i];
       if(v < minAABB[i]){
@@ -179,7 +176,7 @@ export const ClusterLightsSource = `
                             global_id.y * tileCount.x +
                             global_id.z * tileCount.x * tileCount.y;
 
-    # TODO: Look into improving threading using local invocation groups?
+    // TODO: Look into improving threading using local invocation groups?
     var activeLightCount : i32 = 0;
     for (var i : i32 = 0; i < globalLights.lightCount; i = i + 1) {
       var range : f32 = globalLights.lights[i].range;
@@ -188,7 +185,7 @@ export const ClusterLightsSource = `
 
       const lightInCluster : bool = sqDist <= (range * range);
       if (lightInCluster) {
-        # Light affects this cluster. Add it to the list.
+        // Light affects this cluster. Add it to the list.
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;
         activeLightCount = activeLightCount + 1;
       }

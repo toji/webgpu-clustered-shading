@@ -364,7 +364,7 @@ export class WebGPURenderer extends Renderer {
 
     const commandEncoder = this.device.createCommandEncoder({});
     commandEncoder.copyBufferToBuffer(copyBuffer, 0, gpuBuffer, 0, alignedLength);
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
   }
 
   async initImage(image) {
@@ -386,7 +386,7 @@ export class WebGPURenderer extends Renderer {
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
 
-    this.device.defaultQueue.writeBuffer(materialBuffer, 0, materialUniforms);
+    this.device.queue.writeBuffer(materialBuffer, 0, materialUniforms);
 
     const materialBindGroup = this.device.createBindGroup({
       layout: this.bindGroupLayouts.material,
@@ -436,7 +436,7 @@ export class WebGPURenderer extends Renderer {
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
 
-      this.device.defaultQueue.writeBuffer(modelBuffer, 0, primitive.renderData.instances[0]);
+      this.device.queue.writeBuffer(modelBuffer, 0, primitive.renderData.instances[0]);
 
       const modelBindGroup = this.device.createBindGroup({
         layout: this.bindGroupLayouts.primitive,
@@ -515,7 +515,7 @@ export class WebGPURenderer extends Renderer {
     }
 
     // Update the Projection uniforms. These only need to be updated on resize.
-    this.device.defaultQueue.writeBuffer(this.projectionBuffer, 0, this.frameUniforms.buffer, 0, ProjectionUniformsSize);
+    this.device.queue.writeBuffer(this.projectionBuffer, 0, this.frameUniforms.buffer, 0, ProjectionUniformsSize);
 
     const commandEncoder = this.device.createCommandEncoder();
     const passEncoder = commandEncoder.beginComputePass();
@@ -524,7 +524,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
     passEncoder.dispatch(...TILE_COUNT);
     passEncoder.endPass();
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
   }
 
   computeClusterLights(commandEncoder) {
@@ -563,10 +563,10 @@ export class WebGPURenderer extends Renderer {
 
     // Update the View uniforms buffer with the values. These are used by most shader programs
     // and don't change for the duration of the frame.
-    this.device.defaultQueue.writeBuffer(this.viewBuffer, 0, this.frameUniforms.buffer, ProjectionUniformsSize, ViewUniformsSize);
+    this.device.queue.writeBuffer(this.viewBuffer, 0, this.frameUniforms.buffer, ProjectionUniformsSize, ViewUniformsSize);
 
     // Update the light unform buffer with the latest values as well.
-    this.device.defaultQueue.writeBuffer(this.lightsBuffer, 0, this.lightManager.uniformArray);
+    this.device.queue.writeBuffer(this.lightsBuffer, 0, this.lightManager.uniformArray);
 
     // Create a render bundle for the requested output type if one doesn't already exist.
     let renderBundle = this.outputRenderBundles[this.outputType];
@@ -600,6 +600,6 @@ export class WebGPURenderer extends Renderer {
     }
 
     passEncoder.endPass();
-    this.device.defaultQueue.submit([commandEncoder.finish()]);
+    this.device.queue.submit([commandEncoder.finish()]);
   }
 }

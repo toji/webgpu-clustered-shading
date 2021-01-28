@@ -42,7 +42,7 @@ export const LightSpriteVertexSource = `
     vColor = globalLights.lights[instanceIndex].color;
     var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * globalLights.lights[instanceIndex].range * 0.025;
 
-    # Generate a billboarded model view matrix
+    // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
     bbModelViewMatrix[3] = vec4<f32>(globalLights.lights[instanceIndex].position, 1.0);
     bbModelViewMatrix = view.matrix * bbModelViewMatrix;

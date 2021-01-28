@@ -23,7 +23,7 @@ import { ClusterLightsStructs, TileFunctions } from '../shaders/clustered-comput
 
 function PBR_VARYINGS(defines, dir) { return `
 [[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
-[[location(1)]] var<${dir}> vView : vec3<f32>; # Vector from vertex to camera.
+[[location(1)]] var<${dir}> vView : vec3<f32>; // Vector from vertex to camera.
 [[location(2)]] var<${dir}> vTex : vec2<f32>;
 [[location(3)]] var<${dir}> vCol : vec4<f32>;
 
@@ -178,10 +178,10 @@ fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, meta
 
   var lightRange : f32 = globalLights.lights[i].range;
   var attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
-  # var attenuation : f32 = 1.0 / (1.0 + distance * distance);
+  // var attenuation : f32 = 1.0 / (1.0 + distance * distance);
   var radiance : vec3<f32> = globalLights.lights[i].color.rgb * attenuation;
 
-  # cook-torrance brdf
+  // cook-torrance brdf
   var NDF : f32 = DistributionGGX(N, H, roughness);
   var G : f32 = GeometrySmith(N, V, L, roughness);
   var F : vec3<f32> = FresnelSchlick(max(dot(H, V), 0.0), F0);
@@ -194,7 +194,7 @@ fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, meta
   denominator = max(denominator, 0.001);
   var specular : vec3<f32>     = numerator / vec3<f32>(denominator, denominator, denominator);
 
-  # add to outgoing radiance Lo
+  // add to outgoing radiance Lo
   var NdotL : f32 = max(dot(N, L), 0.0);
   return (kD * albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
 }
@@ -214,11 +214,11 @@ export function PBRFragmentSource(defines) { return `
   fn main() -> void {
     ${ReadPBRInputs(defines)}
 
-    # reflectance equation
+    // reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
     for (var i : i32 = 0; i < globalLights.lightCount; i = i + 1) {
-      # calculate per-light radiance and add to outgoing radiance Lo
+      // calculate per-light radiance and add to outgoing radiance Lo
       Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
     }
 
@@ -249,7 +249,7 @@ export function PBRClusteredFragmentSource(defines) { return `
   fn main() -> void {
     ${ReadPBRInputs(defines)}
 
-    # reflectance equation
+    // reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
     var clusterIndex : i32 = getClusterIndex(fragCoord);
@@ -258,7 +258,7 @@ export function PBRClusteredFragmentSource(defines) { return `
     for (var lightIndex : i32 = 0; lightIndex < lightCount; lightIndex = lightIndex + 1) {
       var i : i32 = clusterLights.lights[clusterIndex].indices[lightIndex];
 
-      # calculate per-light radiance and add to outgoing radiance Lo
+      // calculate per-light radiance and add to outgoing radiance Lo
       Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
     }
 
