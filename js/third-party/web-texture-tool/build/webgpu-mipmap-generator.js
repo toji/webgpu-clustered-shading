@@ -116,7 +116,7 @@ export class WebGPUMipmapGenerator {
           depth: arrayLayerCount,
         },
         format: textureDescriptor.format,
-        usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.SAMPLED | GPUTextureUsage.OUTPUT_ATTACHMENT,
+        usage: GPUTextureUsage.COPY_SRC | GPUTextureUsage.SAMPLED | GPUTextureUsage.RENDER_ATTACHMENT,
         mipLevelCount: textureDescriptor.mipLevelCount - 1,
       };
       mipTexture = this.device.createTexture(mipTextureDescriptor);

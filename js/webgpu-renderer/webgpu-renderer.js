@@ -279,7 +279,7 @@ export class WebGPURenderer extends Renderer {
       size: { width, height, depth: 1 },
       sampleCount: SAMPLE_COUNT,
       format: this.swapChainFormat,
-      usage: GPUTextureUsage.OUTPUT_ATTACHMENT,
+      usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.colorAttachment.attachment = msaaColorTexture.createView();
 
@@ -287,7 +287,7 @@ export class WebGPURenderer extends Renderer {
       size: { width, height, depth: 1 },
       sampleCount: SAMPLE_COUNT,
       format: DEPTH_FORMAT,
-      usage: GPUTextureUsage.OUTPUT_ATTACHMENT
+      usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
     this.depthAttachment.attachment = depthTexture.createView();
 
