@@ -52,7 +52,7 @@ export class WebGPUMipmapGenerator {
         this.mipmapFragmentShaderModule = this.device.createShaderModule({
           code: `
             [[binding(0), set(0)]] var<uniform_constant> imgSampler : sampler;
-            [[binding(1), set(0)]] var<uniform_constant> img : texture_sampled_2d<f32>;
+            [[binding(1), set(0)]] var<uniform_constant> img : texture_2d<f32>;
 
             [[location(0)]] var<in> vTex : vec2<f32>;
             [[location(0)]] var<out> outColor : vec4<f32>;
