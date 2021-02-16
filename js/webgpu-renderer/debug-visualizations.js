@@ -121,8 +121,8 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     fn main() -> void {
       var clusterIndex : i32 = getClusterIndex(fragCoord);
 
-      # THIS CRASHES:
-      # var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
+      // THIS CRASHES:
+      // var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
 
       const midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
       const center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
@@ -132,8 +132,8 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
       var distToBoundsCenter : f32 = length(fragToBoundsCenter);
       var normDist : f32 = distToBoundsCenter / radius;
 
-      # FILE BUG: Why does this come out white?
-      #outColor = vec4<f32>(1.0, 0, 0, 1.0);
+      // FILE BUG: Why does this come out white?
+      // outColor = vec4<f32>(1.0, 0, 0, 1.0);
       outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
       return;
     }
