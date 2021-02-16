@@ -24,7 +24,7 @@ import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-ren
 import { DepthVisualization, DepthSliceVisualization, ClusterDistanceVisualization, LightsPerClusterVisualization } from './debug-visualizations.js';
 import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/light-sprite.js';
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/dist/esm/index.js';
-import { WebGPUTextureTool } from '../third-party/web-texture-tool/build/webgpu-texture-tool.js';
+import { WebGPUTextureLoader } from '../third-party/web-texture-tool/build/webgpu-texture-loader.js';
 
 import { ClusterBoundsSource, ClusterLightsSource, TILE_COUNT, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';
 import { createShaderModuleDebug } from './wgsl-utils.js';
@@ -74,7 +74,7 @@ export class WebGPURenderer extends Renderer {
       sampleCount: SAMPLE_COUNT
     };
 
-    this.textureTool = new WebGPUTextureTool(this.device);
+    this.textureLoader = new WebGPUTextureLoader(this.device);
 
     this.colorAttachment = {
       // attachment is acquired and set in onResize.
@@ -229,9 +229,9 @@ export class WebGPURenderer extends Renderer {
       })
     }
 
-    this.blackTextureView = this.textureTool.createTextureFromColor(0, 0, 0, 0).texture.createView();
-    this.whiteTextureView = this.textureTool.createTextureFromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
-    this.blueTextureView = this.textureTool.createTextureFromColor(0, 0, 1.0, 0).texture.createView();
+    this.blackTextureView = this.textureLoader.fromColor(0, 0, 0, 0).texture.createView();
+    this.whiteTextureView = this.textureLoader.fromColor(1.0, 1.0, 1.0, 1.0).texture.createView();
+    this.blueTextureView = this.textureLoader.fromColor(0, 0, 1.0, 0).texture.createView();
 
     // Setup a render pipeline for drawing the light sprites
     this.lightSpritePipeline = this.device.createRenderPipeline({
@@ -276,7 +276,7 @@ export class WebGPURenderer extends Renderer {
     if (!this.device) return;
 
     const msaaColorTexture = this.device.createTexture({
-      size: { width, height, depth: 1 },
+      size: { width, height },
       sampleCount: SAMPLE_COUNT,
       format: this.swapChainFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
@@ -284,7 +284,7 @@ export class WebGPURenderer extends Renderer {
     this.colorAttachment.attachment = msaaColorTexture.createView();
 
     const depthTexture = this.device.createTexture({
-      size: { width, height, depth: 1 },
+      size: { width, height },
       sampleCount: SAMPLE_COUNT,
       format: DEPTH_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT
@@ -368,7 +368,7 @@ export class WebGPURenderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureTool.loadTextureFromBlob(await image);
+    const result = await this.textureLoader.fromBlob(await image);
     image.gpuTextureView = result.texture.createView();
   }
 

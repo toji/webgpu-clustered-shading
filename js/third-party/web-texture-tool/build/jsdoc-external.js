@@ -21,27 +21,6 @@
  */
 
 /**
- * A WebGL context
- *
- * @external WebGLRenderingContext
- * @see {@link https://www.khronos.org/registry/webgl/specs/latest/1.0/#5.14}
- */
-
-/**
- * A WebGL 2.0 context
- *
- * @external WebGL2RenderingContext
- * @see {@link https://www.khronos.org/registry/webgl/specs/latest/2.0/#3.7}
- */
-
-/**
- * A WebGL Texture
- *
- * @external WebGLTexture
- * @see {@link https://www.khronos.org/registry/webgl/specs/latest/1.0/#5.9}
- */
-
-/**
  * A WebGPU device
  *
  * @external GPUDevice
@@ -56,33 +35,9 @@
  */
 
 /**
- * A pre-decoded Image
- *
- * @external ImageBitmap
- * @type {object}
- * @see {@link https://html.spec.whatwg.org/multipage/imagebitmap-and-animations.html#imagebitmap}
- */
-
-/**
- * An image tag, as displayed in an HTML document
- *
- * @external HTMLImageElement
- * @type {object}
- * @see {@link https://html.spec.whatwg.org/multipage/embedded-content.html#htmlimageelement}
- */
-
-/**
  * A view of the data contained by an ArrayBuffer
  *
  * @external ArrayBufferView
  * @type {object}
  * @see {@link https://heycam.github.io/webidl/#ArrayBufferView}
- */
-
-/**
- * A serializable byte sequence
- *
- * @external Blob
- * @type {object}
- * @see {@link https://w3c.github.io/FileAPI/#dfn-Blob}
  */

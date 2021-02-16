@@ -1,18 +1,3 @@
-// Copyright 2020 Brandon Jones
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-// documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
-// Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 /**
  * Generic loader which handles texture loading in a worker in order to prevent blocking the main thread.
  *
@@ -72,7 +57,7 @@ function onWorkerMessage(msg) {
   }
 
   // Upload the image data returned by the worker.
-  const result = pendingTexture.client.textureFromTextureData(msg.data, pendingTexture.options.mipmaps);
+  const result = pendingTexture.client.fromTextureData(msg.data, pendingTexture.options.mipmaps);
   pendingTexture.resolve(result);
 }
 
@@ -101,7 +86,7 @@ export class WorkerLoader {
    * @returns {Promise<module:WebTextureLoader.WebTextureResult>} - The WebTextureResult obtained from passing the
    * parsed file data to the client.
    */
-  async loadTextureFromUrl(client, url, options) {
+  async fromUrl(client, url, options) {
     const pendingTextureId = nextPendingTextureId++;
 
     this.worker.postMessage({
@@ -126,9 +111,9 @@ export class WorkerLoader {
    * @returns {Promise<module:WebTextureLoader.WebTextureResult>} - The WebTextureResult obtained from passing the
    * parsed file data to the client.
    */
-  async loadTextureFromBlob(client, blob, options) {
+  async fromBlob(client, blob, options) {
     const buffer = await blob.arrayBuffer();
-    return this.loadTextureFromBuffer(client, buffer, options);
+    return this.fromBuffer(client, buffer, options);
   }
 
   /**
@@ -140,7 +125,7 @@ export class WorkerLoader {
    * @returns {Promise<module:WebTextureLoader.WebTextureResult>} - The WebTextureResult obtained from passing the
    * parsed file data to the client.
    */
-  async loadTextureFromBuffer(client, buffer, options) {
+  async fromBuffer(client, buffer, options) {
     const pendingTextureId = nextPendingTextureId++;
 
     this.worker.postMessage({

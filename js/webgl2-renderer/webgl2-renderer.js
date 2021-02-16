@@ -22,7 +22,7 @@ import { Renderer } from '../renderer.js';
 import { ShaderProgram } from './shader-program.js';
 import { WEBGL2_VERTEX_SOURCE, WEBGL2_FRAGMENT_SOURCE, ATTRIB_MAP, SAMPLER_MAP, UNIFORM_BLOCKS, GetDefinesForPrimitive } from './pbr-shader.js';
 import { vec2, vec3, vec4, mat4 } from '../third-party/gl-matrix/dist/esm/index.js';
-import { WebGLTextureTool } from '../third-party/web-texture-tool/build/webgl-texture-tool.js';
+import { WebGLTextureLoader } from '../third-party/web-texture-tool/build/webgl-texture-loader.js';
 
 export class PBRShaderProgram extends ShaderProgram {
   constructor(gl, defines) {
@@ -127,7 +127,7 @@ export class WebGL2Renderer extends Renderer {
     gl.enable(gl.DEPTH_TEST);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
 
-    this.textureTool = new WebGLTextureTool(gl);
+    this.textureLoader = new WebGLTextureLoader(gl);
 
     this.programs = new Map();
 
@@ -215,7 +215,7 @@ export class WebGL2Renderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureTool.loadTextureFromBlob(await image);
+    const result = await this.textureLoader.fromBlob(await image);
     image.glTexture = result.texture;
   }
 

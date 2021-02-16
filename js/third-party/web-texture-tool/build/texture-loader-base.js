@@ -1,18 +1,3 @@
-// Copyright 2020 Brandon Jones
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
-// documentation files (the "Software"), to deal in the Software without restriction, including without limitation the
-// rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to
-// permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-// The above copyright notice and this permission notice shall be included in all copies or substantial portions of the
-// Software.
-
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
-// WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
-// COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
-
 /**
  * This library offers a unified way of loading textures for both WebGL and WebGPU from various file formats, and in all
  * cases attempts to handle the loading as efficently as possible. Every effort made to prevent texture loading from
@@ -20,96 +5,12 @@
  * streaming in new assets.
  *
  * @file Library for loading various image sources as textures for WebGL or WebGPU
- * @module WebTextureTool
+ * @module TextureLoaderBase
  */
 
 import {ImageLoader} from './image-loader.js';
 import {WorkerLoader} from './workers/worker-loader.js';
-
-// For access to WebGL enums without a context.
-const GL = WebGLRenderingContext;
-
-/**
- * Texture Format
- *
- * @typedef {string} WebTextureFormat
- */
-
-// Additional format data used by Web Texture Tool, based off WebGPU formats.
-// WebGL equivalents given where possible.
-export const WebTextureFormat = {
-  // Uncompressed formats
-  'rgb8unorm': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGB, type: GL.UNSIGNED_BYTE, sizedFormat: 0x8051}, // RGB8
-  },
-  'rgba8unorm': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGBA, type: GL.UNSIGNED_BYTE, sizedFormat: 0x8058}, // RGBA8
-  },
-  'rgb8unorm-srgb': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGB, type: GL.UNSIGNED_BYTE, sizedFormat: 0x8C40}, // SRGB8
-  },
-  'rgba8unorm-srgb': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGBA, type: GL.UNSIGNED_BYTE, sizedFormat: 0x8C43}, // SRGB8_ALPHA8
-  },
-  'rgb565unorm': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGB, type: GL.UNSIGNED_SHORT_5_6_5, sizedFormat: GL.RGB565},
-  },
-  'rgba4unorm': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGBA, type: GL.UNSIGNED_SHORT_4_4_4_4, sizedFormat: GL.RGBA4},
-  },
-  'rgba5551unorm': {
-    canGenerateMipmaps: true,
-    gl: {format: GL.RGBA, type: GL.UNSIGNED_SHORT_5_5_5_1, sizedFormat: GL.RGB5_A1},
-  },
-
-  'bgra8unorm': {canGenerateMipmaps: true}, // No WebGL equivalent
-  'bgra8unorm-srgb': {canGenerateMipmaps: true}, // No WebGL equivalent
-
-  // Compressed formats
-  // WebGL enums from http://www.khronos.org/registry/webgl/extensions/
-  'bc1-rgb-unorm': {
-    gl: {texStorage: true, sizedFormat: 0x83F0}, // COMPRESSED_RGB_S3TC_DXT1_EXT
-    compressed: {blockBytes: 8, blockWidth: 4, blockHeight: 4},
-  },
-  'bc2-rgba-unorm': {
-    gl: {texStorage: true, sizedFormat: 0x83F2}, // COMPRESSED_RGBA_S3TC_DXT3_EXT
-    compressed: {blockBytes: 16, blockWidth: 4, blockHeight: 4},
-  },
-  'bc3-rgba-unorm': {
-    gl: {texStorage: false, sizedFormat: 0x83F3}, // COMPRESSED_RGBA_S3TC_DXT5_EXT
-    compressed: {blockBytes: 16, blockWidth: 4, blockHeight: 4},
-  },
-  'bc7-rgba-unorm': {
-    gl: {texStorage: true, sizedFormat: 0x8E8C}, // COMPRESSED_RGBA_BPTC_UNORM_EXT
-    compressed: {blockBytes: 16, blockWidth: 4, blockHeight: 4},
-  },
-  'etc1-rgb-unorm': {
-    gl: {texStorage: false, sizedFormat: 0x8D64}, // COMPRESSED_RGB_ETC1_WEBGL
-    compressed: {blockBytes: 8, blockWidth: 4, blockHeight: 4},
-  },
-  'etc2-rgba8unorm': {
-    gl: {texStorage: true, sizedFormat: 0x9278}, // COMPRESSED_RGBA8_ETC2_EAC
-    compressed: {blockBytes: 16, blockWidth: 4, blockHeight: 4},
-  },
-  'astc-4x4-rgba-unorm': {
-    gl: {texStorage: true, sizedFormat: 0x93B0}, // COMPRESSED_RGBA_ASTC_4x4_KHR
-    compressed: {blockBytes: 16, blockWidth: 4, blockHeight: 4},
-  },
-  'pvrtc1-4bpp-rgb-unorm': {
-    gl: {texStorage: false, sizedFormat: 0x8C00}, // COMPRESSED_RGB_PVRTC_4BPPV1_IMG
-    compressed: {blockBytes: 8, blockWidth: 4, blockHeight: 4},
-  },
-  'pvrtc1-4bpp-rgba-unorm': {
-    gl: {texStorage: false, sizedFormat: 0x8C02}, // COMPRESSED_RGBA_PVRTC_4BPPV1_IMG
-    compressed: {blockBytes: 8, blockWidth: 4, blockHeight: 4},
-  },
-};
+import {WebTextureFormat} from './texture-format.js';
 
 /**
  * Texture result from calling one of the WebTextureTool methods
@@ -290,10 +191,10 @@ function getMimeTypeLoader(wtt, mimeType) {
 }
 
 /**
- * Base texture tool class.
- * Must not be used directly, create an instance of WebGLTextureTool or WebGPUTextureTool instead.
+ * Base texture loader class.
+ * Must not be used directly, create an instance of WebGLTextureLoader or WebGPUTextureLoader instead.
  */
-export class WebTextureTool {
+export class TextureLoaderBase {
   /**
    * WebTextureTool constructor. Must not be called by applications directly.
    * Create an instance of WebGLTextureTool or WebGPUTextureTool as needed instead.
@@ -322,7 +223,7 @@ export class WebTextureTool {
    * @param {object} textureOptions - Options for how the loaded texture should be handled.
    * @returns {Promise<WebTextureResult>} - Promise which resolves to the completed WebTextureResult.
    */
-  async loadTextureFromUrl(url, textureOptions) {
+  async fromUrl(url, textureOptions) {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
@@ -341,7 +242,7 @@ export class WebTextureTool {
     }
 
     const loader = getMimeTypeLoader(this, options.mimeType);
-    return loader.loadTextureFromUrl(this[CLIENT], TMP_ANCHOR.href, options);
+    return loader.fromUrl(this[CLIENT], TMP_ANCHOR.href, options);
   }
 
   /** Loads a texture from the given blob
@@ -350,7 +251,7 @@ export class WebTextureTool {
    * @param {object} textureOptions - Options for how the loaded texture should be handled.
    * @returns {Promise<WebTextureResult>} - Promise which resolves to the completed WebTextureResult.
    */
-  async loadTextureFromBlob(blob, textureOptions) {
+  async fromBlob(blob, textureOptions) {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
@@ -358,7 +259,7 @@ export class WebTextureTool {
     const options = Object.assign({}, DEFAULT_URL_OPTIONS, textureOptions);
 
     const loader = getMimeTypeLoader(this, blob.type);
-    return loader.loadTextureFromBlob(this[CLIENT], blob, options);
+    return loader.fromBlob(this[CLIENT], blob, options);
   }
 
   /** Loads a texture from the given blob
@@ -367,7 +268,7 @@ export class WebTextureTool {
    * @param {object} textureOptions - Options for how the loaded texture should be handled.
    * @returns {Promise<WebTextureResult>} - Promise which resolves to the completed WebTextureResult.
    */
-  async loadTextureFromBuffer(buffer, textureOptions) {
+  async fromBuffer(buffer, textureOptions) {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
@@ -381,7 +282,7 @@ export class WebTextureTool {
     }
 
     const loader = getMimeTypeLoader(this, options.mimeType);
-    return loader.loadTextureFromBuffer(this[CLIENT], buffer, options);
+    return loader.fromBuffer(this[CLIENT], buffer, options);
   }
 
   /** Loads a texture from the given image element.
@@ -390,7 +291,7 @@ export class WebTextureTool {
    * @param {object} textureOptions - Options for how the loaded texture should be handled.
    * @returns {Promise<WebTextureResult>} - Promise which resolves to the completed WebTextureResult.
    */
-  async loadTextureFromElement(element, textureOptions) {
+  async fromElement(element, textureOptions) {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
@@ -401,7 +302,7 @@ export class WebTextureTool {
       return this[CLIENT].textureFromImageElement(element, 'rgba8unorm', options.mipmaps);
     }
     const imageBitmap = await createImageBitmap(element);
-    return this[CLIENT].textureFromImageBitmap(imageBitmap, 'rgba8unorm', options.mipmaps);
+    return this[CLIENT].fromImageBitmap(imageBitmap, 'rgba8unorm', options.mipmaps);
   }
 
   /** Loads a texture from the given image bitmap.
@@ -410,13 +311,13 @@ export class WebTextureTool {
    * @param {object} textureOptions - Options for how the loaded texture should be handled.
    * @returns {Promise<WebTextureResult>} - Promise which resolves to the completed WebTextureResult.
    */
-  async loadTextureFromImageBitmap(imageBitmap, textureOptions) {
+  async fromImageBitmap(imageBitmap, textureOptions) {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
 
     const options = Object.assign({}, DEFAULT_URL_OPTIONS, textureOptions);
-    return this[CLIENT].textureFromImageBitmap(imageBitmap, 'rgba8unorm', options.mipmaps);
+    return this[CLIENT].fromImageBitmap(imageBitmap, 'rgba8unorm', options.mipmaps);
   }
 
   /**
@@ -429,7 +330,7 @@ export class WebTextureTool {
    * @param {WebTextureFormat} [format='rgba8unorm'] - Format to create the texture with
    * @returns {WebTextureResult} - Completed WebTextureResult
    */
-  createTextureFromColor(r, g, b, a = 1.0, format = 'rgba8unorm') {
+  fromColor(r, g, b, a = 1.0, format = 'rgba8unorm') {
     if (!this[CLIENT]) {
       throw new Error('Cannot create new textures after object has been destroyed.');
     }
@@ -437,7 +338,7 @@ export class WebTextureTool {
       throw new Error('createTextureFromColor only supports "rgba8unorm" and "rgba8unorm-srgb" formats');
     }
     const data = new Uint8Array([r * 255, g * 255, b * 255, a * 255]);
-    return this[CLIENT].textureFromTextureData(new WebTextureData(format, 1, 1, data), false);
+    return this[CLIENT].fromTextureData(new WebTextureData(format, 1, 1, data), false);
   }
 
   /**
