@@ -60,7 +60,14 @@ export class WebGPURenderer extends Renderer {
     this.adapter = await navigator.gpu.requestAdapter({
       powerPreference: "high-performance"
     });
-    this.device = await this.adapter.requestDevice();
+
+    // Enable compressed textures if available
+    const nonGuaranteedFeatures = [];
+    if (this.adapter.features.indexOf('texture-compression-bc') != -1) {
+      nonGuaranteedFeatures.push('texture-compression-bc');
+    }
+
+    this.device = await this.adapter.requestDevice({nonGuaranteedFeatures});
 
     this.swapChainFormat = this.context.getSwapChainPreferredFormat(this.adapter);
     this.swapChain = this.context.configureSwapChain({
@@ -100,6 +107,7 @@ export class WebGPURenderer extends Renderer {
 
     this.bindGroupLayouts = {
       frame: this.device.createBindGroupLayout({
+        label: `frame-bgl`,
         entries: [{
           binding: 0, // Projection uniforms
           visibility: GPUShaderStage.VERTEX | GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
@@ -120,6 +128,7 @@ export class WebGPURenderer extends Renderer {
       }),
 
       material: this.device.createBindGroupLayout({
+        label: `material-bgl`,
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.FRAGMENT,
@@ -158,6 +167,7 @@ export class WebGPURenderer extends Renderer {
       }),
 
       primitive: this.device.createBindGroupLayout({
+        label: `primitive-bgl`,
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.VERTEX,
@@ -166,6 +176,7 @@ export class WebGPURenderer extends Renderer {
       }),
 
       cluster: this.device.createBindGroupLayout({
+        label: `cluster-bgl`,
         entries: [{
           binding: 0,
           visibility: GPUShaderStage.FRAGMENT | GPUShaderStage.COMPUTE,
@@ -235,6 +246,7 @@ export class WebGPURenderer extends Renderer {
 
     // Setup a render pipeline for drawing the light sprites
     this.lightSpritePipeline = this.device.createRenderPipeline({
+      label: `light-sprite-pipeline`,
       layout: this.device.createPipelineLayout({
         bindGroupLayouts: [
           this.bindGroupLayouts.frame, // set 0

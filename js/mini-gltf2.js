@@ -453,22 +453,21 @@ class PrimitiveAttribute {
   }
 
   get gpuFormat() {
-    const count = this.componentCount > 1 ? `${this.componentCount}` : '';
-    const norm = this.normalized ? 'norm' : '';
-
+    const count = this.componentCount > 1 ? `x${this.componentCount}` : '';
+    const intType = this.normalized ? 'norm' : 'int';
     switch(this.componentType) {
       case GL.BYTE:
-        return `char${count}${norm}`;
+        return `s${intType}8${count}`;
       case GL.UNSIGNED_BYTE:
-        return `uchar${count}${norm}`;
+        return `u${intType}8${count}`;
       case GL.SHORT:
-        return `short${count}${norm}`;
+        return `s${intType}16${count}`;
       case GL.UNSIGNED_SHORT:
-        return `ushort${count}${norm}`;
+        return `u${intType}16${count}`;
       case GL.UNSIGNED_INT:
-        return `uint${count}`;
+        return `u${intType}32${count}`;
       case GL.FLOAT:
-        return `float${count}`;
+        return `float32${count}`;
     }
   }
 }
