@@ -504,28 +504,25 @@ class Primitive {
   }
 
   getPartialRenderPipelineDescriptor(attributeMap) {
-    const primitiveTopology = this.gpuPrimitiveTopology;
-    const vertexState = this.getVertexStateDescriptor(attributeMap);
+    const primitive = {
+      topology: this.gpuPrimitiveTopology,
+      cullMode: this.material.cullFace ? 'back' : 'none',
+    };
 
-    const cullMode = this.material.primitiveTopologyprimitiveTopology ? 'back' : 'none';
-
-    // Generate a key that describes this pipeline's layout/state
-    let pipelineKey = `${primitiveTopology}|${cullMode}|${vertexState.hash}`;
+    if (this.mode == GL.TRIANGLE_STRIP || this.mode == GL.LINE_STRIP) {
+      primitive.stripIndexFormat = this.indices.gpuType;
+    }
 
     return {
-      // Not used by WebGPU, but useful for identifing primitives with identical vertex states.
-      hash: `${primitiveTopology}|${cullMode}|${vertexState.hash}`,
-
-      primitiveTopology: this.gpuPrimitiveTopology,
-      rasterizationState: {
-        cullMode: this.material.cullFace ? 'back' : 'none'
+      vertex: {
+        buffers: this.getVertexBufferLayout(attributeMap)
       },
-      vertexState,
-    }
+      primitive,
+    };
   }
 
   // Returns a GPUVertexStateDescriptor that describes the layout of the buffers for this primitive.
-  getVertexStateDescriptor(attributeMap) {
+  getVertexBufferLayout(attributeMap) {
     const vertexBuffers = [];
 
     for (let [bufferView, bufferAttributes] of this.attributeBuffers) {
@@ -556,15 +553,7 @@ class Primitive {
       });
     }
 
-    const vertexState = {
-      vertexBuffers,
-    };
-
-    if (this.mode == GL.TRIANGLE_STRIP || this.mode == GL.LINE_STRIP) {
-      vertexState.indexFormat = this.indices.gpuType;
-    }
-
-    return vertexState;
+    return vertexBuffers;
   }
 
   get gpuPrimitiveTopology() {

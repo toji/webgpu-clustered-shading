@@ -75,8 +75,8 @@ export class RenderBundleHelper {
       }
       shaderModule = {
         id: this.nextShaderModuleId++,
-        vertexStage: { module: createShaderModuleDebug(this.device, vertexSource), entryPoint: 'main' },
-        fragmentStage: fragmentSource ? { module: createShaderModuleDebug(this.device, fragmentSource), entryPoint: 'main' } : null,
+        vertex: createShaderModuleDebug(this.device, vertexSource),
+        fragment: fragmentSource ? createShaderModuleDebug(this.device, fragmentSource) : null,
       };
       this.shaderModuleCache.set(shaderModuleKey, shaderModule);
     }
@@ -94,26 +94,33 @@ export class RenderBundleHelper {
       colorBlend.dstFactor = 'one-minus-src-alpha';
     }
 
+    pipelineDescriptor.vertex.module = shaderModule.vertex;
+    pipelineDescriptor.vertex.entryPoint = "main";
+
     Object.assign(pipelineDescriptor, {
       layout: this.pipelineLayout,
-
-      vertexStage: shaderModule.vertexStage,
-      fragmentStage: shaderModule.fragmentStage,
-
-      colorStates: [{
-        format: this.renderBundleDescriptor.colorFormats[0],
-        colorBlend,
-        alphaBlend: {
-          srcFactor: "one",
-          dstFactor: "one",
-        }
-      }],
-      depthStencilState: {
+      fragment: {
+        module: shaderModule.fragment,
+        entryPoint: "main",
+        targets: [{
+          format: this.renderBundleDescriptor.colorFormats[0],
+          blend: {
+            color: colorBlend,
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one",
+            }
+          },
+        }]
+      },
+      depthStencil: {
+        format: this.renderBundleDescriptor.depthStencilFormat,
         depthWriteEnabled: true,
         depthCompare: 'less',
-        format: this.renderBundleDescriptor.depthStencilFormat,
       },
-      sampleCount: this.renderBundleDescriptor.sampleCount,
+      multisample: {
+        count: this.renderBundleDescriptor.sampleCount
+      }
     });
 
     return this.pipelineCache.getRenderPipeline(pipelineDescriptor);

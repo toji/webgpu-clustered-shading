@@ -52,57 +52,57 @@ const stencilStateFaceDefaults = {
   passOp: "keep",
 };
 
-const programmableStageDefaults = {
-  module: getShaderModuleHashId,
-  entryPoint: undefined,
-};
-
 const renderPipelineDefaults = {
-    layout: getPipelineLayoutHashId,
+  layout: getPipelineLayoutHashId,
 
-    vertexStage: programmableStageDefaults,
-    fragmentStage: programmableStageDefaults,
-
-    primitiveTopology: undefined,
-    rasterizationState: {
-      frontFace: "ccw",
-      cullMode: "none",
-      clampDepth: false,
-      depthBias: 0,
-      depthBiasSlopeScale: 0,
-      depthBiasClamp: 0,
-    },
-    colorStates: [{
-      format: undefined,
-      colorBlend: blendComponentDefaults,
-      alphaBlend: blendComponentDefaults,
-      writeMask: 0xF,
+  vertex: {
+    module: getShaderModuleHashId,
+    entryPoint: undefined,
+    buffers: [{
+      arrayStride: undefined,
+      stepMode: "vertex",
+      attributes: {
+        format: undefined,
+        offset: undefined,
+        shaderLocation: undefined,
+      },
     }],
-    depthStencilState: {
+  },
+  primitive: {
+    topology: "triangle-list",
+    stripIndexFormat: undefined,
+    frontFace: "ccw",
+    cullMode: "none",
+  },
+  depthStencil: {
+    format: undefined,
+    depthWriteEnabled: false,
+    depthCompare: "always",
+    stencilFront: stencilStateFaceDefaults,
+    stencilBack: stencilStateFaceDefaults,
+    stencilReadMask: 0xFFFFFFFF,
+    stencilWriteMask: 0xFFFFFFFF,
+    depthBias: 0,
+    depthBiasSlopeScale: 0,
+    depthBiasClamp: 0,
+  },
+  multisample: {
+    count: 1,
+    mask: 0xFFFFFFFF,
+    alphaToCoverageEnabled: false,
+  },
+  fragment: {
+    module: getShaderModuleHashId,
+    entryPoint: undefined,
+    targets: [{
       format: undefined,
-      depthWriteEnabled: false,
-      depthCompare: "always",
-      stencilFront: stencilStateFaceDefaults,
-      stencilBack: stencilStateFaceDefaults,
-      stencilReadMask: 0xFFFFFFFF,
-      stencilWriteMask: 0xFFFFFFFF,
-    },
-    vertexState: {
-      indexFormat: undefined,
-      vertexBuffers: [{
-        arrayStride: undefined,
-        stepMode: "vertex",
-        attributes: {
-          format: undefined,
-          offset: undefined,
-          shaderLocation: undefined,
-        },
-      }],
-    },
-
-    sampleCount: 1,
-    sampleMask: 0xFFFFFFFF,
-    alphaToCoverageEnabled: false
+      blend: {
+        color: blendComponentDefaults,
+        alpha: blendComponentDefaults,
+      },
+      writeMask: 0xF,
+    }]
+  },
 };
 
 // Ensures that keys are always written in the same order and that default values are always ommitted.
@@ -121,22 +121,24 @@ function normalizeDescriptor(descriptor, defaults) {
     if (typeof defaultValue == 'function') {
       value = defaultValue(value);
     } else if (defaultValue instanceof Array) {
-      let arrayValue = [];
-      const elementDefault = defaultValue[0];
-      for (let element of value) {
-        if (typeof elementDefault == 'Function') {
-          element = elementDefault(element);
-        } else if (typeof elementDefault == 'Object') {
-          element = normalizeDescriptor(element, elementDefault);
-        } else if (value == elementDefault) {
-          throw new Error('Invalid default for descriptor array');
+      if (value) {
+        let arrayValue = [];
+        const elementDefault = defaultValue[0];
+        for (let element of value) {
+          if (typeof elementDefault == 'Function') {
+            element = elementDefault(element);
+          } else if (typeof elementDefault == 'Object') {
+            element = normalizeDescriptor(element, elementDefault);
+          } else if (value == elementDefault) {
+            throw new Error('Invalid default for descriptor array');
+          }
+          arrayValue.push(element);
         }
-        arrayValue.push(element);
+        if (arrayValue.length == 0) {
+          arrayValue = undefined;
+        }
+        value = arrayValue;
       }
-      if (arrayValue.length == 0) {
-        arrayValue = undefined;
-      }
-      value = arrayValue;
     } else if (typeof defaultValue == 'object') {
       value = normalizeDescriptor(value, defaultValue);
     }  else if (value == defaultValue) {

@@ -252,35 +252,39 @@ export class WebGPURenderer extends Renderer {
           this.bindGroupLayouts.frame, // set 0
         ]
       }),
-      vertexStage: {
+      vertex: {
         module: createShaderModuleDebug(this.device, LightSpriteVertexSource),
         entryPoint: 'main'
       },
-      fragmentStage: {
+      fragment: {
         module: createShaderModuleDebug(this.device, LightSpriteFragmentSource),
-        entryPoint: 'main'
+        entryPoint: 'main',
+        targets: [{
+          format: this.swapChainFormat,
+          blend: {
+            color: {
+              srcFactor: 'src-alpha',
+              dstFactor: 'one',
+            },
+            alpha: {
+              srcFactor: "one",
+              dstFactor: "one",
+            },
+          },
+        }],
       },
-      primitiveTopology: 'triangle-strip',
-      vertexState: {
-        indexFormat: 'uint32'
+      primitive: {
+        topology: 'triangle-strip',
+        stripIndexFormat: 'uint32'
       },
-      colorStates: [{
-        format: this.swapChainFormat,
-        colorBlend: {
-          srcFactor: 'src-alpha',
-          dstFactor: 'one',
-        },
-        alphaBlend: {
-          srcFactor: "one",
-          dstFactor: "one",
-        }
-      }],
-      depthStencilState: {
+      depthStencil: {
         depthWriteEnabled: false,
         depthCompare: 'less',
         format: DEPTH_FORMAT,
       },
-      sampleCount: SAMPLE_COUNT,
+      multisample: {
+        count: SAMPLE_COUNT,
+      }
     });
   }
 
