@@ -171,7 +171,7 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
 const RadianceFunction = `
 ${PBRFunctions}
 
-fn lightRadiance(i : i32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>) -> vec3<f32> {
+fn lightRadiance(i : u32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>) -> vec3<f32> {
   var L : vec3<f32> = normalize(globalLights.lights[i].position.xyz - vWorldPos);
   var H : vec3<f32> = normalize(V + L);
   var distance : f32 = length(globalLights.lights[i].position.xyz - vWorldPos);
@@ -204,9 +204,9 @@ export function PBRFragmentSource(defines) { return `
   ${LightUniforms}
   ${MaterialUniforms}
 
-  ${RadianceFunction}
-
   ${PBR_VARYINGS(defines, 'in')}
+
+  ${RadianceFunction}
 
   [[location(0)]] var<out> outColor : vec4<f32>;
 
@@ -217,7 +217,7 @@ export function PBRFragmentSource(defines) { return `
     // reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-    for (var i : i32 = 0; i < globalLights.lightCount; i = i + 1) {
+    for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
       // calculate per-light radiance and add to outgoing radiance Lo
       Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
     }
@@ -237,10 +237,10 @@ export function PBRClusteredFragmentSource(defines) { return `
   ${MaterialUniforms}
   ${LightUniforms}
 
+  ${PBR_VARYINGS(defines, 'in')}
+
   ${TileFunctions}
   ${RadianceFunction}
-
-  ${PBR_VARYINGS(defines, 'in')}
 
   [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
   [[location(0)]] var<out> outColor : vec4<f32>;
@@ -252,11 +252,11 @@ export function PBRClusteredFragmentSource(defines) { return `
     // reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-    var clusterIndex : i32 = getClusterIndex(fragCoord);
-    var lightCount : i32 = clusterLights.lights[clusterIndex].count;
+    var clusterIndex : u32 = getClusterIndex(fragCoord);
+    var lightCount : u32 = clusterLights.lights[clusterIndex].count;
 
-    for (var lightIndex : i32 = 0; lightIndex < lightCount; lightIndex = lightIndex + 1) {
-      var i : i32 = clusterLights.lights[clusterIndex].indices[lightIndex];
+    for (var lightIndex : u32 = 0u; lightIndex < lightCount; lightIndex = lightIndex + 1u) {
+      var i : u32 = clusterLights.lights[clusterIndex].indices[lightIndex];
 
       // calculate per-light radiance and add to outgoing radiance Lo
       Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);

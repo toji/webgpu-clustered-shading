@@ -27,14 +27,9 @@ import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLU
  */
 export class DepthVisualization extends RenderBundleHelper {
   getFragmentSource(defines) { return `
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    [[location(0)]] var<out> outColor : vec4<f32>;
-
     [[stage(fragment)]]
-    fn main() -> void {
-      outColor = vec4<f32>(fragCoord.zzz, 1.0);
-      return;
+    fn main([[builtin(frag_coord)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32> {
+      return vec4<f32>(fragCoord.zzz, 1.0);
     }
   `; }
 }
@@ -46,10 +41,6 @@ export class DepthSliceVisualization extends RenderBundleHelper {
   getFragmentSource(defines) { return `
     ${ProjectionUniforms}
     ${TileFunctions}
-
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    [[location(0)]] var<out> outColor : vec4<f32>;
 
     const colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
       vec3<f32>(1.0, 0.0, 0.0),
@@ -64,10 +55,9 @@ export class DepthSliceVisualization extends RenderBundleHelper {
     );
 
     [[stage(fragment)]]
-    fn main() -> void {
-      var tile : vec3<i32> = getTile(fragCoord);
-      outColor = vec4<f32>(colorSet[tile.z % 9], 1.0);
-      return;
+    fn main([[builtin(frag_coord)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32> {
+      var tile : vec3<u32> = getTile(fragCoord);
+      return vec4<f32>(colorSet[tile.z % 9u], 1.0);
     }
   `; }
 }
@@ -119,10 +109,7 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
 
     [[stage(fragment)]]
     fn main() -> void {
-      var clusterIndex : i32 = getClusterIndex(fragCoord);
-
-      // THIS CRASHES:
-      // var clusterBounds : ClusterBounds = clusters.bounds[clusterIndex];
+      var clusterIndex : u32 = getClusterIndex(fragCoord);
 
       const midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
       const center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
@@ -132,8 +119,6 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
       var distToBoundsCenter : f32 = length(fragToBoundsCenter);
       var normDist : f32 = distToBoundsCenter / radius;
 
-      // FILE BUG: Why does this come out white?
-      // outColor = vec4<f32>(1.0, 0, 0, 1.0);
       outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
       return;
     }
@@ -164,8 +149,8 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
 
     [[stage(fragment)]]
     fn main() -> void {
-      var clusterIndex : i32 = getClusterIndex(fragCoord);
-      var lightCount : i32 = clusterLights.lights[clusterIndex].count;
+      var clusterIndex : u32 = getClusterIndex(fragCoord);
+      var lightCount : u32 = clusterLights.lights[clusterIndex].count;
       var lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});
       outColor = mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
       return;

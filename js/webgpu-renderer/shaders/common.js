@@ -35,11 +35,11 @@ export const BIND_GROUP = {
 export const ProjectionUniformsSize = 144;
 export const ProjectionUniforms = `
   [[block]] struct ProjectionUniforms {
-    [[offset(0)]] matrix : mat4x4<f32>;
-    [[offset(64)]] inverseMatrix : mat4x4<f32>;
-    [[offset(128)]] outputSize : vec2<f32>;
-    [[offset(136)]] zNear : f32;
-    [[offset(140)]] zFar : f32;
+    matrix : mat4x4<f32>;
+    inverseMatrix : mat4x4<f32>;
+    outputSize : vec2<f32>;
+    zNear : f32;
+    zFar : f32;
   };
   [[group(${BIND_GROUP.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
 `;
@@ -47,24 +47,23 @@ export const ProjectionUniforms = `
 export const ViewUniformsSize = 80;
 export const ViewUniforms = `
   [[block]] struct ViewUniforms {
-    [[offset(0)]] matrix : mat4x4<f32>;
-    [[offset(64)]] position : vec3<f32>;
-    [[offset(76)]] dummy : f32;
+    matrix : mat4x4<f32>;
+    position : vec3<f32>;
   };
   [[group(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
 `;
 
 export const LightUniforms = `
   struct Light {
-    [[offset(0)]] position : vec3<f32>;
-    [[offset(12)]] range : f32;
-    [[offset(16)]] color : vec3<f32>;
+    position : vec3<f32>;
+    range : f32;
+    color : vec3<f32>;
   };
 
   [[block]] struct GlobalLightUniforms {
-    [[offset(0)]] ambient : vec3<f32>;
-    [[offset(12)]] lightCount : u32;
-    [[offset(16)]] lights : [[stride(32)]] array<Light>;
+    ambient : vec3<f32>;
+    lightCount : u32;
+    lights : [[stride(32)]] array<Light>;
   };
   [[group(${BIND_GROUP.Frame}), binding(2)]] var<storage> globalLights : [[access(read)]] GlobalLightUniforms;
 `;
@@ -72,7 +71,7 @@ export const LightUniforms = `
 export const ModelUniformsSize = 64;
 export const ModelUniforms = `
   [[block]] struct ModelUniforms {
-    [[offset(0)]] matrix : mat4x4<f32>;
+    matrix : mat4x4<f32>;
   };
   [[group(${BIND_GROUP.Model}), binding(0)]] var<uniform> model : ModelUniforms;
 `;
@@ -80,10 +79,10 @@ export const ModelUniforms = `
 export const MaterialUniformsSize = 48;
 export const MaterialUniforms = `
   [[block]] struct MaterialUniforms {
-    [[offset(0)]] baseColorFactor : vec4<f32>;
-    [[offset(16)]] metallicRoughnessFactor : vec2<f32>;
-    [[offset(32)]] emissiveFactor : vec3<f32>;
-    [[offset(44)]] occlusionStrength : f32;
+    baseColorFactor : vec4<f32>;
+    metallicRoughnessFactor : vec2<f32>;
+    emissiveFactor : vec3<f32>;
+    occlusionStrength : f32;
   };
   [[group(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
 
@@ -100,13 +99,8 @@ export const SimpleVertexSource = `
   ${ViewUniforms}
   ${ModelUniforms}
 
-  [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
-
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
-
   [[stage(vertex)]]
-  fn main() -> void {
-    outPosition = projection.matrix * view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
-    return;
+  fn main([[location(${ATTRIB_MAP.POSITION})]] POSITION : vec3<f32>) -> [[builtin(position)]] vec4<f32> {
+    return projection.matrix * view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
   }
 `;
