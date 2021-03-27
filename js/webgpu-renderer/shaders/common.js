@@ -86,12 +86,12 @@ export const MaterialUniforms = `
   };
   [[group(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
 
-  [[group(${BIND_GROUP.Material}), binding(1)]] var<uniform_constant> defaultSampler : sampler;
-  [[group(${BIND_GROUP.Material}), binding(2)]] var<uniform_constant> baseColorTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(3)]] var<uniform_constant> normalTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(4)]] var<uniform_constant> metallicRoughnessTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(5)]] var<uniform_constant> occlusionTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(6)]] var<uniform_constant> emissiveTexture : texture_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(1)]] var defaultSampler : sampler;
+  [[group(${BIND_GROUP.Material}), binding(2)]] var baseColorTexture : texture_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(3)]] var normalTexture : texture_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(4)]] var metallicRoughnessTexture : texture_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(5)]] var occlusionTexture : texture_2d<f32>;
+  [[group(${BIND_GROUP.Material}), binding(6)]] var emissiveTexture : texture_2d<f32>;
 `;
 
 export const SimpleVertexSource = `
