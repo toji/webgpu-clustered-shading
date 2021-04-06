@@ -18,6 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
+// This import installs hooks that help us output better formatted shader errors
+import './wgsl-utils.js';
+
 import { Renderer } from '../renderer.js';
 import { ProjectionUniformsSize, ViewUniformsSize, BIND_GROUP } from './shaders/common.js';
 import { PBRRenderBundleHelper, PBRClusteredRenderBundleHelper } from './pbr-render-bundle-helper.js';
@@ -27,7 +30,6 @@ import { vec2, vec3, vec4 } from '../third-party/gl-matrix/dist/esm/index.js';
 import { WebGPUTextureLoader } from '../third-party/web-texture-tool/build/webgpu-texture-loader.js';
 
 import { ClusterBoundsSource, ClusterLightsSource, TILE_COUNT, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';
-import { createShaderModuleDebug } from './wgsl-utils.js';
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
@@ -80,6 +82,18 @@ export class WebGPURenderer extends Renderer {
       depthStencilFormat: DEPTH_FORMAT,
       sampleCount: SAMPLE_COUNT
     };
+
+    // Just for debugging my shader helper stuff. This is expected to fail.
+    this.device.createShaderModule({
+      label: 'Test Shader',
+      code: `
+        [[stage(vertex)]]
+        fn main([[location(0)]] inPosition : vec3<f32>) -> [[builtin(position)]] vec4 {
+          let a = 0;
+          return vec4<f32>(inPosition, 1.0);
+        }
+      `
+    });
 
     this.textureLoader = new WebGPUTextureLoader(this.device);
 
@@ -253,11 +267,11 @@ export class WebGPURenderer extends Renderer {
         ]
       }),
       vertex: {
-        module: createShaderModuleDebug(this.device, LightSpriteVertexSource),
+        module: this.device.createShaderModule({ code: LightSpriteVertexSource, label: 'Light Sprite Vertex' }),
         entryPoint: 'main'
       },
       fragment: {
-        module: createShaderModuleDebug(this.device, LightSpriteFragmentSource),
+        module: this.device.createShaderModule({ code: LightSpriteFragmentSource, label: 'Light Sprite Fragment' }),
         entryPoint: 'main',
         targets: [{
           format: this.swapChainFormat,
@@ -499,7 +513,7 @@ export class WebGPURenderer extends Renderer {
           ]
         }),
         computeStage: {
-          module: createShaderModuleDebug(this.device, ClusterBoundsSource),
+          module: this.device.createShaderModule({ code: ClusterBoundsSource }),
           entryPoint: 'main',
         }
       });
@@ -556,7 +570,7 @@ export class WebGPURenderer extends Renderer {
       this.clusterLightsPipeline = this.device.createComputePipeline({
         layout: clusterLightsPipelineLayout,
         computeStage: {
-          module: createShaderModuleDebug(this.device, ClusterLightsSource),
+          module: this.device.createShaderModule({ code: ClusterLightsSource }),
           entryPoint: 'main',
         }
       });

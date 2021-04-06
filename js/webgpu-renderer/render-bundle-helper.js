@@ -19,7 +19,6 @@
 // SOFTWARE.
 
 import { RenderPipelineCache } from './render-pipeline-cache.js';
-import { createShaderModuleDebug } from './wgsl-utils.js';
 import { ATTRIB_MAP, BIND_GROUP, SimpleVertexSource } from './shaders/common.js';
 
 // A utility class that creates render bundles for a set of shaders and a list of primitives.
@@ -75,8 +74,8 @@ export class RenderBundleHelper {
       }
       shaderModule = {
         id: this.nextShaderModuleId++,
-        vertex: createShaderModuleDebug(this.device, vertexSource),
-        fragment: fragmentSource ? createShaderModuleDebug(this.device, fragmentSource) : null,
+        vertex: this.device.createShaderModule({ code: vertexSource }),
+        fragment: fragmentSource ? this.device.createShaderModule({ code: fragmentSource }) : null,
       };
       this.shaderModuleCache.set(shaderModuleKey, shaderModule);
     }
