@@ -19,7 +19,7 @@
 // SOFTWARE.
 
 // This import installs hooks that help us output better formatted shader errors
-import './wgsl-utils.js';
+import './wgsl-debug-helper.js';
 
 import { Renderer } from '../renderer.js';
 import { ProjectionUniformsSize, ViewUniformsSize, BIND_GROUP } from './shaders/common.js';
@@ -65,7 +65,7 @@ export class WebGPURenderer extends Renderer {
 
     // Enable compressed textures if available
     const nonGuaranteedFeatures = [];
-    if (this.adapter.features.indexOf('texture-compression-bc') != -1) {
+    if (this.adapter.features.has('texture-compression-bc') != -1) {
       nonGuaranteedFeatures.push('texture-compression-bc');
     }
 
@@ -84,7 +84,7 @@ export class WebGPURenderer extends Renderer {
     };
 
     // Just for debugging my shader helper stuff. This is expected to fail.
-    this.device.createShaderModule({
+    /*this.device.createShaderModule({
       label: 'Test Shader',
       code: `
         [[stage(vertex)]]
@@ -93,7 +93,7 @@ export class WebGPURenderer extends Renderer {
           return vec4<f32>(inPosition, 1.0);
         }
       `
-    });
+    });*/
 
     this.textureLoader = new WebGPUTextureLoader(this.device);
 

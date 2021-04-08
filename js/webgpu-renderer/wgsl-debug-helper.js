@@ -112,7 +112,7 @@ if ('GPUDevice' in window) {
           groupLabel += ` ${infoCount}ℹ`;
         }
 
-        if (errorCount) {
+        if (errorCount == 0) {
           console.groupCollapsed(groupLabel);
         } else {
           console.group(groupLabel);
