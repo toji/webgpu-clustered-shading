@@ -21,7 +21,7 @@
 import { ProjectionUniforms, ViewUniforms, LightUniforms } from './common.js';
 
 export const LightSpriteVertexSource = `
-  const pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
+  let pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
     vec2<f32>(-1.0, 1.0), vec2<f32>(1.0, 1.0), vec2<f32>(-1.0, -1.0), vec2<f32>(1.0, -1.0)
   );
 
@@ -37,10 +37,10 @@ export const LightSpriteVertexSource = `
   [[builtin(instance_index)]] var<in> instanceIndex : i32;
 
   [[stage(vertex)]]
-  fn main() -> void {
+  fn main() {
     vPos = pos[vertexIndex];
     vColor = globalLights.lights[instanceIndex].color;
-    var worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * globalLights.lights[instanceIndex].range * 0.025;
+    let worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * globalLights.lights[instanceIndex].range * 0.025;
 
     // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
@@ -59,7 +59,6 @@ export const LightSpriteVertexSource = `
     bbModelViewMatrix[2][2] = 1.0;
 
     outPosition = projection.matrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
-    return;
   }
 `;
 
@@ -70,10 +69,9 @@ export const LightSpriteFragmentSource = `
   [[location(1)]] var<in> vColor : vec3<f32>;
 
   [[stage(fragment)]]
-  fn main() -> void {
-    var distToCenter : f32 = length(vPos);
-    var fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+  fn main() {
+    let distToCenter : f32 = length(vPos);
+    let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
     outColor = vec4<f32>(vColor * fade, fade);
-    return;
   }
 `;

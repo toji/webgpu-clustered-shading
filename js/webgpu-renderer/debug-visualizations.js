@@ -42,7 +42,7 @@ export class DepthSliceVisualization extends RenderBundleHelper {
     ${ProjectionUniforms}
     ${TileFunctions}
 
-    const colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+    let colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
       vec3<f32>(1.0, 0.0, 0.0),
       vec3<f32>(1.0, 0.5, 0.0),
       vec3<f32>(0.5, 1.0, 0.0),
@@ -88,10 +88,9 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     [[builtin(position)]] var<out> outPosition : vec4<f32>;
 
     [[stage(vertex)]]
-    fn main() -> void {
+    fn main() {
       viewPosition = view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
       outPosition = projection.matrix * viewPosition;
-      return;
     }
   `}
 
@@ -108,19 +107,18 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     [[location(0)]] var<out> outColor : vec4<f32>;
 
     [[stage(fragment)]]
-    fn main() -> void {
-      var clusterIndex : u32 = getClusterIndex(fragCoord);
+    fn main() {
+      let clusterIndex : u32 = getClusterIndex(fragCoord);
 
-      const midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
-      const center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
-      const radius : f32 = length(midPoint);
+      let midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
+      let center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
+      let radius : f32 = length(midPoint);
 
-      var fragToBoundsCenter : vec3<f32> = viewPosition.xyz - center;
-      var distToBoundsCenter : f32 = length(fragToBoundsCenter);
-      var normDist : f32 = distToBoundsCenter / radius;
+      let fragToBoundsCenter : vec3<f32> = viewPosition.xyz - center;
+      let distToBoundsCenter : f32 = length(fragToBoundsCenter);
+      let normDist : f32 = distToBoundsCenter / radius;
 
       outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
-      return;
     }
   `; }
 
@@ -148,12 +146,11 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
     [[location(0)]] var<out> outColor : vec4<f32>;
 
     [[stage(fragment)]]
-    fn main() -> void {
-      var clusterIndex : u32 = getClusterIndex(fragCoord);
-      var lightCount : u32 = clusterLights.lights[clusterIndex].count;
-      var lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});
+    fn main() {
+      let clusterIndex : u32 = getClusterIndex(fragCoord);
+      let lightCount : u32 = clusterLights.lights[clusterIndex].count;
+      let lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});
       outColor = mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
-      return;
     }
   `; }
 }

@@ -21,8 +21,9 @@
 const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
 
 /**
- * A method that captures errors returned by compiling a WebGPU shader module and annotates them
- * with additional information before echoing to the console to aid with debugging.
+ * A method that captures errors returned by compiling a WebGPU shader module
+ * and annotates them with additional information before echoing to the console
+ * to aid with debugging.
  */
 if ('GPUDevice' in window) {
   const origCreateShaderModule = GPUDevice.prototype.createShaderModule;
@@ -32,52 +33,11 @@ if ('GPUDevice' in window) {
     const shaderModule = origCreateShaderModule.call(this, descriptor);
 
     this.popErrorScope().then((error) => {
-      // Only take this path if compilationInfo is not present.
+      // If compilationInfo is not available in this browser just echo any error
+      // messages we get.It's expected that the error message should cover a
+      // subset of any compilationInfo messages.
       if (!shaderModule.compilationInfo && error) {
-        const codeLines = descriptor.code.split('\n');
-
-        // Find every line in the error that matches a known format. (line:char: message)
-        const errorList = error.message.matchAll(SHADER_ERROR_REGEX);
-
-        // Loop through the parsed error messages and show the relevant source code for each message.
-        let errorMessage = '';
-        let errorStyles = [];
-
-        let lastIndex = 0;
-
-        for (const errorMatch of errorList) {
-          // Include out any content between the parsable lines
-          if (errorMatch.index > lastIndex+1) {
-            errorMessage += error.message.substring(lastIndex, errorMatch.index);
-          }
-          lastIndex = errorMatch.index + errorMatch[0].length;
-
-          // Show the correlated line with an arrow that points at the indicated error position.
-          const errorLine = parseInt(errorMatch[1], 10)-1;
-          const errorChar = parseInt(errorMatch[2], 10);
-          const errorPointer = '-'.repeat(errorChar-1) + '^';
-          errorMessage += `${errorMatch[0]}\n%c${codeLines[errorLine]}\n%c${errorPointer}%c\n`;
-          errorStyles.push(
-            'color: grey;',
-            'color: green; font-weight: bold;',
-            'color: default;',
-          );
-
-        }
-
-        // If no parsable errors were found, just print the whole message.
-        if (lastIndex == 0) {
-          console.error(error.message);
-          return;
-        }
-
-        // Otherwise append any trailing message content.
-        if (error.message.length > lastIndex+1) {
-          errorMessage += error.message.substring(lastIndex+1, error.message.length);
-        }
-
-        // Finally, log to console as an error.
-        console.error(errorMessage, ...errorStyles);
+        console.error(error.message);
       }
     });
 
@@ -101,7 +61,9 @@ if ('GPUDevice' in window) {
           }
         }
 
-        let groupLabel = (shaderModule.label ? `"${shaderModule.label}"` : 'Shader') +' returned compilation messages:';
+        const label = shaderModule.label;
+        let groupLabel = (label ? `"${label}"` : 'Shader') +
+            ' returned compilation messages:';
         if (errorCount) {
           groupLabel += ` ${errorCount}⛔`;
         }

@@ -513,7 +513,7 @@ export class WebGPURenderer extends Renderer {
           ]
         }),
         computeStage: {
-          module: this.device.createShaderModule({ code: ClusterBoundsSource }),
+          module: this.device.createShaderModule({ code: ClusterBoundsSource, label: "Cluster Bounds" }),
           entryPoint: 'main',
         }
       });
@@ -570,7 +570,7 @@ export class WebGPURenderer extends Renderer {
       this.clusterLightsPipeline = this.device.createComputePipeline({
         layout: clusterLightsPipelineLayout,
         computeStage: {
-          module: this.device.createShaderModule({ code: ClusterLightsSource }),
+          module: this.device.createShaderModule({ code: ClusterLightsSource, label: "Cluster Lights" }),
           entryPoint: 'main',
         }
       });

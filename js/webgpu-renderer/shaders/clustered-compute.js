@@ -32,18 +32,18 @@ export const MAX_LIGHTS_PER_CLUSTER = 100;
 export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4;
 
 export const TileFunctions = `
-const tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
+let tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
 
 fn linearDepth(depthSample : f32) -> f32 {
-  var depthRange : f32 = 2.0 * depthSample - 1.0;
+  let depthRange : f32 = 2.0 * depthSample - 1.0;
   return 2.0 * projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthRange * (projection.zFar - projection.zNear));
 }
 
 fn getTile(fragCoord : vec4<f32>) -> vec3<u32> {
   // TODO: scale and bias calculation can be moved outside the shader to save cycles.
-  var sliceScale : f32 = f32(tileCount.z) / log2(projection.zFar / projection.zNear);
-  var sliceBias : f32 = -(f32(tileCount.z) * log2(projection.zNear) / log2(projection.zFar / projection.zNear));
-  var zTile : u32 = u32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
+  let sliceScale : f32 = f32(tileCount.z) / log2(projection.zFar / projection.zNear);
+  let sliceBias : f32 = -(f32(tileCount.z) * log2(projection.zNear) / log2(projection.zFar / projection.zNear));
+  let zTile : u32 = u32(max(log2(linearDepth(fragCoord.z)) * sliceScale + sliceBias, 0.0));
 
   return vec3<u32>(u32(fragCoord.x / (projection.outputSize.x / f32(tileCount.x))),
                    u32(fragCoord.y / (projection.outputSize.y / f32(tileCount.y))),
@@ -51,7 +51,7 @@ fn getTile(fragCoord : vec4<f32>) -> vec3<u32> {
 }
 
 fn getClusterIndex(fragCoord : vec4<f32>) -> u32 {
-  const tile : vec3<u32> = getTile(fragCoord);
+  let tile : vec3<u32> = getTile(fragCoord);
   return tile.x +
          tile.y * tileCount.x +
          tile.z * tileCount.x * tileCount.y;
@@ -87,53 +87,51 @@ export const ClusterBoundsSource = `
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
-      const normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
-      const ab : vec3<f32> =  b - a;
-      const t : f32 = (zDistance - dot(normal, a)) / dot(normal, ab);
-      return a + t * ab;
+    let normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
+    let ab : vec3<f32> =  b - a;
+    let t : f32 = (zDistance - dot(normal, a)) / dot(normal, ab);
+    return a + t * ab;
   }
 
   fn clipToView(clip : vec4<f32>) -> vec4<f32> {
-      const view : vec4<f32> = projection.inverseMatrix * clip;
-      return view / vec4<f32>(view.w, view.w, view.w, view.w);
+    let view : vec4<f32> = projection.inverseMatrix * clip;
+    return view / vec4<f32>(view.w, view.w, view.w, view.w);
   }
 
   fn screen2View(screen : vec4<f32>) -> vec4<f32> {
-      const texCoord : vec2<f32> = screen.xy / projection.outputSize.xy;
-      const clip : vec4<f32> = vec4<f32>(vec2<f32>(texCoord.x, 1.0 - texCoord.y) * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
-      return clipToView(clip);
+    let texCoord : vec2<f32> = screen.xy / projection.outputSize.xy;
+    let clip : vec4<f32> = vec4<f32>(vec2<f32>(texCoord.x, 1.0 - texCoord.y) * 2.0 - vec2<f32>(1.0, 1.0), screen.z, screen.w);
+    return clipToView(clip);
   }
 
-  const tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
-  const eyePos : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+  let tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
+  let eyePos : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
   [[stage(compute)]]
-  fn main() -> void {
-    const tileIndex : u32 = global_id.x +
-                            global_id.y * tileCount.x +
-                            global_id.z * tileCount.x * tileCount.y;
+  fn main() {
+    let tileIndex : u32 = global_id.x +
+                          global_id.y * tileCount.x +
+                          global_id.z * tileCount.x * tileCount.y;
 
-    const tileSize : vec2<f32> = vec2<f32>(projection.outputSize.x / f32(tileCount.x),
-                                           projection.outputSize.y / f32(tileCount.y));
+    let tileSize : vec2<f32> = vec2<f32>(projection.outputSize.x / f32(tileCount.x),
+                                         projection.outputSize.y / f32(tileCount.y));
 
-    var maxPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x+1u), f32(global_id.y+1u)) * tileSize, -1.0, 1.0);
-    var minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, -1.0, 1.0);
+    let maxPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x+1u), f32(global_id.y+1u)) * tileSize, -1.0, 1.0);
+    let minPoint_sS : vec4<f32> = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, -1.0, 1.0);
 
-    var maxPoint_vS : vec3<f32> = screen2View(maxPoint_sS).xyz;
-    var minPoint_vS : vec3<f32> = screen2View(minPoint_sS).xyz;
+    let maxPoint_vS : vec3<f32> = screen2View(maxPoint_sS).xyz;
+    let minPoint_vS : vec3<f32> = screen2View(minPoint_sS).xyz;
 
-    const tileNear : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z)/f32(tileCount.z));
-    const tileFar : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z+1u)/f32(tileCount.z));
+    let tileNear : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z)/f32(tileCount.z));
+    let tileFar : f32 = -projection.zNear * pow(projection.zFar/ projection.zNear, f32(global_id.z+1u)/f32(tileCount.z));
 
-    const minPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileNear);
-    const minPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileFar);
-    const maxPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileNear);
-    const maxPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileFar);
+    let minPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileNear);
+    let minPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, minPoint_vS, tileFar);
+    let maxPointNear : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileNear);
+    let maxPointFar : vec3<f32> = lineIntersectionToZPlane(eyePos, maxPoint_vS, tileFar);
 
     clusters.bounds[tileIndex].minAABB = min(min(minPointNear, minPointFar),min(maxPointNear, maxPointFar));
     clusters.bounds[tileIndex].maxAABB = max(max(minPointNear, minPointFar),max(maxPointNear, maxPointFar));
-
-    return;
   }
 `;
 
@@ -155,7 +153,7 @@ export const ClusterLightsSource = `
 
     // Wait, does this actually work? Just porting code, but it seems suspect?
     for(var i : i32 = 0; i < 3; i = i + 1) {
-      var v : f32 = point[i];
+      let v : f32 = point[i];
       if(v < minAABB[i]){
         sqDist = sqDist + (minAABB[i] - v) * (minAABB[i] - v);
       }
@@ -170,19 +168,19 @@ export const ClusterLightsSource = `
   [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
 
   [[stage(compute)]]
-  fn main() -> void {
-    const tileIndex : u32 = global_id.x +
-                            global_id.y * tileCount.x +
-                            global_id.z * tileCount.x * tileCount.y;
+  fn main() {
+    let tileIndex : u32 = global_id.x +
+                          global_id.y * tileCount.x +
+                          global_id.z * tileCount.x * tileCount.y;
 
     // TODO: Look into improving threading using local invocation groups?
     var activeLightCount : u32 = 0u;
     for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
-      var range : f32 = globalLights.lights[i].range;
-      var lightViewPos : vec4<f32> = view.matrix * vec4<f32>(globalLights.lights[i].position, 1.0);
-      var sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
+      let range : f32 = globalLights.lights[i].range;
+      let lightViewPos : vec4<f32> = view.matrix * vec4<f32>(globalLights.lights[i].position, 1.0);
+      let sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
 
-      const lightInCluster : bool = sqDist <= (range * range);
+      let lightInCluster : bool = sqDist <= (range * range);
       if (lightInCluster) {
         // Light affects this cluster. Add it to the list.
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;
@@ -194,7 +192,5 @@ export const ClusterLightsSource = `
       }
     }
     clusterLights.lights[tileIndex].count = activeLightCount;
-
-    return;
   }
 `;
