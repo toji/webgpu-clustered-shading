@@ -21,16 +21,16 @@
 import { ProjectionUniforms, ViewUniforms, ModelUniforms, LightUniforms, MaterialUniforms, ATTRIB_MAP } from '../shaders/common.js';
 import { ClusterLightsStructs, TileFunctions } from '../shaders/clustered-compute.js';
 
-function PBR_VARYINGS(defines, dir) { return `
-[[location(0)]] var<${dir}> vWorldPos : vec3<f32>;
-[[location(1)]] var<${dir}> vView : vec3<f32>; // Vector from vertex to camera.
-[[location(2)]] var<${dir}> vTex : vec2<f32>;
-[[location(3)]] var<${dir}> vCol : vec4<f32>;
+function PBR_VARYINGS(defines) { return `
+[[location(0)]] vWorldPos : vec3<f32>;
+[[location(1)]] vView : vec3<f32>; // Vector from vertex to camera.
+[[location(2)]] vTex : vec2<f32>;
+[[location(3)]] vCol : vec4<f32>;
 
 ${defines.USE_NORMAL_MAP ? `
-[[location(4)]] var<${dir}> vTBN : mat3x3<f32>;
+[[location(4)]] vTBN : mat3x3<f32>;
 ` : `
-[[location(4)]] var<${dir}> vNorm : vec3<f32>;
+[[location(4)]] vNorm : vec3<f32>;
 `}`;
 }
 
@@ -39,54 +39,59 @@ export function PBRVertexSource(defines) { return `
   ${ViewUniforms}
   ${ModelUniforms}
 
-  ${PBR_VARYINGS(defines, 'out')}
+  struct VertexInputs {
+    [[location(${ATTRIB_MAP.POSITION})]] position : vec3<f32>;
+    [[location(${ATTRIB_MAP.NORMAL})]] normal : vec3<f32>;
+    ${defines.USE_NORMAL_MAP ? `
+    [[location(${ATTRIB_MAP.TANGENT})]] tangent : vec4<f32>;
+    ` : ``}
+    [[location(${ATTRIB_MAP.TEXCOORD_0})]] texcoord : vec2<f32>;
+    ${defines.USE_VERTEX_COLOR ? `
+    [[location(${ATTRIB_MAP.COLOR_0})]] color : vec4<f32>;
+    ` : ``}
+  };
 
-  [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
-  [[location(${ATTRIB_MAP.NORMAL})]] var<in> NORMAL : vec3<f32>;
-  ${defines.USE_NORMAL_MAP ? `
-  [[location(${ATTRIB_MAP.TANGENT})]] var<in> TANGENT : vec4<f32>;
-  ` : ``}
-  [[location(${ATTRIB_MAP.TEXCOORD_0})]] var<in> TEXCOORD_0 : vec2<f32>;
-  ${defines.USE_VERTEX_COLOR ? `
-  [[location(${ATTRIB_MAP.COLOR_0})]] var<in> COLOR_0 : vec4<f32>;
-  ` : ``}
-
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
+  struct VertexOutput {
+    [[builtin(position)]] position : vec4<f32>;
+    ${PBR_VARYINGS(defines, 'out')}
+  };
 
   [[stage(vertex)]]
-  fn main() {
-    let n : vec3<f32> = normalize((model.matrix * vec4<f32>(NORMAL, 0.0)).xyz);
+  fn main(input : VertexInputs) -> VertexOutput {
+    var output : VertexOutput;
+    let n : vec3<f32> = normalize((model.matrix * vec4<f32>(input.normal, 0.0)).xyz);
   ${defines.USE_NORMAL_MAP ? `
-    let t : vec3<f32> = normalize((model.matrix * vec4<f32>(TANGENT.xyz, 0.0)).xyz);
-    let b : vec3<f32> = cross(n, t) * TANGENT.w;
-    vTBN = mat3x3<f32>(t, b, n);
+    let t : vec3<f32> = normalize((model.matrix * vec4<f32>(input.tangent.xyz, 0.0)).xyz);
+    let b : vec3<f32> = cross(n, t) * input.tangent.w;
+    output.vTBN = mat3x3<f32>(t, b, n);
   ` : `
-    vNorm = n;
+    output.vNorm = n;
   `}
 
   ${defines.USE_VERTEX_COLOR ? `
-    vCol = COLOR_0;
+    output.vCol = input.color;
   ` : `` }
 
-    vTex = TEXCOORD_0;
-    let mPos : vec4<f32> = model.matrix * vec4<f32>(POSITION, 1.0);
-    vWorldPos = mPos.xyz;
-    vView = view.position - mPos.xyz;
-    outPosition = projection.matrix * view.matrix * mPos;
+    output.vTex = input.texcoord;
+    let mPos : vec4<f32> = model.matrix * vec4<f32>(input.position, 1.0);
+    output.vWorldPos = mPos.xyz;
+    output.vView = view.position - mPos.xyz;
+    output.position = projection.matrix * view.matrix * mPos;
+    return output;
   }`;
 }
 
 function ReadPBRInputs(defines) { return `
   var baseColor : vec4<f32> = material.baseColorFactor;
 ${defines.USE_BASE_COLOR_MAP ? `
-  let baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, vTex);
+  let baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.vTex);
   if (baseColorMap.a < 0.05) {
     discard;
   }
   baseColor = baseColor * baseColorMap;
 ` : ``}
 ${defines.USE_VERTEX_COLOR ? `
-  baseColor = baseColor * vCol;
+  baseColor = baseColor * input.vCol;
 ` : ``}
 
   let albedo : vec3<f32> = baseColor.rgb;
@@ -95,32 +100,32 @@ ${defines.USE_VERTEX_COLOR ? `
   var roughness : f32 = material.metallicRoughnessFactor.y;
 
 ${defines.USE_METAL_ROUGH_MAP ? `
-  let metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, vTex);
+  let metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, input.vTex);
   metallic = metallic * metallicRoughness.b;
   roughness = roughness * metallicRoughness.g;
 ` : ``}
 
 ${defines.USE_NORMAL_MAP ? `
-  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, vTex).rgb;
-  N = normalize(vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+  var N : vec3<f32> = textureSample(normalTexture, defaultSampler, input.vTex).rgb;
+  N = normalize(input.vTBN * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
 ` : `
-  var N : vec3<f32> = normalize(vNorm);
+  var N : vec3<f32> = normalize(input.vNorm);
 `}
 
-  var V : vec3<f32> = normalize(vView);
+  var V : vec3<f32> = normalize(input.vView);
 
   let dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
   var F0 : vec3<f32> = mix(dielectricSpec, albedo, vec3<f32>(metallic, metallic, metallic));
 
 ${defines.USE_OCCLUSION ? `
-  let ao : f32 = textureSample(occlusionTexture, defaultSampler, vTex).r * material.occlusionStrength;
+  let ao : f32 = textureSample(occlusionTexture, defaultSampler, input.vTex).r * material.occlusionStrength;
 ` : `
   let ao : f32 = 1.0;
 `}
 
   var emissive : vec3<f32> = material.emissiveFactor;
 ${defines.USE_EMISSIVE_TEXTURE ? `
-  emissive = emissive * textureSample(emissiveTexture, defaultSampler, vTex).rgb;
+  emissive = emissive * textureSample(emissiveTexture, defaultSampler, input.vTex).rgb;
 ` : ``}
 
   let ambient : vec3<f32> = globalLights.ambient * albedo * ao;
@@ -169,10 +174,10 @@ fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -
 const RadianceFunction = `
 ${PBRFunctions}
 
-fn lightRadiance(i : u32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>) -> vec3<f32> {
-  let L : vec3<f32> = normalize(globalLights.lights[i].position.xyz - vWorldPos);
+fn lightRadiance(i : u32, V : vec3<f32>, N : vec3<f32>, albedo : vec3<f32>, metallic : f32, roughness : f32, F0 : vec3<f32>, worldPos : vec3<f32>) -> vec3<f32> {
+  let L : vec3<f32> = normalize(globalLights.lights[i].position.xyz - worldPos);
   let H : vec3<f32> = normalize(V + L);
-  let distance : f32 = length(globalLights.lights[i].position.xyz - vWorldPos);
+  let distance : f32 = length(globalLights.lights[i].position.xyz - worldPos);
 
   let lightRange : f32 = globalLights.lights[i].range;
   let attenuation : f32 = pow(clamp(1.0 - pow((distance / lightRange), 4.0), 0.0, 1.0), 2.0)/(1.0  + (distance * distance));
@@ -200,12 +205,14 @@ export function PBRFragmentSource(defines) { return `
   ${LightUniforms}
   ${MaterialUniforms}
 
-  ${PBR_VARYINGS(defines, 'in')}
+  struct FragmentInput {
+    ${PBR_VARYINGS(defines)}
+  };
 
   ${RadianceFunction}
 
   [[stage(fragment)]]
-  fn main() -> [[location(0)]] vec4<f32> {
+  fn main(input : FragmentInput) -> [[location(0)]] vec4<f32> {
     ${ReadPBRInputs(defines)}
 
     // reflectance equation
@@ -213,7 +220,7 @@ export function PBRFragmentSource(defines) { return `
 
     for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
       // calculate per-light radiance and add to outgoing radiance Lo
-      Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
+      Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0, input.vWorldPos);
     }
 
     var color : vec3<f32> = Lo + ambient + emissive;
@@ -230,28 +237,29 @@ export function PBRClusteredFragmentSource(defines) { return `
   ${MaterialUniforms}
   ${LightUniforms}
 
-  ${PBR_VARYINGS(defines, 'in')}
+  struct FragmentInput {
+    [[builtin(frag_coord)]] fragCoord : vec4<f32>;
+    ${PBR_VARYINGS(defines)}
+  };
 
   ${TileFunctions}
   ${RadianceFunction}
 
-  [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
   [[stage(fragment)]]
-  fn main() -> [[location(0)]] vec4<f32> {
+  fn main(input : FragmentInput) -> [[location(0)]] vec4<f32> {
     ${ReadPBRInputs(defines)}
 
     // reflectance equation
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
-    let clusterIndex : u32 = getClusterIndex(fragCoord);
+    let clusterIndex : u32 = getClusterIndex(input.fragCoord);
     let lightCount : u32 = clusterLights.lights[clusterIndex].count;
 
     for (var lightIndex : u32 = 0u; lightIndex < lightCount; lightIndex = lightIndex + 1u) {
       let i : u32 = clusterLights.lights[clusterIndex].indices[lightIndex];
 
       // calculate per-light radiance and add to outgoing radiance Lo
-      Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0);
+      Lo = Lo + lightRadiance(i, V, N, albedo, metallic, roughness, F0, input.vWorldPos);
     }
 
     var color : vec3<f32> = Lo + ambient + emissive;

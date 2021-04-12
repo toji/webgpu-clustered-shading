@@ -84,8 +84,6 @@ export const ClusterBoundsSource = `
   ${ClusterStructs}
   [[group(1), binding(0)]] var<storage> clusters : Clusters;
 
-  [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
-
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
     let normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
     let ab : vec3<f32> =  b - a;
@@ -108,7 +106,7 @@ export const ClusterBoundsSource = `
   let eyePos : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
   [[stage(compute)]]
-  fn main() {
+  fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
     let tileIndex : u32 = global_id.x +
                           global_id.y * tileCount.x +
                           global_id.z * tileCount.x * tileCount.y;
@@ -165,10 +163,8 @@ export const ClusterLightsSource = `
     return sqDist;
   }
 
-  [[builtin(global_invocation_id)]] var<in> global_id : vec3<u32>;
-
   [[stage(compute)]]
-  fn main() {
+  fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
     let tileIndex : u32 = global_id.x +
                           global_id.y * tileCount.x +
                           global_id.z * tileCount.x * tileCount.y;

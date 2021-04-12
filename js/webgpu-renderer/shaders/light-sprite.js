@@ -29,22 +29,28 @@ export const LightSpriteVertexSource = `
   ${ViewUniforms}
   ${LightUniforms}
 
-  [[location(0)]] var<out> vPos : vec2<f32>;
-  [[location(1)]] var<out> vColor : vec3<f32>;
+  struct VertexInput {
+    [[builtin(vertex_index)]] vertexIndex : i32;
+    [[builtin(instance_index)]] instanceIndex : i32;
+  };
 
-  [[builtin(position)]] var<out> outPosition : vec4<f32>;
-  [[builtin(vertex_index)]] var<in> vertexIndex : i32;
-  [[builtin(instance_index)]] var<in> instanceIndex : i32;
+  struct VertexOutput {
+    [[builtin(position)]] position : vec4<f32>;
+    [[location(0)]] localPos : vec2<f32>;
+    [[location(1)]] color: vec3<f32>;
+  };
 
   [[stage(vertex)]]
-  fn main() {
-    vPos = pos[vertexIndex];
-    vColor = globalLights.lights[instanceIndex].color;
-    let worldPos : vec3<f32> = vec3<f32>(vPos, 0.0) * globalLights.lights[instanceIndex].range * 0.025;
+  fn vertexMain(input : VertexInput) -> VertexOutput {
+    var output : VertexOutput;
+
+    output.localPos = pos[input.vertexIndex];
+    output.color = globalLights.lights[input.instanceIndex].color;
+    let worldPos : vec3<f32> = vec3<f32>(output.localPos, 0.0) * globalLights.lights[input.instanceIndex].range * 0.025;
 
     // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
-    bbModelViewMatrix[3] = vec4<f32>(globalLights.lights[instanceIndex].position, 1.0);
+    bbModelViewMatrix[3] = vec4<f32>(globalLights.lights[input.instanceIndex].position, 1.0);
     bbModelViewMatrix = view.matrix * bbModelViewMatrix;
     bbModelViewMatrix[0][0] = 1.0;
     bbModelViewMatrix[0][1] = 0.0;
@@ -58,20 +64,21 @@ export const LightSpriteVertexSource = `
     bbModelViewMatrix[2][1] = 0.0;
     bbModelViewMatrix[2][2] = 1.0;
 
-    outPosition = projection.matrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
+    output.position = projection.matrix * bbModelViewMatrix * vec4<f32>(worldPos, 1.0);
+    return output;
   }
 `;
 
 export const LightSpriteFragmentSource = `
-  [[location(0)]] var<out> outColor : vec4<f32>;
-
-  [[location(0)]] var<in> vPos : vec2<f32>;
-  [[location(1)]] var<in> vColor : vec3<f32>;
+  struct FragmentInput {
+    [[location(0)]] localPos : vec2<f32>;
+    [[location(1)]] color: vec3<f32>;
+  };
 
   [[stage(fragment)]]
-  fn main() {
-    let distToCenter : f32 = length(vPos);
+  fn fragmentMain(input : FragmentInput) -> [[location(0)]] vec4<f32> {
+    let distToCenter : f32 = length(input.localPos);
     let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    outColor = vec4<f32>(vColor * fade, fade);
+    return vec4<f32>(input.color * fade, fade);
   }
 `;

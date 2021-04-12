@@ -82,15 +82,17 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${ViewUniforms}
     ${ModelUniforms}
 
-    [[location(${ATTRIB_MAP.POSITION})]] var<in> POSITION : vec3<f32>;
-
-    [[location(0)]] var<out> viewPosition : vec4<f32>;
-    [[builtin(position)]] var<out> outPosition : vec4<f32>;
+    struct VertexOutput {
+      [[builtin(position)]] position : vec4<f32>;
+      [[location(0)]] viewPosition : vec4<f32>;
+    };
 
     [[stage(vertex)]]
-    fn main() {
-      viewPosition = view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
-      outPosition = projection.matrix * viewPosition;
+    fn main([[location(${ATTRIB_MAP.POSITION})]] inPosition : vec3<f32>) -> VertexOutput {
+      var output : VertexOutput;
+      output.viewPosition = view.matrix * model.matrix * vec4<f32>(inPosition, 1.0);
+      output.position = projection.matrix * output.viewPosition;
+      return output;
     }
   `}
 
@@ -101,24 +103,24 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${ClusterStructs}
     [[set(3), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
 
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    [[location(0)]] var<in> viewPosition : vec4<f32>;
-    [[location(0)]] var<out> outColor : vec4<f32>;
+    struct FragmentInput {
+      [[builtin(frag_coord)]] fragCoord : vec4<f32>;
+      [[location(0)]] viewPosition : vec4<f32>;
+    };
 
     [[stage(fragment)]]
-    fn main() {
-      let clusterIndex : u32 = getClusterIndex(fragCoord);
+    fn main(input : FragmentInput) -> [[location(0)]] vec4<f32> {
+      let clusterIndex : u32 = getClusterIndex(input.fragCoord);
 
       let midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
       let center : vec3<f32> = clusters.bounds[clusterIndex].minAABB + midPoint;
       let radius : f32 = length(midPoint);
 
-      let fragToBoundsCenter : vec3<f32> = viewPosition.xyz - center;
+      let fragToBoundsCenter : vec3<f32> = input.viewPosition.xyz - center;
       let distToBoundsCenter : f32 = length(fragToBoundsCenter);
       let normDist : f32 = distToBoundsCenter / radius;
 
-      outColor = vec4<f32>(normDist, normDist, normDist, 1.0);
+      return vec4<f32>(normDist, normDist, normDist, 1.0);
     }
   `; }
 
@@ -141,16 +143,12 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
     ${TileFunctions}
     ${ClusterLightsStructs}
 
-    [[builtin(frag_coord)]] var<in> fragCoord : vec4<f32>;
-
-    [[location(0)]] var<out> outColor : vec4<f32>;
-
     [[stage(fragment)]]
-    fn main() {
+    fn main([[builtin(frag_coord)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32>{
       let clusterIndex : u32 = getClusterIndex(fragCoord);
       let lightCount : u32 = clusterLights.lights[clusterIndex].count;
       let lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});
-      outColor = mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
+      return mix(vec4<f32>(0.0, 0.0, 1.0, 1.0), vec4<f32>(1.0, 0.0, 0.0, 1.0), vec4<f32>(lightFactor, lightFactor, lightFactor, lightFactor));
     }
   `; }
 }

@@ -20,6 +20,21 @@
 
 const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
 
+const MESSAGE_STYLE = {
+  'info': {
+    icon: 'ℹ️',
+    logFn: console.info,
+  },
+  'warning': {
+    icon: '⚠️',
+    logFn: console.warn,
+  },
+  'error': {
+    icon: '⛔',
+    logFn: console.error,
+  }
+}
+
 /**
  * A method that captures errors returned by compiling a WebGPU shader module
  * and annotates them with additional information before echoing to the console
@@ -32,72 +47,80 @@ if ('GPUDevice' in window) {
 
     const shaderModule = origCreateShaderModule.call(this, descriptor);
 
-    this.popErrorScope().then((error) => {
+    const validationPromise = this.popErrorScope().then((error) => {
       // If compilationInfo is not available in this browser just echo any error
-      // messages we get.It's expected that the error message should cover a
-      // subset of any compilationInfo messages.
+      // messages we get.
       if (!shaderModule.compilationInfo && error) {
         console.error(error.message);
+      } else {
+        return error;
       }
     });
 
     if (shaderModule.compilationInfo) {
-      shaderModule.compilationInfo().then((info) => {
-        if (!info.messages.length) {
+      shaderModule.compilationInfo().then(async (info) => {
+        const validationError = await validationPromise;
+
+        if (!info.messages.length && !validationError) {
           return;
         }
 
         const codeLines = descriptor.code.split('\n');
 
-        let infoCount = 0;
-        let warnCount = 0;
-        let errorCount = 0;
+        const messageCount = {
+          error: 0,
+          warning: 0,
+          info: 0,
+        };
 
         for (const message of info.messages) {
-          switch (message.type) {
-            case 'info': infoCount++; break;
-            case 'warning': warnCount++; break;
-            case 'error': errorCount++; break;
-          }
+          messageCount[message.type] += 1;
+        }
+
+        if (messageCount.error == 0 && validationError) {
+          messageCount.error = 1;
         }
 
         const label = shaderModule.label;
         let groupLabel = (label ? `"${label}"` : 'Shader') +
             ' returned compilation messages:';
-        if (errorCount) {
-          groupLabel += ` ${errorCount}⛔`;
-        }
-        if (warnCount) {
-          groupLabel += ` ${warnCount}⚠`;
-        }
-        if (infoCount) {
-          groupLabel += ` ${infoCount}ℹ`;
+        for (const type in messageCount) {
+          if (messageCount[type] > 0) {
+            groupLabel += ` ${messageCount[type]}${MESSAGE_STYLE[type].icon}`;
+          }
         }
 
-        if (errorCount == 0) {
+        if (messageCount.error == 0) {
           console.groupCollapsed(groupLabel);
         } else {
           console.group(groupLabel);
         }
         for (const message of info.messages) {
+          const type = message.type;
           const msgPointer = '-'.repeat(Math.max(message.linePos-1, 0)) + '^';
-          
-          let consoleFn;
-          switch (message.type) {
-            case 'info': consoleFn = console.info; break;
-            case 'warning': consoleFn = console.warn; break;
-            case 'error': consoleFn = console.error; break;
-          }
 
-          consoleFn(`%c${message.lineNum}:${message.linePos} - %c${message.message}\n%c${codeLines[Math.max(message.lineNum-1, 0)]}\n%c${msgPointer}`,
+          MESSAGE_STYLE[type].logFn(
+            `%c${message.lineNum}:${message.linePos} - %c${message.message}\n%c${codeLines[Math.max(message.lineNum-1, 0)]}\n%c${msgPointer}`,
             'font-weight: bold;',
             'font-weight: default;',
             'color: green;',
             'color: grey;');
         }
+
+        if (validationError) {
+          console.groupCollapsed("Validation Error Message");
+          console.error(validationError.message);
+          console.groupEnd();
+        }
+
         console.groupCollapsed("Full shader text");
         console.log(descriptor.code);
         console.groupEnd();
+
+        console.groupCollapsed("Stack Trace");
+        console.trace();
+        console.groupEnd();
+
         console.groupEnd();
       });
     }
@@ -105,5 +128,3 @@ if ('GPUDevice' in window) {
     return shaderModule;
   }
 }
-
-// TODO: A simple preprocessor

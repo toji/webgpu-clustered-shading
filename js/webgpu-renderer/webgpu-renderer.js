@@ -65,7 +65,7 @@ export class WebGPURenderer extends Renderer {
 
     // Enable compressed textures if available
     const nonGuaranteedFeatures = [];
-    if (this.adapter.features.has('texture-compression-bc') != -1) {
+    if (this.adapter.features.indexOf('texture-compression-bc') != -1) {
       nonGuaranteedFeatures.push('texture-compression-bc');
     }
 
@@ -267,12 +267,18 @@ export class WebGPURenderer extends Renderer {
         ]
       }),
       vertex: {
-        module: this.device.createShaderModule({ code: LightSpriteVertexSource, label: 'Light Sprite Vertex' }),
-        entryPoint: 'main'
+        module: this.device.createShaderModule({
+          code: LightSpriteVertexSource,
+          label: 'Light Sprite'
+        }),
+        entryPoint: 'vertexMain'
       },
       fragment: {
-        module: this.device.createShaderModule({ code: LightSpriteFragmentSource, label: 'Light Sprite Fragment' }),
-        entryPoint: 'main',
+        module: this.device.createShaderModule({
+          code: LightSpriteFragmentSource,
+          label: 'Light Sprite'
+        }),
+        entryPoint: 'fragmentMain',
         targets: [{
           format: this.swapChainFormat,
           blend: {
