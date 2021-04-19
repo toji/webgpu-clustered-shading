@@ -128,3 +128,89 @@ if ('GPUDevice' in window) {
     return shaderModule;
   }
 }
+
+// Template literal tag that offers several preprocessor improvements to WGSL
+// shaders. For now it's just preprocessor #if/elif/else/endif statements.
+const preprocessorSymbols = /#([a-z]*)\s*/gm
+export function wgsl(strings, ...values) {
+  let stateStack = [];
+  let state = { string: '', elseIsValid: false, expression: true };
+  let depth = 1;
+
+  for (let i = 0; i < strings.length; ++i) {
+    let string = strings[i];
+    let lastIndex = 0;
+    let valueConsumed = false;
+    let matchedSymbols = string.matchAll(preprocessorSymbols);
+
+    for (const match of matchedSymbols) {
+      state.string += string.substring(lastIndex, match.index);
+      switch (match[1]) {
+        case 'if':
+          if (match.index + match[0].length != string.length) {
+            console.error('WGSL preprocessor error: #if must be immediately followed by a template expression (ie: ${value})');
+            break;
+          }
+          valueConsumed = true;
+          stateStack.push(state);
+          depth++;
+          state = { string: '', elseIsValid: true, expression: !!values[i] };
+          break;
+        case 'elif':
+          if (match.index + match[0].length != string.length) {
+            console.error('WGSL preprocessor error: #elif must be immediately followed by a template expression (ie: ${value})');
+            break;
+          } else if (!state.elseIsValid) {
+            console.error('WGSL preprocessor error: #elif not preceeded by an #if or #elif');
+            break;
+          }
+          valueConsumed = true;
+          if (state.expression && stateStack.length != depth) {
+            stateStack.push(state);
+          }
+          state = { string: '', elseIsValid: true, expression: !!values[i] };
+          break;
+        case 'else':
+          if (!state.elseIsValid) {
+            console.error('WGSL preprocessor error: #else not preceeded by an #if or #elif');
+            break;
+          }
+          if (state.expression && stateStack.length != depth) {
+            stateStack.push(state);
+          }
+          state = { string: '', elseIsValid: false, expression: true };
+          break;
+        case 'endif':
+          const branchState = stateStack.length == depth ? stateStack.pop() : state;
+          state = stateStack.pop();
+          depth--;
+          if (branchState.expression) {
+            state.string += branchState.string;
+          }
+          break;
+        default:
+          // Unknown preprocessor symbol. Emit it back into the output string unchanged.
+          state.string += match[0];
+          break;
+      }
+
+      lastIndex = match.index + match[0].length;
+    }
+
+    // If the string didn't end on one of the preprocessor symbols append the rest of it here.
+    if (lastIndex != string.length) {
+      state.string += string.substring(lastIndex, string.length);
+    }
+    
+    // If the next value wasn't consumed by the preprocessor symbol, append it here.
+    if (!valueConsumed && values.length > i) {
+      state.string += values[i];
+    }
+  }
+
+  if (stateStack.length) {
+    console.error('WGSL preprocessor error: Mismatch #if/#endif count');
+  }
+
+  return state.string;
+}

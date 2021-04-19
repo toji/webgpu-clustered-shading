@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-import { ProjectionUniforms, ViewUniforms, LightUniforms } from './common.js';
+import { ProjectionUniforms, ViewUniforms, LightUniforms, ColorConversions } from './common.js';
 
 export const LightSpriteVertexSource = `
   let pos : array<vec2<f32>, 4> = array<vec2<f32>, 4>(
@@ -70,6 +70,8 @@ export const LightSpriteVertexSource = `
 `;
 
 export const LightSpriteFragmentSource = `
+  ${ColorConversions}
+
   struct FragmentInput {
     [[location(0)]] localPos : vec2<f32>;
     [[location(1)]] color: vec3<f32>;
@@ -79,6 +81,6 @@ export const LightSpriteFragmentSource = `
   fn fragmentMain(input : FragmentInput) -> [[location(0)]] vec4<f32> {
     let distToCenter : f32 = length(input.localPos);
     let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
-    return vec4<f32>(input.color * fade, fade);
+    return vec4<f32>(linearTosRGB(input.color * fade), fade);
   }
 `;

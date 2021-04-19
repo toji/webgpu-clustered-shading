@@ -34,18 +34,10 @@ const DEFAULT_SCALE = vec3.fromValues(1, 1, 1);
 const DEFAULT_BASE_COLOR_FACTOR = vec4.fromValues(1, 1, 1, 1);
 const DEFAULT_EMISSIVE_FACTOR = vec3.fromValues(0, 0, 0);
 
-function isAbsoluteUri(uri) {
-  let absRegEx = new RegExp(`^${window.location.protocol}`, 'i');
-  return !!uri.match(absRegEx);
-}
-
-function isDataUri(uri) {
-  let dataRegEx = /^data:/;
-  return !!uri.match(dataRegEx);
-}
-
+const absUriRegEx = new RegExp(`^${window.location.protocol}`, 'i');
+const dataUriRegEx = /^data:/;
 function resolveUri(uri, baseUrl) {
-  if (isAbsoluteUri(uri) || isDataUri(uri)) {
+  if (!!uri.match(absUriRegEx) || !!uri.match(dataUriRegEx)) {
       return uri;
   }
   return baseUrl + uri;
@@ -147,14 +139,8 @@ export class Gltf2Loader {
       gltf.buffers.push(Promise.resolve(binaryChunk));
     } else {
       for (let buffer of json.buffers) {
-        if (isDataUri(buffer.uri)) {
-          let base64String = buffer.uri.replace('data:application/octet-stream;base64,', '');
-          let binaryArray = Uint8Array.from(atob(base64String), (c) => c.charCodeAt(0));
-          gltf.buffers.push(Promise.resolve(binaryArray.buffer));
-        } else {
-          let uri = resolveUri(buffer.uri, baseUrl);
-          gltf.buffers.push(fetch(uri).then((response) => response.arrayBuffer()));
-        }
+        const uri = resolveUri(buffer.uri, baseUrl);
+        gltf.buffers.push(fetch(uri).then((response) => response.arrayBuffer()));
       }
 
       resourcePromises.push(...gltf.buffers);
@@ -173,27 +159,25 @@ export class Gltf2Loader {
     // Images
     if (json.images) {
       for (let image of json.images) {
+        let blob;
         if (image.uri) {
-          if (isDataUri(image.uri)) {
-            //imgElement.src = image.uri;
-            gltf.images.push(fetch(`${image.uri}`).then(async (response) => {
-              return await response.blob();
-            }));
-          } else {
-            gltf.images.push(fetch(`${baseUrl}${image.uri}`).then(async (response) => {
-              return await response.blob();
-            }));
-          }
+          blob = fetch(resolveUri(image.uri, baseUrl)).then(async (response) => {
+            return await response.blob();
+          });
         } else {
           let bufferView = gltf.bufferViews[image.bufferView];
           bufferView.usage.add('image');
-          gltf.images.push(bufferView.dataView.then((dataView) => {
+          blob = bufferView.dataView.then((dataView) => {
             return new Blob([dataView], {type: image.mimeType});
-          }));
+          });
         }
-      }
 
-      resourcePromises.push(...gltf.images);
+        gltf.images.push({
+          colorSpace: 'linear',
+          blob
+        });
+        resourcePromises.push(blob);
+      }
     }
 
     // Samplers
@@ -232,9 +216,13 @@ export class Gltf2Loader {
       }
     }
 
-    function getTexture(textureInfo) {
+    function getTexture(textureInfo, sRGB = false) {
       if (!textureInfo) {
         return null;
+      }
+      let texture = gltf.textures[textureInfo.index];
+      if (sRGB && texture && texture.image) {
+        texture.image.colorSpace = 'sRGB';
       }
       return gltf.textures[textureInfo.index];
     }
@@ -247,7 +235,7 @@ export class Gltf2Loader {
         let pbr = material.pbrMetallicRoughness || {};
 
         glMaterial.baseColorFactor = vec4.clone(pbr.baseColorFactor || DEFAULT_BASE_COLOR_FACTOR);
-        glMaterial.baseColorTexture = getTexture(pbr.baseColorTexture);
+        glMaterial.baseColorTexture = getTexture(pbr.baseColorTexture, true);
         glMaterial.metallicRoughnessFactor = vec2.clone([
           pbr.metallicFactor || 1.0,
           pbr.roughnessFactor || 1.0,
@@ -258,7 +246,7 @@ export class Gltf2Loader {
         glMaterial.occlusionStrength = (material.occlusionTexture && material.occlusionTexture.strength) ?
                                         material.occlusionTexture.strength : 1.0;
         glMaterial.emissiveFactor = vec3.clone(material.emissiveFactor || DEFAULT_EMISSIVE_FACTOR);
-        glMaterial.emissiveTexture = getTexture(material.emissiveTexture);
+        glMaterial.emissiveTexture = getTexture(material.emissiveTexture, true);
 
         switch (material.alphaMode) {
           case 'BLEND':
@@ -351,6 +339,26 @@ export class Gltf2Loader {
       gltf.primitives.push(...primitives);
     }
 
+    // Extensions
+    if (json.extensions) {
+      // Lights
+      const KHR_lights_punctual = json.extensions.KHR_lights_punctual;
+      if (KHR_lights_punctual) {
+        for (const light of KHR_lights_punctual.lights) {
+          // Blender export has issues. Still not sure how to fix it:
+          // https://github.com/KhronosGroup/glTF-Blender-IO/issues/564
+          const Kv = 638;
+          gltf.lights.push(new Light(
+            light.type,
+            light.color,
+            light.intensity, //(light.intensity) / (4 * Math.PI),
+            light.range
+          ));
+        }
+      }
+    }
+    
+
     function processNode(node, worldMatrix) {
       let glNode = new Node();
       glNode.name = node.name;
@@ -374,6 +382,13 @@ export class Gltf2Loader {
         mat4.mul(glNode.worldMatrix, worldMatrix, glNode.localMatrix);
       } else {
         mat4.copy(glNode.worldMatrix, worldMatrix);
+      }
+
+      if ('extensions' in node) {
+        if (node.extensions.KHR_lights_punctual) {
+          node.light = gltf.lights[node.extensions.KHR_lights_punctual.light];
+          vec3.transformMat4(node.light.position, node.light.position, glNode.worldMatrix);
+        }
       }
 
       if (node.children) {
@@ -405,6 +420,7 @@ class Gltf2 {
     this.textures = [];
     this.materials = [];
     this.primitives = [];
+    this.lights = [];
     this.scene = new Node();
   }
 }
@@ -417,6 +433,7 @@ class Node {
     this.worldMatrix = mat4.create();
     // null is treated as an identity matrix
     this.localMatrix = null;
+    this.light = null;
   }
 }
 
@@ -536,21 +553,30 @@ class Primitive {
         const offset = attribute.byteOffset - bufferAttributes.minAttributeByteOffset;
         const format = attribute.gpuFormat;
 
-        attributeLayouts.push({
-          shaderLocation: attributeMap[attribName],
-          format,
-          offset,
-        });
-
         if (!bufferView.byteStride) {
           arrayStride += attribute.packedByteStride;
         }
+
+        const shaderLocation = attributeMap[attribName];
+
+        if (shaderLocation === undefined) {
+          console.warn(`Attribute name has no associated shader location: ${attribName}`);
+          continue;
+        }
+
+        attributeLayouts.push({
+          shaderLocation,
+          format,
+          offset,
+        });
       }
 
-      vertexBuffers.push({
-        arrayStride,
-        attributes: attributeLayouts,
-      });
+      if (attributeLayouts.length) {
+        vertexBuffers.push({
+          arrayStride,
+          attributes: attributeLayouts,
+        });
+      }
     }
 
     return vertexBuffers;
@@ -676,5 +702,16 @@ class BufferView {
 
     // For renderer-specific data;
     this.renderData = {};
+  }
+}
+
+class Light {
+  constructor(type, color = [1.0, 1.0, 1.0], intensity = 1.0, range = -1) {
+    this.type = type;
+    this.color = color;
+    this.intensity = intensity;
+    this.range = range;
+
+    this.position = vec3.create();
   }
 }

@@ -215,7 +215,7 @@ export class WebGL2Renderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureLoader.fromBlob(await image);
+    const result = await this.textureLoader.fromBlob(await image.blob, {colorSpace: image.colorSpace});
     image.glTexture = result.texture;
   }
 

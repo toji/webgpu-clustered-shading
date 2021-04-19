@@ -76,13 +76,13 @@ export const ClusterLightsStructs = `
   [[block]] struct ClusterLightGroup {
     lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage> clusterLights : ClusterLightGroup;
+  [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage> clusterLights : [[access(read_write)]] ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `
   ${ProjectionUniforms}
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage> clusters : Clusters;
+  [[group(1), binding(0)]] var<storage> clusters : [[access(write)]] Clusters;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
     let normal : vec3<f32> = vec3<f32>(0.0, 0.0, 1.0);
@@ -173,10 +173,15 @@ export const ClusterLightsSource = `
     var activeLightCount : u32 = 0u;
     for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
       let range : f32 = globalLights.lights[i].range;
-      let lightViewPos : vec4<f32> = view.matrix * vec4<f32>(globalLights.lights[i].position, 1.0);
-      let sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
+      // Lights without an explicit range affect every cluster, but this is a poor way to handle that.
+      var lightInCluster : bool = range <= 0.0;
 
-      let lightInCluster : bool = sqDist <= (range * range);
+      if (!lightInCluster) {
+        let lightViewPos : vec4<f32> = view.matrix * vec4<f32>(globalLights.lights[i].position, 1.0);
+        let sqDist : f32 = sqDistPointAABB(lightViewPos.xyz, clusters.bounds[tileIndex].minAABB, clusters.bounds[tileIndex].maxAABB);
+        lightInCluster = sqDist <= (range * range);
+      }
+
       if (lightInCluster) {
         // Light affects this cluster. Add it to the list.
         clusterLights.lights[tileIndex].indices[activeLightCount] = i;

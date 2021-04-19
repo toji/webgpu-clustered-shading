@@ -65,7 +65,7 @@ export class WebGPURenderer extends Renderer {
 
     // Enable compressed textures if available
     const nonGuaranteedFeatures = [];
-    if (this.adapter.features.indexOf('texture-compression-bc') != -1) {
+    if (this.adapter.features.has('texture-compression-bc') != -1) {
       nonGuaranteedFeatures.push('texture-compression-bc');
     }
 
@@ -98,16 +98,16 @@ export class WebGPURenderer extends Renderer {
     this.textureLoader = new WebGPUTextureLoader(this.device);
 
     this.colorAttachment = {
-      // attachment is acquired and set in onResize.
-      attachment: undefined,
-      // attachment is acquired and set in onFrame.
+      // view is acquired and set in onResize.
+      view: undefined,
+      // renderTarget is acquired and set in onFrame.
       resolveTarget: undefined,
       loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
     };
 
     this.depthAttachment = {
-      // attachment is acquired and set in onResize.
-      attachment: undefined,
+      // view is acquired and set in onResize.
+      view: undefined,
       depthLoadValue: 1.0,
       depthStoreOp: 'store',
       stencilLoadValue: 0,
@@ -317,7 +317,7 @@ export class WebGPURenderer extends Renderer {
       format: this.swapChainFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
-    this.colorAttachment.attachment = msaaColorTexture.createView();
+    this.colorAttachment.view = msaaColorTexture.createView();
 
     const depthTexture = this.device.createTexture({
       size: { width, height },
@@ -325,7 +325,7 @@ export class WebGPURenderer extends Renderer {
       format: DEPTH_FORMAT,
       usage: GPUTextureUsage.RENDER_ATTACHMENT
     });
-    this.depthAttachment.attachment = depthTexture.createView();
+    this.depthAttachment.view = depthTexture.createView();
 
     // On every size change we need to re-compute the cluster grid.
     this.computeClusterBounds();
@@ -404,7 +404,7 @@ export class WebGPURenderer extends Renderer {
   }
 
   async initImage(image) {
-    const result = await this.textureLoader.fromBlob(await image);
+    const result = await this.textureLoader.fromBlob(await image.blob, {colorSpace: image.colorSpace});
     image.gpuTextureView = result.texture.createView();
   }
 
@@ -518,7 +518,7 @@ export class WebGPURenderer extends Renderer {
             clusterStorageBindGroupLayout, // set 1
           ]
         }),
-        computeStage: {
+        compute: {
           module: this.device.createShaderModule({ code: ClusterBoundsSource, label: "Cluster Bounds" }),
           entryPoint: 'main',
         }
@@ -575,7 +575,7 @@ export class WebGPURenderer extends Renderer {
 
       this.clusterLightsPipeline = this.device.createComputePipeline({
         layout: clusterLightsPipelineLayout,
-        computeStage: {
+        compute: {
           module: this.device.createShaderModule({ code: ClusterLightsSource, label: "Cluster Lights" }),
           entryPoint: 'main',
         }
