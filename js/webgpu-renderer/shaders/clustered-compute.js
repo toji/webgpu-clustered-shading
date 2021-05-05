@@ -59,7 +59,7 @@ fn getClusterIndex(fragCoord : vec4<f32>) -> u32 {
 `;
 
 export const ClusterStructs = `
-  [[block]] struct ClusterBounds {
+  struct ClusterBounds {
     minAABB : vec3<f32>;
     maxAABB : vec3<f32>;
   };
@@ -69,7 +69,7 @@ export const ClusterStructs = `
 `;
 
 export const ClusterLightsStructs = `
-  [[block]] struct ClusterLights {
+  struct ClusterLights {
     count : u32;
     indices : [[stride(4)]] array<u32, ${MAX_LIGHTS_PER_CLUSTER}>;
   };
@@ -170,7 +170,8 @@ export const ClusterLightsSource = `
                           global_id.z * tileCount.x * tileCount.y;
 
     // TODO: Look into improving threading using local invocation groups?
-    var activeLightCount : u32 = 0u;
+    var clusterLightCount : u32 = 0u;
+    var cluserLightIndices : array<u32, ${MAX_LIGHTS_PER_CLUSTER}>;
     for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
       let range : f32 = globalLights.lights[i].range;
       // Lights without an explicit range affect every cluster, but this is a poor way to handle that.
@@ -184,14 +185,21 @@ export const ClusterLightsSource = `
 
       if (lightInCluster) {
         // Light affects this cluster. Add it to the list.
-        clusterLights.lights[tileIndex].indices[activeLightCount] = i;
-        activeLightCount = activeLightCount + 1u;
+        cluserLightIndices[clusterLightCount] = i;
+        clusterLightCount = clusterLightCount + 1u;
       }
 
-      if (activeLightCount == ${MAX_LIGHTS_PER_CLUSTER}u) {
+      if (clusterLightCount == ${MAX_LIGHTS_PER_CLUSTER}u) {
         break;
       }
     }
-    clusterLights.lights[tileIndex].count = activeLightCount;
+
+    // TODO: Stick a barrier here and track cluster lights with an offset into a global light list
+
+    for(var i : u32 = 0u; i < clusterLightCount; i = i + 1u) {
+      clusterLights.lights[tileIndex].indices[i] = cluserLightIndices[i];
+    }
+
+    clusterLights.lights[tileIndex].count = clusterLightCount;
   }
 `;

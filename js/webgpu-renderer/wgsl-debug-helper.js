@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 // SOFTWARE.
 
-const SHADER_ERROR_REGEX = /([0-9]*):([0-9*]*): (.*)$/gm;
+const LOG_FULL_SHADER_TEXT = true;
 
 const MESSAGE_STYLE = {
   'info': {
@@ -65,8 +65,6 @@ if ('GPUDevice' in window) {
           return;
         }
 
-        const codeLines = descriptor.code.split('\n');
-
         const messageCount = {
           error: 0,
           warning: 0,
@@ -95,16 +93,32 @@ if ('GPUDevice' in window) {
         } else {
           console.group(groupLabel);
         }
+
+        const code = descriptor.code;
         for (const message of info.messages) {
           const type = message.type;
-          const msgPointer = '-'.repeat(Math.max(message.linePos-1, 0)) + '^';
+
+          // If the message doesn't have an associated position in the code just
+          // repeat the message verbatim
+          if (message.lineNum == 0 && message.linePos == 0) {
+            MESSAGE_STYLE[type].logFn(message.message);
+            continue;
+          }
+
+          const length = Math.max(message.length, 1);
+          const lineStartIndex = code.lastIndexOf('\n', message.offset);
+          const lineStart = code.substring(lineStartIndex+1, message.offset);
+          const highlightText = code.substr(message.offset, length);
+          const lineEndIndex = code.indexOf('\n', message.offset+length);
+          const lineEnd = code.substring(message.offset+length, lineEndIndex == -1 ? undefined : lineEndIndex);
 
           MESSAGE_STYLE[type].logFn(
-            `%c${message.lineNum}:${message.linePos} - %c${message.message}\n%c${codeLines[Math.max(message.lineNum-1, 0)]}\n%c${msgPointer}`,
+            `%c${message.lineNum}:${message.linePos} - %c${message.message}\n%c${lineStart}%c${highlightText}%c${lineEnd}`,
             'font-weight: bold;',
             'font-weight: default;',
             'color: green;',
-            'color: grey;');
+            'color: lightgrey; background-color: darkred; font-weight: bold;',
+            'color: green;');
         }
 
         if (validationError) {
@@ -113,9 +127,20 @@ if ('GPUDevice' in window) {
           console.groupEnd();
         }
 
-        console.groupCollapsed("Full shader text");
-        console.log(descriptor.code);
-        console.groupEnd();
+        if (LOG_FULL_SHADER_TEXT) {
+          // Output the full shader text with numbered lines for easier reference.
+          let numberedCodeLines = '';
+          const codeLines = code.split('\n');
+          const padLength = codeLines.length.toString().length;
+          for (let i = 0; i < codeLines.length; ++i) {
+            const lineNum = (i+1).toString().padStart(padLength, ' ');
+            numberedCodeLines += `${lineNum}: ${codeLines[i]}\n`;
+          }
+
+          console.groupCollapsed("Full shader text");
+          console.log(numberedCodeLines);
+          console.groupEnd();
+        }
 
         console.groupCollapsed("Stack Trace");
         console.trace();
