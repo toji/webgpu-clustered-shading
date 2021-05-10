@@ -43,6 +43,10 @@ const MESSAGE_STYLE = {
 if ('GPUDevice' in window) {
   const origCreateShaderModule = GPUDevice.prototype.createShaderModule;
   GPUDevice.prototype.createShaderModule = function(descriptor) {
+    if (!this.pushErrorScope) {
+      return origCreateShaderModule.call(this, descriptor);
+    }
+
     this.pushErrorScope('validation');
 
     const shaderModule = origCreateShaderModule.call(this, descriptor);
