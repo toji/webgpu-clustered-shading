@@ -29,11 +29,11 @@ struct VertexOutput {
   [[location(1)]] view : vec3<f32>; // Vector from vertex to camera.
   [[location(2)]] texCoord : vec2<f32>;
   [[location(3)]] color : vec4<f32>;
+  [[location(4)]] normal : vec3<f32>;
 
 #if ${defines.USE_NORMAL_MAP}
-  [[location(4)]] tbn : mat3x3<f32>;
-#else
-  [[location(4)]] normal : vec3<f32>;
+  [[location(5)]] tangent : vec3<f32>;
+  [[location(6)]] bitangent : vec3<f32>;
 #endif
 };
 `;
@@ -61,14 +61,11 @@ export function PBRVertexSource(defines) { return wgsl`
   [[stage(vertex)]]
   fn main(input : VertexInputs) -> VertexOutput {
     var output : VertexOutput;
-    let n : vec3<f32> = normalize((model.matrix * vec4<f32>(input.normal, 0.0)).xyz);
+    output.normal = normalize((model.matrix * vec4<f32>(input.normal, 0.0)).xyz);
 
 #if ${defines.USE_NORMAL_MAP}
-    let t : vec3<f32> = normalize((model.matrix * vec4<f32>(input.tangent.xyz, 0.0)).xyz);
-    let b : vec3<f32> = cross(n, t) * input.tangent.w;
-    output.tbn = mat3x3<f32>(t, b, n);
-#else
-    output.normal = n;
+    output.tangent = normalize((model.matrix * vec4<f32>(input.tangent.xyz, 0.0)).xyz);
+    output.bitangent = cross(output.normal, output.tangent) * input.tangent.w;
 #endif
 
 #if ${defines.USE_VERTEX_COLOR}
@@ -126,8 +123,9 @@ function PBRSurfaceInfo(defines) { return wgsl`
 #endif
 
 #if ${defines.USE_NORMAL_MAP}
+    let tbn : mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
     let N : vec3<f32> = textureSample(normalTexture, defaultSampler, input.texCoord).rgb;
-    surface.normal = normalize(input.tbn * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
+    surface.normal = normalize(tbn * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
 #else
     surface.normal = normalize(input.normal);
 #endif

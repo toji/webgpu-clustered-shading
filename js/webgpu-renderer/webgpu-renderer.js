@@ -84,7 +84,7 @@ export class WebGPURenderer extends Renderer {
     };
 
     // Just for debugging my shader helper stuff. This is expected to fail.
-    this.device.createShaderModule({
+    /*this.device.createShaderModule({
       label: 'Test Shader',
       code: `
         // 頂点シェーダー
@@ -93,7 +93,7 @@ export class WebGPURenderer extends Renderer {
           return vec3<f32>(inPosition, 1.0);
         }
       `
-    });
+    });*/
 
     this.textureLoader = new WebGPUTextureLoader(this.device);
 
