@@ -42,7 +42,7 @@ export class DepthSliceVisualization extends RenderBundleHelper {
     ${ProjectionUniforms}
     ${TileFunctions}
 
-    let colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
+    var<private> colorSet : array<vec3<f32>, 9> = array<vec3<f32>, 9>(
       vec3<f32>(1.0, 0.0, 0.0),
       vec3<f32>(1.0, 0.5, 0.0),
       vec3<f32>(0.5, 1.0, 0.0),
@@ -101,7 +101,7 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${TileFunctions}
 
     ${ClusterStructs}
-    [[set(3), binding(0)]] var<storage_buffer> clusters : [[access(read)]] Clusters;
+    [[set(3), binding(0)]] var<storage_buffer, read> clusters : Clusters;
 
     struct FragmentInput {
       [[builtin(position)]] fragCoord : vec4<f32>;

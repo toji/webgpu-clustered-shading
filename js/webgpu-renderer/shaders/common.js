@@ -68,7 +68,7 @@ export const LightUniforms = `
     lightCount : u32;
     lights : [[stride(32)]] array<Light>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(2)]] var<storage, read> globalLights : GlobalLightUniforms;
+  [[group(${BIND_GROUP.Frame}), binding(2)]] var<storage> globalLights : GlobalLightUniforms;
 `;
 
 export const ModelUniformsSize = 64;

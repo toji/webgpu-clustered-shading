@@ -251,10 +251,11 @@ export function PBRClusteredFragmentSource(defines) { return `
     var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
 
     let clusterIndex : u32 = getClusterIndex(input.position);
+    let lightOffset : u32 = clusterLights.lights[clusterIndex].offset;
     let lightCount : u32 = clusterLights.lights[clusterIndex].count;
 
     for (var lightIndex : u32 = 0u; lightIndex < lightCount; lightIndex = lightIndex + 1u) {
-      let i : u32 = clusterLights.lights[clusterIndex].indices[lightIndex];
+      let i : u32 = clusterLights.indices[lightOffset + lightIndex];
 
       var light : PuctualLight;
       light.lightType = LightType_Point;

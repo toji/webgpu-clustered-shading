@@ -29,7 +29,7 @@ export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 // Each cluster tracks up to MAX_LIGHTS_PER_CLUSTER light indices (ints) and one light count.
 // This limitation should be able to go away when we have atomic methods in WGSL.
 export const MAX_LIGHTS_PER_CLUSTER = 100;
-export const CLUSTER_LIGHTS_SIZE = (4 * MAX_LIGHTS_PER_CLUSTER) + 4;
+export const CLUSTER_LIGHTS_SIZE = (8 * TOTAL_TILES) + (4 * MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES) + 4;
 
 export const TileFunctions = `
 let tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
@@ -70,11 +70,13 @@ export const ClusterStructs = `
 
 export const ClusterLightsStructs = `
   struct ClusterLights {
+    offset : u32;
     count : u32;
-    indices : [[stride(4)]] array<u32, ${MAX_LIGHTS_PER_CLUSTER}>;
   };
   [[block]] struct ClusterLightGroup {
-    lights : [[stride(${CLUSTER_LIGHTS_SIZE})]] array<ClusterLights, ${TOTAL_TILES}>;
+    offset : atomic<u32>;
+    lights : [[stride(8)]] array<ClusterLights, ${TOTAL_TILES}>;
+    indices : [[stride(4)]] array<u32, ${MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES}>;
   };
   [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage, read_write> clusterLights : ClusterLightGroup;
 `;
@@ -140,7 +142,7 @@ export const ClusterLightsSource = `
   ${ClusterLightsStructs}
 
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage, read> clusters : Clusters;
+  [[group(1), binding(0)]] var<storage> clusters : Clusters;
 
   ${TileFunctions}
 
@@ -194,12 +196,13 @@ export const ClusterLightsSource = `
       }
     }
 
-    // TODO: Stick a barrier here and track cluster lights with an offset into a global light list
+    let lightCount : u32 = clusterLightCount;
+    var offset : u32 = atomicAdd(&clusterLights.offset, lightCount);
 
     for(var i : u32 = 0u; i < clusterLightCount; i = i + 1u) {
-      clusterLights.lights[tileIndex].indices[i] = cluserLightIndices[i];
+      clusterLights.indices[offset + i] = cluserLightIndices[i];
     }
-
+    clusterLights.lights[tileIndex].offset = offset;
     clusterLights.lights[tileIndex].count = clusterLightCount;
   }
 `;

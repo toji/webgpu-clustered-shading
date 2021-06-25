@@ -40,6 +40,8 @@ const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
 const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
 const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
 
+const emptyArray = new Uint32Array(1);
+
 export class WebGPURenderer extends Renderer {
   constructor() {
     super();
@@ -64,21 +66,17 @@ export class WebGPURenderer extends Renderer {
     });
 
     // Enable compressed textures if available
-    const nonGuaranteedFeatures = [];
+    const requiredFeatures = [];
     if (this.adapter.features.has('texture-compression-bc') != -1) {
-      nonGuaranteedFeatures.push('texture-compression-bc');
+      requiredFeatures.push('texture-compression-bc');
     }
 
-    this.device = await this.adapter.requestDevice({nonGuaranteedFeatures});
+    this.device = await this.adapter.requestDevice({requiredFeatures});
 
-    this.swapChainFormat = this.context.getSwapChainPreferredFormat(this.adapter);
-    this.swapChain = this.context.configureSwapChain({
-      device: this.device,
-      format: this.swapChainFormat
-    });
+    this.contextFormat = this.context.getPreferredFormat(this.adapter);
 
     this.renderBundleDescriptor = {
-      colorFormats: [ this.swapChainFormat ],
+      colorFormats: [ this.contextFormat ],
       depthStencilFormat: DEPTH_FORMAT,
       sampleCount: SAMPLE_COUNT
     };
@@ -103,16 +101,16 @@ export class WebGPURenderer extends Renderer {
       // renderTarget is acquired and set in onFrame.
       resolveTarget: undefined,
       loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
-      storeOp: 'store',
+      storeOp: 'clear',
     };
 
     this.depthAttachment = {
       // view is acquired and set in onResize.
       view: undefined,
       depthLoadValue: 1.0,
-      depthStoreOp: 'store',
+      depthStoreOp: 'clear',
       stencilLoadValue: 0,
-      stencilStoreOp: 'store',
+      stencilStoreOp: 'clear',
     };
 
     this.renderPassDescriptor = {
@@ -224,8 +222,8 @@ export class WebGPURenderer extends Renderer {
     });
 
     this.clusterLightsBuffer = this.device.createBuffer({
-      size: CLUSTER_LIGHTS_SIZE * TOTAL_TILES,
-      usage: GPUBufferUsage.STORAGE
+      size: CLUSTER_LIGHTS_SIZE,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST
     });
 
     this.bindGroups = {
@@ -281,7 +279,7 @@ export class WebGPURenderer extends Renderer {
         }),
         entryPoint: 'fragmentMain',
         targets: [{
-          format: this.swapChainFormat,
+          format: this.contextFormat,
           blend: {
             color: {
               srcFactor: 'src-alpha',
@@ -289,7 +287,7 @@ export class WebGPURenderer extends Renderer {
             },
             alpha: {
               srcFactor: "one",
-              dstFactor: "one",
+              dstFactor: "zero",
             },
           },
         }],
@@ -312,10 +310,16 @@ export class WebGPURenderer extends Renderer {
   onResize(width, height) {
     if (!this.device) return;
 
+    this.context.configure({
+      device: this.device,
+      format: this.contextFormat,
+      size: {width, height}
+    });
+
     const msaaColorTexture = this.device.createTexture({
       size: { width, height },
       sampleCount: SAMPLE_COUNT,
-      format: this.swapChainFormat,
+      format: this.contextFormat,
       usage: GPUTextureUsage.RENDER_ATTACHMENT,
     });
     this.colorAttachment.view = msaaColorTexture.createView();
@@ -583,6 +587,9 @@ export class WebGPURenderer extends Renderer {
       });
     }
 
+    // Reset the light offset counter to 0 before populating the light clusters.
+    this.device.queue.writeBuffer(this.clusterLightsBuffer, 0, emptyArray);
+
     // Update the FrameUniforms buffer with the values that are used by every
     // program and don't change for the duration of the frame.
     const passEncoder = commandEncoder.beginComputePass();
@@ -596,7 +603,7 @@ export class WebGPURenderer extends Renderer {
   onFrame(timestamp) {
     // TODO: If we want multisampling this should attach to the resolveTarget,
     // but there seems to be a bug with that right now?
-    this.colorAttachment.resolveTarget = this.swapChain.getCurrentTexture().createView();
+    this.colorAttachment.resolveTarget = this.context.getCurrentTexture().createView();
 
     // Update the View uniforms buffer with the values. These are used by most shader programs
     // and don't change for the duration of the frame.
