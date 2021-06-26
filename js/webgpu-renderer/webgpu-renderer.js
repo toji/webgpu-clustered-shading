@@ -287,7 +287,7 @@ export class WebGPURenderer extends Renderer {
             },
             alpha: {
               srcFactor: "one",
-              dstFactor: "zero",
+              dstFactor: "one",
             },
           },
         }],
