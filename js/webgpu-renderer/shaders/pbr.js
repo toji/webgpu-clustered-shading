@@ -75,7 +75,7 @@ export function PBRVertexSource(defines) { return wgsl`
 #endif
 
     output.texCoord = input.texCoord;
-    let modelPos : vec4<f32> = model.matrix * vec4<f32>(input.position, 1.0);
+    let modelPos = model.matrix * vec4<f32>(input.position, 1.0);
     output.worldPos = modelPos.xyz;
     output.view = view.position - modelPos.xyz;
     output.position = projection.matrix * view.matrix * modelPos;
@@ -104,7 +104,7 @@ function PBRSurfaceInfo(defines) { return wgsl`
 
     surface.baseColor = material.baseColorFactor * input.color;
 #if ${defines.USE_BASE_COLOR_MAP}
-    let baseColorMap : vec4<f32> = textureSample(baseColorTexture, defaultSampler, input.texCoord);
+    let baseColorMap = textureSample(baseColorTexture, defaultSampler, input.texCoord);
     if (baseColorMap.a < 0.05) {
       discard;
     }
@@ -117,20 +117,20 @@ function PBRSurfaceInfo(defines) { return wgsl`
     surface.roughness = material.metallicRoughnessFactor.y;
 
 #if ${defines.USE_METAL_ROUGH_MAP}
-    let metallicRoughness : vec4<f32> = textureSample(metallicRoughnessTexture, defaultSampler, input.texCoord);
+    let metallicRoughness = textureSample(metallicRoughnessTexture, defaultSampler, input.texCoord);
     surface.metallic = surface.metallic * metallicRoughness.b;
     surface.roughness = surface.roughness * metallicRoughness.g;
 #endif
 
 #if ${defines.USE_NORMAL_MAP}
-    let tbn : mat3x3<f32> = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
-    let N : vec3<f32> = textureSample(normalTexture, defaultSampler, input.texCoord).rgb;
+    let tbn = mat3x3<f32>(input.tangent, input.bitangent, input.normal);
+    let N = textureSample(normalTexture, defaultSampler, input.texCoord).rgb;
     surface.normal = normalize(tbn * (2.0 * N - vec3<f32>(1.0, 1.0, 1.0)));
 #else
     surface.normal = normalize(input.normal);
 #endif
 
-    let dielectricSpec : vec3<f32> = vec3<f32>(0.04, 0.04, 0.04);
+    let dielectricSpec = vec3<f32>(0.04, 0.04, 0.04);
     surface.f0 = mix(dielectricSpec, surface.albedo, vec3<f32>(surface.metallic, surface.metallic, surface.metallic));
 
 #if ${defines.USE_OCCLUSION}
@@ -151,11 +151,11 @@ function PBRSurfaceInfo(defines) { return wgsl`
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
 const PBRFunctions = `
-let PI : f32 = 3.14159265359;
+let PI = 3.14159265359;
 
-let LightType_Point : u32 = 0u;
-let LightType_Spot : u32 = 1u;
-let LightType_Directional : u32 = 2u;
+let LightType_Point = 0u;
+let LightType_Spot = 1u;
+let LightType_Directional = 2u;
 
 struct PuctualLight {
   lightType : u32;
@@ -170,32 +170,32 @@ fn FresnelSchlick(cosTheta : f32, F0 : vec3<f32>) -> vec3<f32> {
 }
 
 fn DistributionGGX(N : vec3<f32>, H : vec3<f32>, roughness : f32) -> f32 {
-  let a : f32      = roughness*roughness;
-  let a2 : f32     = a*a;
-  let NdotH : f32  = max(dot(N, H), 0.0);
-  let NdotH2 : f32 = NdotH*NdotH;
+  let a      = roughness*roughness;
+  let a2     = a*a;
+  let NdotH  = max(dot(N, H), 0.0);
+  let NdotH2 = NdotH*NdotH;
 
-  let num : f32    = a2;
-  let denom : f32  = (NdotH2 * (a2 - 1.0) + 1.0);
+  let num    = a2;
+  let denom  = (NdotH2 * (a2 - 1.0) + 1.0);
 
   return num / (PI * denom * denom);
 }
 
 fn GeometrySchlickGGX(NdotV : f32, roughness : f32) -> f32 {
-  let r : f32 = (roughness + 1.0);
-  let k : f32 = (r*r) / 8.0;
+  let r = (roughness + 1.0);
+  let k = (r*r) / 8.0;
 
-  let num : f32   = NdotV;
-  let denom : f32 = NdotV * (1.0 - k) + k;
+  let num   = NdotV;
+  let denom = NdotV * (1.0 - k) + k;
 
   return num / denom;
 }
 
 fn GeometrySmith(N : vec3<f32>, V : vec3<f32>, L : vec3<f32>, roughness : f32) -> f32 {
-  let NdotV : f32 = max(dot(N, V), 0.0);
-  let NdotL : f32 = max(dot(N, L), 0.0);
-  let ggx2 : f32  = GeometrySchlickGGX(NdotV, roughness);
-  let ggx1 : f32  = GeometrySchlickGGX(NdotL, roughness);
+  let NdotV = max(dot(N, V), 0.0);
+  let NdotL = max(dot(N, L), 0.0);
+  let ggx2  = GeometrySchlickGGX(NdotV, roughness);
+  let ggx1  = GeometrySchlickGGX(NdotL, roughness);
 
   return ggx1 * ggx2;
 }
@@ -209,26 +209,26 @@ fn rangeAttenuation(range : f32, distance : f32) -> f32 {
 }
 
 fn lightRadiance(light : PuctualLight, surface : SurfaceInfo) -> vec3<f32> {
-  let L : vec3<f32> = normalize(light.pointToLight);
-  let H : vec3<f32> = normalize(surface.v + L);
-  let distance : f32 = length(light.pointToLight);
+  let L = normalize(light.pointToLight);
+  let H = normalize(surface.v + L);
+  let distance = length(light.pointToLight);
 
   // cook-torrance brdf
-  let NDF : f32 = DistributionGGX(surface.normal, H, surface.roughness);
-  let G : f32 = GeometrySmith(surface.normal, surface.v, L, surface.roughness);
-  let F : vec3<f32> = FresnelSchlick(max(dot(H, surface.v), 0.0), surface.f0);
+  let NDF = DistributionGGX(surface.normal, H, surface.roughness);
+  let G = GeometrySmith(surface.normal, surface.v, L, surface.roughness);
+  let F = FresnelSchlick(max(dot(H, surface.v), 0.0), surface.f0);
 
-  let kD : vec3<f32> = (vec3<f32>(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
+  let kD = (vec3<f32>(1.0, 1.0, 1.0) - F) * (1.0 - surface.metallic);
 
-  let NdotL : f32 = max(dot(surface.normal, L), 0.0);
+  let NdotL = max(dot(surface.normal, L), 0.0);
 
-  let numerator : vec3<f32> = NDF * G * F;
-  let denominator : f32 = max(4.0 * max(dot(surface.normal, surface.v), 0.0) * NdotL, 0.001);
-  let specular : vec3<f32> = numerator / vec3<f32>(denominator, denominator, denominator);
+  let numerator = NDF * G * F;
+  let denominator = max(4.0 * max(dot(surface.normal, surface.v), 0.0) * NdotL, 0.001);
+  let specular = numerator / vec3<f32>(denominator, denominator, denominator);
 
   // add to outgoing radiance Lo
-  let attenuation : f32 = rangeAttenuation(light.range, distance);
-  let radiance : vec3<f32> = light.color * light.intensity * attenuation;
+  let attenuation = rangeAttenuation(light.range, distance);
+  let radiance = light.color * light.intensity * attenuation;
   return (kD * surface.albedo / vec3<f32>(PI, PI, PI) + specular) * radiance * NdotL;
 }`;
 
@@ -245,17 +245,17 @@ export function PBRClusteredFragmentSource(defines) { return `
 
   [[stage(fragment)]]
   fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
-    let surface : SurfaceInfo = GetSurfaceInfo(input);
+    let surface = GetSurfaceInfo(input);
 
     // reflectance equation
-    var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+    var Lo = vec3<f32>(0.0, 0.0, 0.0);
 
-    let clusterIndex : u32 = getClusterIndex(input.position);
-    let lightOffset : u32 = clusterLights.lights[clusterIndex].offset;
-    let lightCount : u32 = clusterLights.lights[clusterIndex].count;
+    let clusterIndex = getClusterIndex(input.position);
+    let lightOffset  = clusterLights.lights[clusterIndex].offset;
+    let lightCount   = clusterLights.lights[clusterIndex].count;
 
-    for (var lightIndex : u32 = 0u; lightIndex < lightCount; lightIndex = lightIndex + 1u) {
-      let i : u32 = clusterLights.indices[lightOffset + lightIndex];
+    for (var lightIndex = 0u; lightIndex < lightCount; lightIndex = lightIndex + 1u) {
+      let i = clusterLights.indices[lightOffset + lightIndex];
 
       var light : PuctualLight;
       light.lightType = LightType_Point;
@@ -268,8 +268,8 @@ export function PBRClusteredFragmentSource(defines) { return `
       Lo = Lo + lightRadiance(light, surface);
     }
 
-    let ambient : vec3<f32> = globalLights.ambient * surface.albedo * surface.ao;
-    let color : vec3<f32> = linearTosRGB(Lo + ambient + surface.emissive);
+    let ambient = globalLights.ambient * surface.albedo * surface.ao;
+    let color = linearTosRGB(Lo + ambient + surface.emissive);
     return vec4<f32>(color, surface.baseColor.a);
   }`;
 };
@@ -284,12 +284,12 @@ export function PBRFragmentSource(defines) { return `
 
   [[stage(fragment)]]
   fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
-    let surface : SurfaceInfo = GetSurfaceInfo(input);
+    let surface = GetSurfaceInfo(input);
 
     // reflectance equation
-    var Lo : vec3<f32> = vec3<f32>(0.0, 0.0, 0.0);
+    var Lo = vec3<f32>(0.0, 0.0, 0.0);
 
-    for (var i : u32 = 0u; i < globalLights.lightCount; i = i + 1u) {
+    for (var i = 0u; i < globalLights.lightCount; i = i + 1u) {
       var light : PuctualLight;
       light.lightType = LightType_Point;
       light.pointToLight = globalLights.lights[i].position.xyz - input.worldPos;
@@ -301,8 +301,8 @@ export function PBRFragmentSource(defines) { return `
       Lo = Lo + lightRadiance(light, surface);
     }
 
-    let ambient : vec3<f32> = globalLights.ambient * surface.albedo * surface.ao;
-    let color : vec3<f32> = linearTosRGB(Lo + ambient + surface.emissive);
+    let ambient = globalLights.ambient * surface.albedo * surface.ao;
+    let color = linearTosRGB(Lo + ambient + surface.emissive);
     return vec4<f32>(color, surface.baseColor.a);
   }`;
 }

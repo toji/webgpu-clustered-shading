@@ -30,8 +30,8 @@ export const LightSpriteVertexSource = `
   ${LightUniforms}
 
   struct VertexInput {
-    [[builtin(vertex_index)]] vertexIndex : i32;
-    [[builtin(instance_index)]] instanceIndex : i32;
+    [[builtin(vertex_index)]] vertexIndex : u32;
+    [[builtin(instance_index)]] instanceIndex : u32;
   };
 
   struct VertexOutput {
@@ -46,7 +46,7 @@ export const LightSpriteVertexSource = `
 
     output.localPos = pos[input.vertexIndex];
     output.color = globalLights.lights[input.instanceIndex].color;
-    let worldPos : vec3<f32> = vec3<f32>(output.localPos, 0.0) * globalLights.lights[input.instanceIndex].range * 0.025;
+    let worldPos = vec3<f32>(output.localPos, 0.0) * globalLights.lights[input.instanceIndex].range * 0.025;
 
     // Generate a billboarded model view matrix
     var bbModelViewMatrix : mat4x4<f32>;
@@ -79,8 +79,8 @@ export const LightSpriteFragmentSource = `
 
   [[stage(fragment)]]
   fn fragmentMain(input : FragmentInput) -> [[location(0)]] vec4<f32> {
-    let distToCenter : f32 = length(input.localPos);
-    let fade : f32 = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
+    let distToCenter = length(input.localPos);
+    let fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
     return vec4<f32>(linearTosRGB(input.color * fade), fade);
   }
 `;

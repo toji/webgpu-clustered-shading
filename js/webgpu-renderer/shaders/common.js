@@ -102,9 +102,9 @@ export const ColorConversions = wgsl`
 #if ${APPROXIMATE_SRGB}
   // linear <-> sRGB approximations
   // see http://chilliant.blogspot.com/2012/08/srgb-approximations-for-hlsl.html
-  let GAMMA : f32 = 2.2;
+  let GAMMA = 2.2;
   fn linearTosRGB(linear : vec3<f32>) -> vec3<f32> {
-    let INV_GAMMA : f32 = 1.0 / GAMMA;
+    let INV_GAMMA = 1.0 / GAMMA;
     return pow(linear, vec3<f32>(INV_GAMMA, INV_GAMMA, INV_GAMMA));
   }
 
