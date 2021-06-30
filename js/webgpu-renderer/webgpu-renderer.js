@@ -29,7 +29,7 @@ import { LightSpriteVertexSource, LightSpriteFragmentSource } from './shaders/li
 import { vec2, vec3, vec4 } from '../third-party/gl-matrix/dist/esm/index.js';
 import { WebGPUTextureLoader } from '../third-party/web-texture-tool/build/webgpu-texture-loader.js';
 
-import { ClusterBoundsSource, ClusterLightsSource, TILE_COUNT, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';
+import { ClusterBoundsSource, ClusterLightsSource, DISPATCH_SIZE, TOTAL_TILES, CLUSTER_LIGHTS_SIZE } from './shaders/clustered-compute.js';
 
 const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
@@ -563,7 +563,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(this.clusterPipeline);
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
-    passEncoder.dispatch(...TILE_COUNT);
+    passEncoder.dispatch(...DISPATCH_SIZE);
     passEncoder.endPass();
     this.device.queue.submit([commandEncoder.finish()]);
   }
@@ -596,7 +596,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(this.clusterLightsPipeline);
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.bindGroups.cluster);
-    passEncoder.dispatch(...TILE_COUNT);
+    passEncoder.dispatch(...DISPATCH_SIZE);
     passEncoder.endPass();
   }
 

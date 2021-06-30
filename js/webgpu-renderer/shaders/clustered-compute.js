@@ -26,6 +26,12 @@ import { ProjectionUniforms, ViewUniforms, LightUniforms, BIND_GROUP } from './c
 export const TILE_COUNT = [32, 18, 48];
 export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 
+const WORKGROUP_SIZE = [4, 2, 4];
+export const DISPATCH_SIZE = [
+  TILE_COUNT[0] / WORKGROUP_SIZE[0],
+  TILE_COUNT[1] / WORKGROUP_SIZE[1],
+  TILE_COUNT[2] / WORKGROUP_SIZE[2]]
+
 // Each cluster tracks up to MAX_LIGHTS_PER_CLUSTER light indices (ints) and one light count.
 // This limitation should be able to go away when we have atomic methods in WGSL.
 export const MAX_LIGHTS_PER_CLUSTER = 100;
@@ -107,7 +113,7 @@ export const ClusterBoundsSource = `
   let tileCount = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
   let eyePos = vec3<f32>(0.0, 0.0, 0.0);
 
-  [[stage(compute)]]
+  [[stage(compute), workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})]]
   fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +
@@ -165,13 +171,12 @@ export const ClusterLightsSource = `
     return sqDist;
   }
 
-  [[stage(compute)]]
+  [[stage(compute), workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})]]
   fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +
                     global_id.z * tileCount.x * tileCount.y;
 
-    // TODO: Look into improving threading using local invocation groups?
     var clusterLightCount = 0u;
     var cluserLightIndices : array<u32, ${MAX_LIGHTS_PER_CLUSTER}>;
     for (var i = 0u; i < globalLights.lightCount; i = i + 1u) {
