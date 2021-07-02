@@ -28,9 +28,9 @@ export const TOTAL_TILES = TILE_COUNT[0] * TILE_COUNT[1] * TILE_COUNT[2];
 
 const WORKGROUP_SIZE = [4, 2, 4];
 export const DISPATCH_SIZE = [
-  TILE_COUNT[0] / WORKGROUP_SIZE[0],
-  TILE_COUNT[1] / WORKGROUP_SIZE[1],
-  TILE_COUNT[2] / WORKGROUP_SIZE[2]]
+  Math.ceil(TILE_COUNT[0] / WORKGROUP_SIZE[0]),
+  Math.ceil(TILE_COUNT[1] / WORKGROUP_SIZE[1]),
+  Math.ceil(TILE_COUNT[2] / WORKGROUP_SIZE[2])]
 
 // Each cluster tracks up to MAX_LIGHTS_PER_CLUSTER light indices (ints) and one light count.
 // This limitation should be able to go away when we have atomic methods in WGSL.
