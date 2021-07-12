@@ -35,10 +35,11 @@ const SAMPLE_COUNT = 4;
 const DEPTH_FORMAT = "depth24plus";
 
 // Can reuse these for every PBR material
-const materialUniforms = new Float32Array(4 + 4 + 4);
+const materialUniforms = new Float32Array(4 + 4 + 4 + 1);
 const baseColorFactor = new Float32Array(materialUniforms.buffer, 0, 4);
 const metallicRoughnessFactor = new Float32Array(materialUniforms.buffer, 4 * 4, 2);
 const emissiveFactor = new Float32Array(materialUniforms.buffer, 8 * 4, 3);
+const occlusionStrength = new Float32Array(materialUniforms.buffer, 12 * 4, 1)
 
 const emptyArray = new Uint32Array(1);
 
@@ -421,6 +422,7 @@ export class WebGPURenderer extends Renderer {
     vec4.copy(baseColorFactor, material.baseColorFactor);
     vec2.copy(metallicRoughnessFactor, material.metallicRoughnessFactor);
     vec3.copy(emissiveFactor, material.emissiveFactor);
+    occlusionStrength[0] = material.occlusionStrength;
 
     const materialBuffer = this.device.createBuffer({
       size: materialUniforms.byteLength,
