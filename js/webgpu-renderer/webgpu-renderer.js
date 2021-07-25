@@ -46,7 +46,7 @@ export class WebGPURenderer extends Renderer {
   constructor() {
     super();
 
-    this.context = this.canvas.getContext('gpupresent');
+    this.context = this.canvas.getContext('webgpu');
 
     this.outputHelpers = {
       'naive-forward': PBRRenderBundleHelper,
