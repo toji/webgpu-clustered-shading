@@ -41,8 +41,7 @@ export const TileFunctions = `
 let tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
 
 fn linearDepth(depthSample : f32) -> f32 {
-  let depthRange = 2.0 * depthSample - 1.0;
-  return 2.0 * projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthRange * (projection.zFar - projection.zNear));
+  return projection.zNear * projection.zFar / (projection.zFar + projection.zNear - depthSample * (projection.zFar - projection.zNear));
 }
 
 fn getTile(fragCoord : vec4<f32>) -> vec3<u32> {
@@ -122,8 +121,8 @@ export const ClusterBoundsSource = `
     let tileSize = vec2<f32>(projection.outputSize.x / f32(tileCount.x),
                              projection.outputSize.y / f32(tileCount.y));
 
-    let maxPoint_sS = vec4<f32>(vec2<f32>(f32(global_id.x+1u), f32(global_id.y+1u)) * tileSize, -1.0, 1.0);
-    let minPoint_sS = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, -1.0, 1.0);
+    let maxPoint_sS = vec4<f32>(vec2<f32>(f32(global_id.x+1u), f32(global_id.y+1u)) * tileSize, 0.0, 1.0);
+    let minPoint_sS = vec4<f32>(vec2<f32>(f32(global_id.x), f32(global_id.y)) * tileSize, 0.0, 1.0);
 
     let maxPoint_vS = screen2View(maxPoint_sS).xyz;
     let minPoint_vS = screen2View(minPoint_sS).xyz;
