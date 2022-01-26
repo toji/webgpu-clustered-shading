@@ -27,8 +27,8 @@ import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLU
  */
 export class DepthVisualization extends RenderBundleHelper {
   getFragmentSource(defines) { return `
-    [[stage(fragment)]]
-    fn main([[builtin(position)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32> {
+    @stage(fragment)
+    fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32> {
       return vec4<f32>(fragCoord.zzz, 1.0);
     }
   `; }
@@ -54,8 +54,8 @@ export class DepthSliceVisualization extends RenderBundleHelper {
       vec3<f32>(1.0, 0.0, 0.5)
     );
 
-    [[stage(fragment)]]
-    fn main([[builtin(position)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32> {
+    @stage(fragment)
+    fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32> {
       var tile : vec3<u32> = getTile(fragCoord);
       return vec4<f32>(colorSet[tile.z % 9u], 1.0);
     }
@@ -83,12 +83,12 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${ModelUniforms}
 
     struct VertexOutput {
-      [[builtin(position)]] position : vec4<f32>;
-      [[location(0)]] viewPosition : vec4<f32>;
+      @builtin(position) position : vec4<f32>;
+      @location(0) viewPosition : vec4<f32>;
     };
 
-    [[stage(vertex)]]
-    fn main([[location(${ATTRIB_MAP.POSITION})]] inPosition : vec3<f32>) -> VertexOutput {
+    @stage(vertex)
+    fn main(@location(${ATTRIB_MAP.POSITION}) inPosition : vec3<f32>) -> VertexOutput {
       var output : VertexOutput;
       output.viewPosition = view.matrix * model.matrix * vec4<f32>(inPosition, 1.0);
       output.position = projection.matrix * output.viewPosition;
@@ -101,15 +101,15 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${TileFunctions}
 
     ${ClusterStructs}
-    [[group(3), binding(0)]] var<storage_buffer, read> clusters : Clusters;
+    @group(3) @binding(0) var<storage_buffer, read> clusters : Clusters;
 
     struct FragmentInput {
-      [[builtin(position)]] fragCoord : vec4<f32>;
-      [[location(0)]] viewPosition : vec4<f32>;
+      @builtin(position) fragCoord : vec4<f32>;
+      @location(0) viewPosition : vec4<f32>;
     };
 
-    [[stage(fragment)]]
-    fn main(input : FragmentInput) -> [[location(0)]] vec4<f32> {
+    @stage(fragment)
+    fn main(input : FragmentInput) -> @location(0) vec4<f32> {
       let clusterIndex : u32 = getClusterIndex(input.fragCoord);
 
       let midPoint : vec3<f32> = (clusters.bounds[clusterIndex].maxAABB - clusters.bounds[clusterIndex].minAABB) / vec3<f32>(2.0, 2.0, 2.0);
@@ -143,8 +143,8 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
     ${TileFunctions}
     ${ClusterLightsStructs}
 
-    [[stage(fragment)]]
-    fn main([[builtin(position)]] fragCoord : vec4<f32>) -> [[location(0)]] vec4<f32>{
+    @stage(fragment)
+    fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32>{
       let clusterIndex : u32 = getClusterIndex(fragCoord);
       let lightCount : u32 = clusterLights.lights[clusterIndex].count;
       let lightFactor : f32 = f32(lightCount) / f32(${MAX_LIGHTS_PER_CLUSTER});

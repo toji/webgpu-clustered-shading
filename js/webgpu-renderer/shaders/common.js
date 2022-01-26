@@ -36,23 +36,23 @@ export const BIND_GROUP = {
 
 export const ProjectionUniformsSize = 144;
 export const ProjectionUniforms = `
-  [[block]] struct ProjectionUniforms {
+  struct ProjectionUniforms {
     matrix : mat4x4<f32>;
     inverseMatrix : mat4x4<f32>;
     outputSize : vec2<f32>;
     zNear : f32;
     zFar : f32;
   };
-  [[group(${BIND_GROUP.Frame}), binding(0)]] var<uniform> projection : ProjectionUniforms;
+  @group(${BIND_GROUP.Frame}) @binding(0) var<uniform> projection : ProjectionUniforms;
 `;
 
 export const ViewUniformsSize = 80;
 export const ViewUniforms = `
-  [[block]] struct ViewUniforms {
+  struct ViewUniforms {
     matrix : mat4x4<f32>;
     position : vec3<f32>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(1)]] var<uniform> view : ViewUniforms;
+  @group(${BIND_GROUP.Frame}) @binding(1) var<uniform> view : ViewUniforms;
 `;
 
 export const LightUniforms = `
@@ -63,38 +63,38 @@ export const LightUniforms = `
     intensity : f32;
   };
 
-  [[block]] struct GlobalLightUniforms {
+  struct GlobalLightUniforms {
     ambient : vec3<f32>;
     lightCount : u32;
-    lights : [[stride(32)]] array<Light>;
+    lights : array<Light>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(2)]] var<storage> globalLights : GlobalLightUniforms;
+  @group(${BIND_GROUP.Frame}) @binding(2) var<storage> globalLights : GlobalLightUniforms;
 `;
 
 export const ModelUniformsSize = 64;
 export const ModelUniforms = `
-  [[block]] struct ModelUniforms {
+  struct ModelUniforms {
     matrix : mat4x4<f32>;
   };
-  [[group(${BIND_GROUP.Model}), binding(0)]] var<uniform> model : ModelUniforms;
+  @group(${BIND_GROUP.Model}) @binding(0) var<uniform> model : ModelUniforms;
 `;
 
 export const MaterialUniformsSize = 48;
 export const MaterialUniforms = `
-  [[block]] struct MaterialUniforms {
+  struct MaterialUniforms {
     baseColorFactor : vec4<f32>;
     metallicRoughnessFactor : vec2<f32>;
     emissiveFactor : vec3<f32>;
     occlusionStrength : f32;
   };
-  [[group(${BIND_GROUP.Material}), binding(0)]] var<uniform> material : MaterialUniforms;
+  @group(${BIND_GROUP.Material}) @binding(0) var<uniform> material : MaterialUniforms;
 
-  [[group(${BIND_GROUP.Material}), binding(1)]] var defaultSampler : sampler;
-  [[group(${BIND_GROUP.Material}), binding(2)]] var baseColorTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(3)]] var normalTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(4)]] var metallicRoughnessTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(5)]] var occlusionTexture : texture_2d<f32>;
-  [[group(${BIND_GROUP.Material}), binding(6)]] var emissiveTexture : texture_2d<f32>;
+  @group(${BIND_GROUP.Material}) @binding(1) var defaultSampler : sampler;
+  @group(${BIND_GROUP.Material}) @binding(2) var baseColorTexture : texture_2d<f32>;
+  @group(${BIND_GROUP.Material}) @binding(3) var normalTexture : texture_2d<f32>;
+  @group(${BIND_GROUP.Material}) @binding(4) var metallicRoughnessTexture : texture_2d<f32>;
+  @group(${BIND_GROUP.Material}) @binding(5) var occlusionTexture : texture_2d<f32>;
+  @group(${BIND_GROUP.Material}) @binding(6) var emissiveTexture : texture_2d<f32>;
 `;
 
 const APPROXIMATE_SRGB = false;
@@ -134,8 +134,8 @@ export const SimpleVertexSource = `
   ${ViewUniforms}
   ${ModelUniforms}
 
-  [[stage(vertex)]]
-  fn main([[location(${ATTRIB_MAP.POSITION})]] POSITION : vec3<f32>) -> [[builtin(position)]] vec4<f32> {
+  @stage(vertex)
+  fn main(@location(${ATTRIB_MAP.POSITION}) POSITION : vec3<f32>) -> @builtin(position) vec4<f32> {
     return projection.matrix * view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
   }
 `;

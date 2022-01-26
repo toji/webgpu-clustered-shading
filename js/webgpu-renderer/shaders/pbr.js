@@ -24,16 +24,16 @@ import { ClusterLightsStructs, TileFunctions } from '../shaders/clustered-comput
 
 function PBR_VARYINGS(defines) { return wgsl`
 struct VertexOutput {
-  [[builtin(position)]] position : vec4<f32>;
-  [[location(0)]] worldPos : vec3<f32>;
-  [[location(1)]] view : vec3<f32>; // Vector from vertex to camera.
-  [[location(2)]] texCoord : vec2<f32>;
-  [[location(3)]] color : vec4<f32>;
-  [[location(4)]] normal : vec3<f32>;
+  @builtin(position) position : vec4<f32>;
+  @location(0) worldPos : vec3<f32>;
+  @location(1) view : vec3<f32>; // Vector from vertex to camera.
+  @location(2) texCoord : vec2<f32>;
+  @location(3) color : vec4<f32>;
+  @location(4) normal : vec3<f32>;
 
 #if ${defines.USE_NORMAL_MAP}
-  [[location(5)]] tangent : vec3<f32>;
-  [[location(6)]] bitangent : vec3<f32>;
+  @location(5) tangent : vec3<f32>;
+  @location(6) bitangent : vec3<f32>;
 #endif
 };
 `;
@@ -45,20 +45,20 @@ export function PBRVertexSource(defines) { return wgsl`
   ${ModelUniforms}
 
   struct VertexInputs {
-    [[location(${ATTRIB_MAP.POSITION})]] position : vec3<f32>;
-    [[location(${ATTRIB_MAP.NORMAL})]] normal : vec3<f32>;
-    [[location(${ATTRIB_MAP.TEXCOORD_0})]] texCoord : vec2<f32>;
+    @location(${ATTRIB_MAP.POSITION}) position : vec3<f32>;
+    @location(${ATTRIB_MAP.NORMAL}) normal : vec3<f32>;
+    @location(${ATTRIB_MAP.TEXCOORD_0}) texCoord : vec2<f32>;
 #if ${defines.USE_NORMAL_MAP}
-    [[location(${ATTRIB_MAP.TANGENT})]] tangent : vec4<f32>;
+    @location(${ATTRIB_MAP.TANGENT}) tangent : vec4<f32>;
 #endif
 #if ${defines.USE_VERTEX_COLOR}
-    [[location(${ATTRIB_MAP.COLOR_0})]] color : vec4<f32>;
+    @location(${ATTRIB_MAP.COLOR_0}) color : vec4<f32>;
 #endif
   };
 
   ${PBR_VARYINGS(defines)}
 
-  [[stage(vertex)]]
+  @stage(vertex)
   fn main(input : VertexInputs) -> VertexOutput {
     var output : VertexOutput;
     output.normal = normalize((model.matrix * vec4<f32>(input.normal, 0.0)).xyz);
@@ -243,8 +243,8 @@ export function PBRClusteredFragmentSource(defines) { return `
   ${PBRSurfaceInfo(defines)}
   ${PBRFunctions}
 
-  [[stage(fragment)]]
-  fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
+  @stage(fragment)
+  fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let surface = GetSurfaceInfo(input);
 
     // reflectance equation
@@ -282,8 +282,8 @@ export function PBRFragmentSource(defines) { return `
   ${PBRSurfaceInfo(defines)}
   ${PBRFunctions}
 
-  [[stage(fragment)]]
-  fn main(input : VertexOutput) -> [[location(0)]] vec4<f32> {
+  @stage(fragment)
+  fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let surface = GetSurfaceInfo(input);
 
     // reflectance equation

@@ -68,8 +68,8 @@ export const ClusterStructs = `
     minAABB : vec3<f32>;
     maxAABB : vec3<f32>;
   };
-  [[block]] struct Clusters {
-    bounds : [[stride(32)]] array<ClusterBounds, ${TOTAL_TILES}>;
+  struct Clusters {
+    bounds : array<ClusterBounds, ${TOTAL_TILES}>;
   };
 `;
 
@@ -78,18 +78,18 @@ export const ClusterLightsStructs = `
     offset : u32;
     count : u32;
   };
-  [[block]] struct ClusterLightGroup {
+  struct ClusterLightGroup {
     offset : atomic<u32>;
-    lights : [[stride(8)]] array<ClusterLights, ${TOTAL_TILES}>;
-    indices : [[stride(4)]] array<u32, ${MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES}>;
+    lights : array<ClusterLights, ${TOTAL_TILES}>;
+    indices : array<u32, ${MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES}>;
   };
-  [[group(${BIND_GROUP.Frame}), binding(3)]] var<storage, read_write> clusterLights : ClusterLightGroup;
+  @group(${BIND_GROUP.Frame}) @binding(3) var<storage, read_write> clusterLights : ClusterLightGroup;
 `;
 
 export const ClusterBoundsSource = `
   ${ProjectionUniforms}
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage, write> clusters : Clusters;
+  @group(1) @binding(0) var<storage, write> clusters : Clusters;
 
   fn lineIntersectionToZPlane(a : vec3<f32>, b : vec3<f32>, zDistance : f32) -> vec3<f32> {
     let normal = vec3<f32>(0.0, 0.0, 1.0);
@@ -112,8 +112,8 @@ export const ClusterBoundsSource = `
   let tileCount = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
   let eyePos = vec3<f32>(0.0, 0.0, 0.0);
 
-  [[stage(compute), workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})]]
-  fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
+  @stage(compute) @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +
                     global_id.z * tileCount.x * tileCount.y;
@@ -147,7 +147,7 @@ export const ClusterLightsSource = `
   ${ClusterLightsStructs}
 
   ${ClusterStructs}
-  [[group(1), binding(0)]] var<storage> clusters : Clusters;
+  @group(1) @binding(0) var<storage> clusters : Clusters;
 
   ${TileFunctions}
 
@@ -170,8 +170,8 @@ export const ClusterLightsSource = `
     return sqDist;
   }
 
-  [[stage(compute), workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})]]
-  fn main([[builtin(global_invocation_id)]] global_id : vec3<u32>) {
+  @stage(compute) @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
+  fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +
                     global_id.z * tileCount.x * tileCount.y;

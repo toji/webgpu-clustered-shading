@@ -30,17 +30,17 @@ export const LightSpriteVertexSource = `
   ${LightUniforms}
 
   struct VertexInput {
-    [[builtin(vertex_index)]] vertexIndex : u32;
-    [[builtin(instance_index)]] instanceIndex : u32;
+    @builtin(vertex_index) vertexIndex : u32;
+    @builtin(instance_index) instanceIndex : u32;
   };
 
   struct VertexOutput {
-    [[builtin(position)]] position : vec4<f32>;
-    [[location(0)]] localPos : vec2<f32>;
-    [[location(1)]] color: vec3<f32>;
+    @builtin(position) position : vec4<f32>;
+    @location(0) localPos : vec2<f32>;
+    @location(1) color: vec3<f32>;
   };
 
-  [[stage(vertex)]]
+  @stage(vertex)
   fn vertexMain(input : VertexInput) -> VertexOutput {
     var output : VertexOutput;
 
@@ -73,12 +73,12 @@ export const LightSpriteFragmentSource = `
   ${ColorConversions}
 
   struct FragmentInput {
-    [[location(0)]] localPos : vec2<f32>;
-    [[location(1)]] color: vec3<f32>;
+    @location(0) localPos : vec2<f32>;
+    @location(1) color: vec3<f32>;
   };
 
-  [[stage(fragment)]]
-  fn fragmentMain(input : FragmentInput) -> [[location(0)]] vec4<f32> {
+  @stage(fragment)
+  fn fragmentMain(input : FragmentInput) -> @location(0) vec4<f32> {
     let distToCenter = length(input.localPos);
     let fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));
     return vec4<f32>(linearTosRGB(input.color * fade), fade);

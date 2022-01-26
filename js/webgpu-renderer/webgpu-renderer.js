@@ -86,8 +86,8 @@ export class WebGPURenderer extends Renderer {
       label: 'Test Shader',
       code: `
         // 頂点シェーダー
-        [[stage(vertex)]]
-        fn main([[location(0)]] inPosition : vec3) -> [[builtin(position)]] vec4<f32> {
+        @stage(vertex)
+        fn main(@location(0) inPosition : vec3) -> @builtin(position) vec4<f32> {
           return vec3<f32>(inPosition, 1.0);
         }
       `
