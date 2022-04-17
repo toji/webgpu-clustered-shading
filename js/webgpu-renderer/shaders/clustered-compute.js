@@ -65,23 +65,23 @@ fn getClusterIndex(fragCoord : vec4<f32>) -> u32 {
 
 export const ClusterStructs = `
   struct ClusterBounds {
-    minAABB : vec3<f32>;
-    maxAABB : vec3<f32>;
+    minAABB : vec3<f32>,
+    maxAABB : vec3<f32>
   };
   struct Clusters {
-    bounds : array<ClusterBounds, ${TOTAL_TILES}>;
+    bounds : array<ClusterBounds, ${TOTAL_TILES}>
   };
 `;
 
 export const ClusterLightsStructs = `
   struct ClusterLights {
-    offset : u32;
-    count : u32;
+    offset : u32,
+    count : u32
   };
   struct ClusterLightGroup {
-    offset : atomic<u32>;
-    lights : array<ClusterLights, ${TOTAL_TILES}>;
-    indices : array<u32, ${MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES}>;
+    offset : atomic<u32>,
+    lights : array<ClusterLights, ${TOTAL_TILES}>,
+    indices : array<u32, ${MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES}>
   };
   @group(${BIND_GROUP.Frame}) @binding(3) var<storage, read_write> clusterLights : ClusterLightGroup;
 `;

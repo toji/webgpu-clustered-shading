@@ -100,17 +100,17 @@ export class WebGPURenderer extends Renderer {
       view: undefined,
       // renderTarget is acquired and set in onFrame.
       resolveTarget: undefined,
-      loadValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
+      loadOp: 'clear',
+      clearValue: { r: 0.0, g: 0.0, b: 0.5, a: 1.0 },
       storeOp: 'discard',
     };
 
     this.depthAttachment = {
       // view is acquired and set in onResize.
       view: undefined,
-      depthLoadValue: 1.0,
+      depthLoadOp: 'clear',
+      depthClearValue: 1.0,
       depthStoreOp: 'discard',
-      stencilLoadValue: 0,
-      stencilStoreOp: 'discard',
     };
 
     this.renderPassDescriptor = {
@@ -313,7 +313,8 @@ export class WebGPURenderer extends Renderer {
     this.context.configure({
       device: this.device,
       format: this.contextFormat,
-      size: {width, height}
+      size: {width, height},
+      compositingAlphaMode: "opaque",
     });
 
     const msaaColorTexture = this.device.createTexture({
@@ -564,7 +565,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
     passEncoder.dispatch(...DISPATCH_SIZE);
-    passEncoder.endPass();
+    passEncoder.end();
     this.device.queue.submit([commandEncoder.finish()]);
   }
 
@@ -597,7 +598,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.bindGroups.cluster);
     passEncoder.dispatch(...DISPATCH_SIZE);
-    passEncoder.endPass();
+    passEncoder.end();
   }
 
   onFrame(timestamp) {
@@ -643,7 +644,7 @@ export class WebGPURenderer extends Renderer {
       passEncoder.draw(4, this.lightManager.lightCount, 0, 0);
     }
 
-    passEncoder.endPass();
+    passEncoder.end();
     this.device.queue.submit([commandEncoder.finish()]);
   }
 }
