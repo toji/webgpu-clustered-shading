@@ -37,11 +37,11 @@ export const BIND_GROUP = {
 export const ProjectionUniformsSize = 144;
 export const ProjectionUniforms = `
   struct ProjectionUniforms {
-    matrix : mat4x4<f32>;
-    inverseMatrix : mat4x4<f32>;
-    outputSize : vec2<f32>;
-    zNear : f32;
-    zFar : f32;
+    matrix : mat4x4<f32>,
+    inverseMatrix : mat4x4<f32>,
+    outputSize : vec2<f32>,
+    zNear : f32,
+    zFar : f32
   };
   @group(${BIND_GROUP.Frame}) @binding(0) var<uniform> projection : ProjectionUniforms;
 `;
@@ -49,24 +49,24 @@ export const ProjectionUniforms = `
 export const ViewUniformsSize = 80;
 export const ViewUniforms = `
   struct ViewUniforms {
-    matrix : mat4x4<f32>;
-    position : vec3<f32>;
+    matrix : mat4x4<f32>,
+    position : vec3<f32>
   };
   @group(${BIND_GROUP.Frame}) @binding(1) var<uniform> view : ViewUniforms;
 `;
 
 export const LightUniforms = `
   struct Light {
-    position : vec3<f32>;
-    range : f32;
-    color : vec3<f32>;
-    intensity : f32;
+    position : vec3<f32>,
+    range : f32,
+    color : vec3<f32>,
+    intensity : f32
   };
 
   struct GlobalLightUniforms {
-    ambient : vec3<f32>;
-    lightCount : u32;
-    lights : array<Light>;
+    ambient : vec3<f32>,
+    lightCount : u32,
+    lights : array<Light>
   };
   @group(${BIND_GROUP.Frame}) @binding(2) var<storage> globalLights : GlobalLightUniforms;
 `;
@@ -74,7 +74,7 @@ export const LightUniforms = `
 export const ModelUniformsSize = 64;
 export const ModelUniforms = `
   struct ModelUniforms {
-    matrix : mat4x4<f32>;
+    matrix : mat4x4<f32>
   };
   @group(${BIND_GROUP.Model}) @binding(0) var<uniform> model : ModelUniforms;
 `;
@@ -82,10 +82,10 @@ export const ModelUniforms = `
 export const MaterialUniformsSize = 48;
 export const MaterialUniforms = `
   struct MaterialUniforms {
-    baseColorFactor : vec4<f32>;
-    metallicRoughnessFactor : vec2<f32>;
-    emissiveFactor : vec3<f32>;
-    occlusionStrength : f32;
+    baseColorFactor : vec4<f32>,
+    metallicRoughnessFactor : vec2<f32>,
+    emissiveFactor : vec3<f32>,
+    occlusionStrength : f32
   };
   @group(${BIND_GROUP.Material}) @binding(0) var<uniform> material : MaterialUniforms;
 

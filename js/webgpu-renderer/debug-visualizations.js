@@ -83,8 +83,8 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${ModelUniforms}
 
     struct VertexOutput {
-      @builtin(position) position : vec4<f32>;
-      @location(0) viewPosition : vec4<f32>;
+      @builtin(position) position : vec4<f32>,
+      @location(0) viewPosition : vec4<f32>
     };
 
     @stage(vertex)
@@ -104,8 +104,8 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     @group(3) @binding(0) var<storage_buffer, read> clusters : Clusters;
 
     struct FragmentInput {
-      @builtin(position) fragCoord : vec4<f32>;
-      @location(0) viewPosition : vec4<f32>;
+      @builtin(position) fragCoord : vec4<f32>,
+      @location(0) viewPosition : vec4<f32>
     };
 
     @stage(fragment)

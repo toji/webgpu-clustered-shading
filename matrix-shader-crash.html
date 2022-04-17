@@ -90,7 +90,7 @@
 
         passEncoder.setPipeline(pipeline);
         passEncoder.draw(4, 1, 0, 0);
-        passEncoder.endPass();
+        passEncoder.end();
 
         device.defaultQueue.submit([commandEncoder.finish()]);
       }
