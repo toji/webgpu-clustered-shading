@@ -73,7 +73,12 @@ export class WebGPURenderer extends Renderer {
 
     this.device = await this.adapter.requestDevice({requiredFeatures});
 
-    this.contextFormat = this.context.getPreferredFormat(this.adapter);
+    this.contextFormat = 'bgra8unorm';
+    if (navigator.gpu.getPreferredCanvasFormat) {
+      this.contextFormat = navigator.gpu.getPreferredCanvasFormat();
+    } else if (this.context.getPreferredFormat) {
+      this.contextFormat = this.context.getPreferredFormat(this.adapter);
+    }
 
     this.renderBundleDescriptor = {
       colorFormats: [ this.contextFormat ],
@@ -564,7 +569,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(this.clusterPipeline);
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.clusterStorageBindGroup);
-    passEncoder.dispatch(...DISPATCH_SIZE);
+    passEncoder.dispatchWorkgroups(...DISPATCH_SIZE);
     passEncoder.end();
     this.device.queue.submit([commandEncoder.finish()]);
   }
@@ -597,7 +602,7 @@ export class WebGPURenderer extends Renderer {
     passEncoder.setPipeline(this.clusterLightsPipeline);
     passEncoder.setBindGroup(BIND_GROUP.Frame, this.bindGroups.frame);
     passEncoder.setBindGroup(1, this.bindGroups.cluster);
-    passEncoder.dispatch(...DISPATCH_SIZE);
+    passEncoder.dispatchWorkgroups(...DISPATCH_SIZE);
     passEncoder.end();
   }
 

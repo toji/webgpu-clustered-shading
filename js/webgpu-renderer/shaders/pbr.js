@@ -105,9 +105,6 @@ function PBRSurfaceInfo(defines) { return wgsl`
     surface.baseColor = material.baseColorFactor * input.color;
 #if ${defines.USE_BASE_COLOR_MAP}
     let baseColorMap = textureSample(baseColorTexture, defaultSampler, input.texCoord);
-    if (baseColorMap.a < 0.05) {
-      discard;
-    }
     surface.baseColor = surface.baseColor * baseColorMap;
 #endif
 
@@ -246,6 +243,9 @@ export function PBRClusteredFragmentSource(defines) { return `
   @stage(fragment)
   fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let surface = GetSurfaceInfo(input);
+    if (surface.baseColor.a < 0.05) {
+      discard;
+    }
 
     // reflectance equation
     var Lo = vec3<f32>(0.0, 0.0, 0.0);
