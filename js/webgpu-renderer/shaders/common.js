@@ -134,7 +134,7 @@ export const SimpleVertexSource = `
   ${ViewUniforms}
   ${ModelUniforms}
 
-  @stage(vertex)
+  @vertex
   fn main(@location(${ATTRIB_MAP.POSITION}) POSITION : vec3<f32>) -> @builtin(position) vec4<f32> {
     return projection.matrix * view.matrix * model.matrix * vec4<f32>(POSITION, 1.0);
   }

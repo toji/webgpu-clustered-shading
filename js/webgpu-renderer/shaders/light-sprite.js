@@ -40,7 +40,7 @@ export const LightSpriteVertexSource = `
     @location(1) color: vec3<f32>
   };
 
-  @stage(vertex)
+  @vertex
   fn vertexMain(input : VertexInput) -> VertexOutput {
     var output : VertexOutput;
 
@@ -77,7 +77,7 @@ export const LightSpriteFragmentSource = `
     @location(1) color: vec3<f32>
   };
 
-  @stage(fragment)
+  @fragment
   fn fragmentMain(input : FragmentInput) -> @location(0) vec4<f32> {
     let distToCenter = length(input.localPos);
     let fade = (1.0 - distToCenter) * (1.0 / (distToCenter * distToCenter));

@@ -38,7 +38,7 @@ export const MAX_LIGHTS_PER_CLUSTER = 100;
 export const CLUSTER_LIGHTS_SIZE = (8 * TOTAL_TILES) + (4 * MAX_LIGHTS_PER_CLUSTER * TOTAL_TILES) + 4;
 
 export const TileFunctions = `
-let tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
+const tileCount : vec3<u32> = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
 
 fn linearDepth(depthSample : f32) -> f32 {
   return projection.zFar*projection.zNear / fma(depthSample, projection.zNear-projection.zFar, projection.zFar);
@@ -109,10 +109,10 @@ export const ClusterBoundsSource = `
     return clipToView(clip);
   }
 
-  let tileCount = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
-  let eyePos = vec3<f32>(0.0, 0.0, 0.0);
+  const tileCount = vec3<u32>(${TILE_COUNT[0]}u, ${TILE_COUNT[1]}u, ${TILE_COUNT[2]}u);
+  const eyePos = vec3<f32>(0.0);
 
-  @stage(compute) @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
+  @compute @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
   fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +
@@ -170,7 +170,7 @@ export const ClusterLightsSource = `
     return sqDist;
   }
 
-  @stage(compute) @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
+  @compute @workgroup_size(${WORKGROUP_SIZE[0]}, ${WORKGROUP_SIZE[1]}, ${WORKGROUP_SIZE[2]})
   fn main(@builtin(global_invocation_id) global_id : vec3<u32>) {
     let tileIndex = global_id.x +
                     global_id.y * tileCount.x +

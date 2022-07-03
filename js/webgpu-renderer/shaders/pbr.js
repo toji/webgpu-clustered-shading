@@ -58,7 +58,7 @@ export function PBRVertexSource(defines) { return wgsl`
 
   ${PBR_VARYINGS(defines)}
 
-  @stage(vertex)
+  @vertex
   fn main(input : VertexInputs) -> VertexOutput {
     var output : VertexOutput;
     output.normal = normalize((model.matrix * vec4<f32>(input.normal, 0.0)).xyz);
@@ -148,11 +148,11 @@ function PBRSurfaceInfo(defines) { return wgsl`
 // Much of the shader used here was pulled from https://learnopengl.com/PBR/Lighting
 // Thanks!
 const PBRFunctions = `
-let PI = 3.14159265359;
+const PI = ${Math.PI};
 
-let LightType_Point = 0u;
-let LightType_Spot = 1u;
-let LightType_Directional = 2u;
+const LightType_Point = 0u;
+const LightType_Spot = 1u;
+const LightType_Directional = 2u;
 
 struct PuctualLight {
   lightType : u32,
@@ -240,7 +240,7 @@ export function PBRClusteredFragmentSource(defines) { return `
   ${PBRSurfaceInfo(defines)}
   ${PBRFunctions}
 
-  @stage(fragment)
+  @fragment
   fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let surface = GetSurfaceInfo(input);
     if (surface.baseColor.a < 0.05) {
@@ -282,7 +282,7 @@ export function PBRFragmentSource(defines) { return `
   ${PBRSurfaceInfo(defines)}
   ${PBRFunctions}
 
-  @stage(fragment)
+  @fragment
   fn main(input : VertexOutput) -> @location(0) vec4<f32> {
     let surface = GetSurfaceInfo(input);
 

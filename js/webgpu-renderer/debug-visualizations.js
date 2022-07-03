@@ -27,7 +27,7 @@ import { TileFunctions, ClusterStructs, ClusterLightsStructs, MAX_LIGHTS_PER_CLU
  */
 export class DepthVisualization extends RenderBundleHelper {
   getFragmentSource(defines) { return `
-    @stage(fragment)
+    @fragment
     fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32> {
       return vec4<f32>(fragCoord.zzz, 1.0);
     }
@@ -54,7 +54,7 @@ export class DepthSliceVisualization extends RenderBundleHelper {
       vec3<f32>(1.0, 0.0, 0.5)
     );
 
-    @stage(fragment)
+    @fragment
     fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32> {
       var tile : vec3<u32> = getTile(fragCoord);
       return vec4<f32>(colorSet[tile.z % 9u], 1.0);
@@ -87,7 +87,7 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
       @location(0) viewPosition : vec4<f32>
     };
 
-    @stage(vertex)
+    @vertex
     fn main(@location(${ATTRIB_MAP.POSITION}) inPosition : vec3<f32>) -> VertexOutput {
       var output : VertexOutput;
       output.viewPosition = view.matrix * model.matrix * vec4<f32>(inPosition, 1.0);
@@ -108,7 +108,7 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
       @location(0) viewPosition : vec4<f32>
     };
 
-    @stage(fragment)
+    @fragment
     fn main(input : FragmentInput) -> @location(0) vec4<f32> {
       let clusterIndex : u32 = getClusterIndex(input.fragCoord);
 
@@ -143,7 +143,7 @@ export class LightsPerClusterVisualization extends RenderBundleHelper {
     ${TileFunctions}
     ${ClusterLightsStructs}
 
-    @stage(fragment)
+    @fragment
     fn main(@builtin(position) fragCoord : vec4<f32>) -> @location(0) vec4<f32>{
       let clusterIndex : u32 = getClusterIndex(fragCoord);
       let lightCount : u32 = clusterLights.lights[clusterIndex].count;

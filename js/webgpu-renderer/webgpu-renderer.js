@@ -80,6 +80,12 @@ export class WebGPURenderer extends Renderer {
       this.contextFormat = this.context.getPreferredFormat(this.adapter);
     }
 
+    this.context.configure({
+      device: this.device,
+      format: this.contextFormat,
+      alphaMode: "opaque",
+    });
+
     this.renderBundleDescriptor = {
       colorFormats: [ this.contextFormat ],
       depthStencilFormat: DEPTH_FORMAT,
@@ -91,7 +97,7 @@ export class WebGPURenderer extends Renderer {
       label: 'Test Shader',
       code: `
         // 頂点シェーダー
-        @stage(vertex)
+        @vertex
         fn main(@location(0) inPosition : vec3) -> @builtin(position) vec4<f32> {
           return vec3<f32>(inPosition, 1.0);
         }
@@ -314,13 +320,6 @@ export class WebGPURenderer extends Renderer {
 
   onResize(width, height) {
     if (!this.device) return;
-
-    this.context.configure({
-      device: this.device,
-      format: this.contextFormat,
-      size: {width, height},
-      compositingAlphaMode: "opaque",
-    });
 
     const msaaColorTexture = this.device.createTexture({
       size: { width, height },
