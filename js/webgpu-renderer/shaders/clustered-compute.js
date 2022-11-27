@@ -151,14 +151,14 @@ export const ClusterLightsSource = `
 
   ${TileFunctions}
 
-  fn sqDistPointAABB(point : vec3<f32>, minAABB : vec3<f32>, maxAABB : vec3<f32>) -> f32 {
+  fn sqDistPointAABB(_point : vec3<f32>, minAABB : vec3<f32>, maxAABB : vec3<f32>) -> f32 {
     var sqDist = 0.0;
     // const minAABB : vec3<f32> = clusters.bounds[tileIndex].minAABB;
     // const maxAABB : vec3<f32> = clusters.bounds[tileIndex].maxAABB;
 
     // Wait, does this actually work? Just porting code, but it seems suspect?
     for(var i = 0; i < 3; i = i + 1) {
-      let v = point[i];
+      let v = _point[i];
       if(v < minAABB[i]){
         sqDist = sqDist + (minAABB[i] - v) * (minAABB[i] - v);
       }
