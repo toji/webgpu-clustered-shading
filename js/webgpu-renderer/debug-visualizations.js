@@ -101,7 +101,7 @@ export class ClusterDistanceVisualization extends RenderBundleHelper {
     ${TileFunctions}
 
     ${ClusterStructs}
-    @group(3) @binding(0) var<storage_buffer, read> clusters : Clusters;
+    @group(3) @binding(0) var<storage, read> clusters : Clusters;
 
     struct FragmentInput {
       @builtin(position) fragCoord : vec4<f32>,
